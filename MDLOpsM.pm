@@ -546,7 +546,11 @@ sub readbinarymdl
 
                 foreach(0..($temp - 1))
                 {
-                    $model{'anims'}{$i}{'animevents'}{'ascii'}[$_] = $model{'anims'}{$i}{'animevents'}{'unpacked'}[$_ * 2] . " " . $model{'anims'}{$i}{'animevents'}{'unpacked'}[($_ * 2) + 1];
+                    $model{'anims'}{$i}{'animevents'}{'ascii'}[$_] = sprintf(
+                        '%.7f %s',
+                        $model{'anims'}{$i}{'animevents'}{'unpacked'}[$_ * 2],
+                        $model{'anims'}{$i}{'animevents'}{'unpacked'}[($_ * 2) + 1]
+                    );
                 }
                 print(" " . (tell(MODELMDL) - 1) . "\n") if $printall;
                 $model{'anims'}{$i}{'animevents'}{'end'} = tell(MODELMDL)-1;
@@ -842,12 +846,26 @@ my $dothis = 0;
             
     # loop through the data rows    
     for (my $j = 0; $j < $datarows; $j++) {
-      $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = $temp2->[$timestart + $j];
+      # add keyframe time value to ascii controllers,
+      if ($controllertype == 20 || $controllertype == 8) {
+        # do not set precision yet on controllers that will do further processing on ascii values
+        $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = $temp2->[$timestart + $j];
+      } else {
+        # this is a good time to set precision on controller values that don't do further processing
+        $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = sprintf('%.7f', $temp2->[$timestart + $j]);
+      }
       $ref->{$node}{'Bcontrollers'}{$controllertype}{'times'}[$j] = $temp2->[$timestart + $j];
       # loop through the datacolumns
       $ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[$j] = [];
       for (my $k = 0; $k < $datacolumns; $k ++) {
-        $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= " " . $temp2->[$datastart + $k + ($j * $datacolumns)];
+        # add controller data value to ascii controllers
+        if ($controllertype == 20 || $controllertype == 8) {
+          # further processing, don't set precision (leave in native format)
+          $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= ' ' . $temp2->[$datastart + $k + ($j * $datacolumns)];
+        } else {
+          # no further processing, set precision now
+          $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= sprintf(" %.7f", $temp2->[$datastart + $k + ($j * $datacolumns)]);
+        }
         #$ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[($j * $datacolumns) + $k] = $temp2->[$datastart + $k + ($j * $datacolumns)];
         push @{$ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[$j]}, $temp2->[$datastart + $k + ($j * $datacolumns)];
       }
@@ -912,7 +930,7 @@ my $dothis = 0;
         $quatVals[3] = 0;
         $quatVals[4] = 0;
       }
-    $_ = join(' ', @quatVals);
+      $_ = join(' ', map { sprintf('% .7f', $_) } @quatVals);
     } # foreach (@{$ref->{$node}{'Acontrollers'}{20}}) {
   } # if (defined($ref->{$node}{'Acontrollers'}{20})) {
 
@@ -924,7 +942,7 @@ my $dothis = 0;
       for ($temp = 1; $temp <= 3; $temp++) {
         $curPosVals[$temp] += $initialPosVals[$temp];
       }
-      $_ = join(' ', @curPosVals);
+      $_ = join(' ', map { sprintf('% .7f', $_) } @curPosVals);
     }
   }
 
@@ -1324,24 +1342,24 @@ sub writeasciimdl {
     # position
     (undef, $argh1, $argh2, $argh3) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{8}[0]);
     if ($argh1 ne "") {
-      print(MODELOUT "  position $argh1 $argh2 $argh3\n");
+      printf(MODELOUT "  position % .7f % .7f % .7f\n", $argh1, $argh2, $argh3);
     }
     # orientation
     (undef, $argh1, $argh2, $argh3, $argh4) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{20}[0]);
     if ($argh1 ne "") {
-      print(MODELOUT "  orientation $argh1 $argh2 $argh3 $argh4\n");
+      printf(MODELOUT "  orientation % .7f % .7f % .7f % .7f\n", $argh1, $argh2, $argh3, $argh4);
     }
     # scale
     (undef, $argh1) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{36}[0]);
     if ($argh1 ne "") {
-      print(MODELOUT "  scale $argh1\n");
+      printf(MODELOUT "  scale % .7f\n", $argh1);
     }
     
     # alpha i.e. "see through" - controller number overlaps with an emitter controller number.
     if (!($nodetype & NODE_HAS_EMITTER)) {
       (undef, $argh1) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{132}[0]);
       if ($argh1 ne "") {
-        print(MODELOUT "  alpha $argh1\n");
+        printf(MODELOUT "  alpha % .7f\n", $argh1);
       }
     }
     
@@ -1350,28 +1368,28 @@ sub writeasciimdl {
       # self illumination i.e. "glow"    
       (undef, $argh1, $argh2, $argh3) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{100}[0]);  
       if ($argh1 ne "" && $argh2 ne "") {
-        print(MODELOUT "  selfillumcolor $argh1 $argh2 $argh3\n");
+        printf(MODELOUT "  selfillumcolor %.7f %.7f %.7f\n", $argh1, $argh2, $argh3);
       }
     }
     
     # diffuse color    
     if ( defined($model->{'nodes'}{$i}{'diffuse'}[0]) ) {
-      print(MODELOUT "  diffuse @{$model->{'nodes'}{$i}{'diffuse'}}\n");
+      printf(MODELOUT "  diffuse %.7f %.7f %.7f\n", @{$model->{'nodes'}{$i}{'diffuse'}});
     }
     
     # not light node type
     if (!($nodetype & NODE_HAS_LIGHT)) {
       # ambient color    
       if ( defined($model->{'nodes'}{$i}{'ambient'}[0]) ) {
-        print(MODELOUT "  ambient @{$model->{'nodes'}{$i}{'ambient'}}\n");
+        printf(MODELOUT "  ambient %.7f %.7f %.7f\n", @{$model->{'nodes'}{$i}{'ambient'}});
       }
       # render flag    
       if ( defined($model->{'nodes'}{$i}{'render'}) ) {
-        print(MODELOUT "  render $model->{'nodes'}{$i}{'render'}\n");
+        printf(MODELOUT "  render %u\n", $model->{'nodes'}{$i}{'render'});
       }
       # shadow flag    
       if ( defined($model->{'nodes'}{$i}{'shadow'}) ) {
-        print(MODELOUT "  shadow $model->{'nodes'}{$i}{'shadow'}\n");
+        printf(MODELOUT "  shadow %u\n", $model->{'nodes'}{$i}{'shadow'});
       }
       print(MODELOUT "  specular 0.000000 0.000000 0.000000\n");
       print(MODELOUT "  shininess 0.000000\n");
@@ -1393,7 +1411,7 @@ sub writeasciimdl {
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_LIGHT}}) {
         (undef, @args) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
         if ($args[0] ne "") {
-          print(MODELOUT "  $controllername " . join(" ", @args) . "\n");
+          printf(MODELOUT "  %s %s\n", $controllername, join(" ", @args));
         }
       }
     }
@@ -1433,14 +1451,14 @@ sub writeasciimdl {
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
         (undef, @args) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
         if ($args[0] ne "") {
-          print(MODELOUT "  $controllername " . join(" ", @args) . "\n");
+          printf(MODELOUT "  %s %s\n", $controllername, join(" ", @args));
         }
       }
     }
     
     # mesh nodes
     if ( $nodetype == 33 || $nodetype == 97 || $nodetype == 289 || $nodetype == 545 || $nodetype == 2081) {
-      print(MODELOUT "  bitmap " . $model->{'nodes'}{$i}{'bitmap'} . "\n");
+      printf(MODELOUT "  bitmap %s\n", $model->{'nodes'}{$i}{'bitmap'});
       $bitmaps{ lc($model->{'nodes'}{$i}{'bitmap'}) } += 1;
       if ( $nodetype == 2081 ) {
         print(MODELOUT "  verts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
@@ -1448,12 +1466,12 @@ sub writeasciimdl {
           print (MODELOUT "    $_->[0] $_->[1] $_->[2]\n");
         }
       } else {
-        print(MODELOUT "  verts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
+        printf(MODELOUT "  verts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
-          print (MODELOUT "    $_->[0] $_->[1] $_->[2]\n");
+          printf(MODELOUT "    % .7f % .7f % .7f\n", @{$_});
         }
       }
-      print (MODELOUT "faces $model->{'nodes'}{$i}{'facesnum'}\n");
+      printf(MODELOUT "  faces %u\n", $model->{'nodes'}{$i}{'facesnum'});
       foreach ( @{$model->{'nodes'}{$i}{'Afaces'}} ) {
         print (MODELOUT "    $_\n");
       }
@@ -1464,60 +1482,59 @@ sub writeasciimdl {
             print (MODELOUT "    $_->[0] $_->[1] 0.0\n");
           }
         } else {
-          print (MODELOUT "  tverts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
+          printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
           foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
-            print (MODELOUT "    $_->[0] $_->[1] 0.0\n");
+            printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
           }
         }
       }
       if ($nodetype == 97 && $convertskin == 0) {
-        print (MODELOUT "  weights $model->{'nodes'}{$i}{'vertcoordnum'}\n");
+        printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'Abones'}} ) {
-          print (MODELOUT "    $_\n");
+          printf(MODELOUT "    %s\n", $_);
         }
       }
       if ($nodetype == 289) {
-        print (MODELOUT "  displacement $model->{'nodes'}{$i}{'displacement'}\n");
-        print (MODELOUT "  tightness $model->{'nodes'}{$i}{'tightness'}\n");
-        print (MODELOUT "  period $model->{'nodes'}{$i}{'period'}\n");
-        print (MODELOUT "  constraints $model->{'nodes'}{$i}{'vertcoordnum'}\n");
+        printf(MODELOUT "  displacement % .7f\n", $model->{'nodes'}{$i}{'displacement'});
+        printf(MODELOUT "  tightness % .7f\n", $model->{'nodes'}{$i}{'tightness'});
+        printf(MODELOUT "  period % .7f\n", $model->{'nodes'}{$i}{'period'});
+        printf(MODELOUT "  constraints %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'constraints'}} ) {
-          print (MODELOUT "    $_\n");
+          printf(MODELOUT "    % .7f\n", $_);
         }
       }
       if ($nodetype == 545) {
-        print (MODELOUT "  aabb ");
+        print (MODELOUT "  aabb\n");
         foreach ( @{$model->{'nodes'}{$i}{'aabbnodes'}} ) {
-          $argh1 = sprintf("%.5f %.5f %.5f %.5f %.5f %.5f %d", $_->[0], $_->[1], $_->[2], $_->[3], $_->[4], $_->[5], $_->[6]);
-          print (MODELOUT "        " . $argh1 . "\n");
+          printf(MODELOUT "      % .7f % .7f % .7f % .7f % .7f % .7f %d\n", @{$_}[0..6]);
         }
       }
     }
     print (MODELOUT "endnode\n");
   }
-  print(MODELOUT "endmodelgeom $model->{'partnames'}[0]\n");
+  printf(MODELOUT "endmodelgeom %s\n", $model->{'partnames'}[0]);
 
     
   # write out the animations if there are any and we are told to do so
   if ($model->{'numanims'} != 0 && $extractanims == 1) {
     # loop through the animations
     for (my $i = 0; $i < $model->{'numanims'}; $i++) {
-      print(MODELOUT "\nnewanim " . $model->{'anims'}{$i}{'name'} . " " . $model->{'partnames'}[0] . "\n");
-      print(MODELOUT "  length $model->{'anims'}{$i}{'length'}\n");
-      print(MODELOUT "  transtime $model->{'anims'}{$i}{'transtime'}\n");
-      print(MODELOUT "  animroot " .$model->{'anims'}{$i}{'animroot'} . "\n");
+      printf(MODELOUT "\nnewanim %s %s\n", $model->{'anims'}{$i}{'name'}, $model->{'partnames'}[0]);
+      printf(MODELOUT "  length %.7f\n", $model->{'anims'}{$i}{'length'});
+      printf(MODELOUT "  transtime %.7f\n", $model->{'anims'}{$i}{'transtime'});
+      printf(MODELOUT "  animroot %s\n", $model->{'anims'}{$i}{'animroot'});
       if ($model->{'anims'}{$i}{'eventsnum'} != 0) {
         print(MODELOUT "  eventlist\n");
         foreach ( @{$model->{'anims'}{$i}{'animevents'}{'ascii'}} ) {
-          print(MODELOUT "    " . $_ . "\n");
+          printf(MODELOUT "    %s\n", $_);
         }
         print(MODELOUT "  endlist\n");
       }
       # loop through this animations nodes
       foreach $node (sort {$a <=> $b} keys(%{$model->{'anims'}{$i}{'nodes'}}) ) {
         if ($node eq "truenodenum") {next;}
-        print(MODELOUT "node dummy $model->{'partnames'}[$node]\n");
-        print(MODELOUT "  parent $model->{'anims'}{$i}{'nodes'}{$node}{'parent'}\n");
+        print(MODELOUT "  node dummy $model->{'partnames'}[$node]\n");
+        print(MODELOUT "    parent $model->{'anims'}{$i}{'nodes'}{$node}{'parent'}\n");
 
         # loop though this animations controllers
         foreach $temp (keys %{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}} ) {
@@ -1525,28 +1542,28 @@ sub writeasciimdl {
             my $controllername = getcontrollername($model, $temp, $node);
             
             if ($controllername ne "") {
-                  print(MODELOUT "$controllername" . "key\n");
+              printf(MODELOUT "    %skey\n", $controllername);
             } else {
               if ($temp != 0) {
                 print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
               }
-              print(MODELOUT "controller" . $temp . "key\n");
+              printf(MODELOUT "    controller%ukey\n", $temp);
             }
             foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
-              print (MODELOUT "        $_\n");
+              printf(MODELOUT "      %s\n", $_);
             }
-            print(MODELOUT "endlist\n");
+            print(MODELOUT "    endlist\n");
           }
         } # foreach $temp
-        print(MODELOUT "endnode\n");
+        print(MODELOUT "  endnode\n");
       } # foreach $node
       
       $temp = $i;
-      print(MODELOUT "\ndoneanim $model->{'anims'}{$i}{'name'} $model->{'partnames'}[0]\n");
+      printf(MODELOUT "\ndoneanim %s %s\n", $model->{'anims'}{$i}{'name'}, $model->{'partnames'}[0]);
     } # for $i
   } # if to do animations
   
-  print(MODELOUT "\ndonemodel " . $model->{'partnames'}[0] . "\n");
+  printf(MODELOUT "\ndonemodel %s\n", $model->{'partnames'}[0]);
 
   close MODELOUT;
 }
