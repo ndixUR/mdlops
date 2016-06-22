@@ -1736,6 +1736,7 @@ sub readasciimdl {
   
   # read in the ascii mdl
   while (<$ASCIIMDL>) {
+    my $line = $_;
     if (/beginmodelgeom/i) { # look for the start of the model
       #print("begin model\n");
       $nodenum = 0;
@@ -1830,7 +1831,7 @@ sub readasciimdl {
     } elsif (/\s*radius\s+(\S*)/i && $innode && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
       $model{'radius'} = $1;
 
-    } elsif (readasciicontroller($_, $model{'nodes'}{$nodenum}{'nodetype'}, $innode, $isanimation, \%model, $nodenum, $animnum, $ASCIIMDL)) {
+    } elsif (readasciicontroller($line, $model{'nodes'}{$nodenum}{'nodetype'}, $innode, $isanimation, \%model, $nodenum, $animnum, $ASCIIMDL)) {
 
     } elsif (/\s*parent\s*(\S*)/i && $innode) { # if in a node look for the parent property
       if ($isgeometry) {
@@ -1927,7 +1928,7 @@ sub readasciimdl {
         $count++;
       }
     } elsif ($innode == 0 && $isanimation && $task eq "events") { # if in an animation read in events
-      /\s+(\S*)\s+(\S*)/;
+      $line =~ /\s+(\S*)\s+(\S*)/;
       $model{'anims'}{$animnum}{'eventtimes'}[$count] = $1;
       $model{'anims'}{$animnum}{'eventnames'}[$count] = $2;
       $model{'anims'}{$animnum}{'numevents'}++;
@@ -1935,11 +1936,11 @@ sub readasciimdl {
     } elsif ($innode == 1 && $isanimation) { # if in an animation node read in controllers
     } elsif ($innode == 1 && $isgeometry) {  # if in a node and in verts, faces, tverts or constraints read them in 
       if ($task eq "verts" ) { # read in the verts
-        /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'verts'}[$count] = [$1, $2, $3];
         $count++;
       } elsif ($task eq "faces") { # read in the faces
-        /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
         $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $4, -1, -1, -1, $1, $2, $3 ];
 
@@ -1988,11 +1989,11 @@ sub readasciimdl {
         $count++;
 
       } elsif ($task eq "tverts") { # read in the tverts
-        /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'tverts'}[$count] = [$1, $2];
         $count++;
       } elsif ($task eq "weights") { # read in the bone weights
-        /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
+        $line =~ /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
         $model{'nodes'}{$nodenum}{'Abones'}[$count] = "$1 $2";
         $model{'nodes'}{$nodenum}{'bones'}[$count][0] = $1;
         $model{'nodes'}{$nodenum}{'weights'}[$count][0] = $2;
@@ -2013,11 +2014,11 @@ sub readasciimdl {
         }
         $count++;
       } elsif ($task eq "constraints") { # read in the constraints
-        /\s*(\S*)/;
+        $line =~ /\s*(\S*)/;
         $model{'nodes'}{$nodenum}{'constraints'}[$count] = $1;
         $count++;
       } elsif ($task eq "aabb") { # read in the aabb stuff
-        /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'aabbnodes'}[$count] = [$1, $2, $3, $4, $5, $6, $7];
         $count++;
       } # if ($task eq "verts" )
