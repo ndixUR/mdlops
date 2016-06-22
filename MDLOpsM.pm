@@ -199,19 +199,22 @@ our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
                        'Door' => 0x08, 'Placeable' => 0x20, 'Other' => 0x00);
 
+our %reversenode  = reverse %nodelookup;
 our %reverseclass = reverse %classification;
 
+# Node Type bitmasks
+# Types are combinations of these, use for bitwise logic comparisons
 use constant NODE_HAS_HEADER    => 0x00000001;
 use constant NODE_HAS_LIGHT     => 0x00000002;
-use constant NODE_HAS_EMITTER    => 0x00000004;
-#use constant NODE_HAS_CAMERA   => 0x00000008;
-#use constant NODE_HAS_REFERENCE  => 0x00000010;
+use constant NODE_HAS_EMITTER   => 0x00000004;
+use constant NODE_HAS_CAMERA    => 0x00000008;
+use constant NODE_HAS_REFERENCE => 0x00000010;
 use constant NODE_HAS_MESH      => 0x00000020;
 use constant NODE_HAS_SKIN      => 0x00000040;
-#use constant NODE_HAS_ANIM     => 0x00000080;
+use constant NODE_HAS_ANIM      => 0x00000080;
 use constant NODE_HAS_DANGLY    => 0x00000100;
 use constant NODE_HAS_AABB      => 0x00000200;
-use constant NODE_HAS_SABER   => 0x00000800;
+use constant NODE_HAS_SABER     => 0x00000800;
 
 # node types quick reference
 # dummy =       NODE_HAS_HEADER =                                   0x001 = 1
@@ -222,6 +225,17 @@ use constant NODE_HAS_SABER   => 0x00000800;
 # dangly mesh = NODE_HAS_DANGLY + NODE_HAS_MESH + NODE_HAS_HEADER = 0x121 = 289
 # aabb mesh =   NODE_HAS_AABB + NODE_HAS_MESH + NODE_HAS_HEADER =   0x221 = 545
 # saber mesh =  NODE_HAS_SABER + NODE_HAS_MESH + NODE_HAS_HEADER =  0x821 = 2081
+
+# Node Type constants
+# These are still used directly sometimes and should be retained for code legibility
+use constant NODE_DUMMY         => 1;
+use constant NODE_LIGHT         => 3;
+use constant NODE_EMITTER       => 5;
+use constant NODE_TRIMESH       => 33;
+use constant NODE_SKIN          => 97;
+use constant NODE_DANGLYMESH    => 289;
+use constant NODE_AABB          => 545;
+use constant NODE_SABER         => 2081;
 
 # index controllers by node type, since at least one (100) is used twice... gee, thanks, Bioware.
 # note that I'm copying emitter and light information from the NWN model format (ie Torlack's NWNMdlComp).  Hopefully it's compatible...
