@@ -229,10 +229,11 @@ our %controllernames;
 
 $controllernames{+NODE_HAS_HEADER}{8}   = "position";
 $controllernames{+NODE_HAS_HEADER}{20}  = "orientation";
-$controllernames{+NODE_HAS_HEADER}{36}  = "scaling";
+$controllernames{+NODE_HAS_HEADER}{36}  = "scale";
 $controllernames{+NODE_HAS_HEADER}{132} = "alpha"; # was 128
 
-# todo: scale isn't working (gets into ascii but not written to binary)
+# got rid of this name because scale was already hardcoded elsewhere
+#$controllernames{+NODE_HAS_HEADER}{36}  = "scaling";
 
 # notes from fx_flame01.mdl:
 # should be no wirecolor.  missed shadowradius (should be 5). radius, color fine. 
@@ -786,6 +787,7 @@ my $dothis = 0;
       # $_->[4] = offset of first data byte
       # $_->[5] = columns of data
       # the rest is unknown values
+      # add template for key time values
       $template .= "f" x $_->[2];
       if ($_->[1] != 128) {
         # check for controller type 20 and column count 2:
@@ -3812,10 +3814,11 @@ sub writebinarynode
                 $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
                 $timestart, $valuestart, $ccol, 227, 119, 17);
             }
-            elsif ( $controller == 36 && $ga eq "geo" )
-            {#print "Found Scale Key!\n";
+            elsif ( $controller == 36 )
+            {
                 $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
-                $timestart, $valuestart, $ccol, 245, 245, 17); #50, 18, 0);
+                $timestart, $valuestart, $ccol, 50, 18, 0); #245, 245, 17);
+                # some models have 50, 17, 0... important? TBD
             }
             else
             {
