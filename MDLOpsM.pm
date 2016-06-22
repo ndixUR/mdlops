@@ -103,6 +103,9 @@ use Time::HiRes qw(gettimeofday tv_interval);
 use strict;
 use Math::Trig;       # quaternions? I have to convert quaternions?
 
+# add helpful debug library from perl core
+use Data::Dumper;
+
 # turn this on for maximum verbosity
 our $printall = 0;
 
