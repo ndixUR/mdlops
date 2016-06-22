@@ -1791,12 +1791,20 @@ sub readasciimdl {
       $task = "";
       $model{'nodes'}{$nodenum}{'header'} = {};
     } elsif (/\s*node\s+(\S*)\s+(\S*)/i && !$innode && $isgeometry) { # look for the start of a geometry node
+      my ($ntype, $nname) = (lc($1), $2);
+      # handle saber, currently tracked as a name prefix rather than a type
+      if ($nname =~ /^2081__/) {
+        # type should have been 'trimesh', make it 'saber'
+        $ntype = 'saber';
+        $nname =~ s/^2081__//;
+      }
+      my $nname_key = lc($nname);
       $model{'nodes'}{'truenodenum'}++;
       $innode = 1;
       $model{'nodes'}{$nodenum}{'nodenum'} = $nodenum;
       $model{'nodes'}{$nodenum}{'render'} = 1;
       $model{'nodes'}{$nodenum}{'shadow'} = 0;
-      $model{'nodes'}{$nodenum}{'nodetype'} = $nodelookup{lc($1)};
+      $model{'nodes'}{$nodenum}{'nodetype'} = $nodelookup{$ntype};
       # determine the MDX data size from the node type
       if ($model{'nodes'}{$nodenum}{'nodetype'} & NODE_HAS_SKIN) { # skin mesh
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 64;
@@ -1814,11 +1822,11 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'controllerdatanum'} = 0;
       $model{'nodes'}{$nodenum}{'childcount'} = 0;
       $model{'nodes'}{$nodenum}{'children'} = [];
-      #$model{'nodes'}{$nodenum}{'nodetype'} = $nodelookup{lc($1)};
-      $model{'partnames'}[$nodenum] = $2;
+      #$model{'nodes'}{$nodenum}{'nodetype'} = $nodelookup{$ntype};
+      $model{'partnames'}[$nodenum] = $nname;
       #node index has the text node name (in lower case) as keys and node number as values
-      $nodeindex{lc($2)} = $nodenum;
-      $model{'nodeindex'}{lc($2)} = $nodenum;
+      $nodeindex{$nname_key} = $nodenum;
+      $model{'nodeindex'}{$nname_key} = $nodenum;
     } elsif (/\s*radius\s+(\S*)/i && $innode && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
       $model{'radius'} = $1;
 
