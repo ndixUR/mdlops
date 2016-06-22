@@ -1619,9 +1619,14 @@ sub readkeyedcontroller {
   my $count;
 
   if ($line =~ /^\s*${controllername}key/) {
+    my $total;
+    if ($line =~ /key\s+(\d+)$/) {
+      # old versions of mdlops did not use endlist, instead had 'positionkey 4' for 4 keyframes
+      $total = int $1;
+    }
     $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllernum'}++;
     $count = 0;
-    while (($line = <$ASCIIFILE>) !~ /endlist/) {
+    while ((!$total || $count < $total) && ($line = <$ASCIIFILE>) && $line !~ /endlist/) {
       my @controllerdata = ($line =~ /\s+(\S+)/g); # "my" here makes sure it's a new array each time; without it, earlier values are clobbered
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllerdatanum'} += ($#controllerdata + 1); # time value included already
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'Acontrollers'}{$controller}[$count] = join(' ', @controllerdata);
