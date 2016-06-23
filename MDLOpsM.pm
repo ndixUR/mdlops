@@ -736,6 +736,14 @@ sub getnodes {
   $ref->{$node}{'header'}{'end'} = tell(MODELMDL) - 1;
   $nodetype = $ref->{$node}{'header'}{'unpacked'}[NODETYPE];
 
+  #record node number in parent's childindexes{nums}
+  if (lc($ref->{$node}{'parent'}) ne 'null' &&
+      defined($ref->{$ref->{$node}{'parentnodenum'}})) {
+    # store actual child index (nodenum) in parent's childindexes, not just locations
+    # this gives us a properly traversable tree without having to search by node start location
+    push @{$ref->{$ref->{$node}{'parentnodenum'}}{'childindexes'}{'nums'}}, $node;
+  }
+
   #check if node "controller info" has any data to read in
   if ($ref->{$node}{'controllernum'} != 0) {
     $temp = $ref->{$node}{'controllerloc'} + 12;
@@ -1263,6 +1271,8 @@ my $dothis = 0;
     @children = unpack("l[$numchildren]", $buffer);
     $ref->{$node}{'childindexes'}{'raw'} = $buffer;
     $ref->{$node}{'childindexes'}{'unpacked'} = [@children];
+    # a list of childindex nodenums, rather than byte offsets
+    $ref->{$node}{'childindexes'}{'nums'} = [];
     $temp = $model->{'partnames'}[$node];
     foreach (@children) {
       $work = $work + getnodes($tree, $temp, $_, $model, $version) ;
@@ -4064,8 +4074,7 @@ sub writerawbinarymdl {
       print ($BMDLOUT $buffer);
     }
   } #write out animations for loop
-  
-  $nodestart = tell($BMDLOUT);
+
   # write out the nodes
   # in a bioware binary mdl I think they use a recursive function to write
   # the data.  You can tell by how the node controllers and controller data
@@ -4073,222 +4082,10 @@ sub writerawbinarymdl {
   # data linearly.  Because of this you will never get an exact binary
   # match with a bioware model.  But it seems to work, so I'm gonna leave
   # it as it is.
-  for (my $i = 0; $i < $nodenum; $i++) {
-    seek ($BMDLOUT, $nodestart, 0);
-    #write out the node header
-    $model->{'nodes'}{$i}{'header'}{'start'} = tell($BMDLOUT);
-    $buffer = $model->{'nodes'}{$i}{'header'}{'raw'};
-    $totalbytes += length($buffer);
-    print($BMDLOUT $buffer);
-
-    #write out the sub header, sub-sub-header, and data (if any)
-    if ( defined( $model->{'nodes'}{$i}{'subhead'}{'raw'} ) ) {
-      # write out the node header
-      $model->{'nodes'}{$i}{'subhead'}{'start'} = tell($BMDLOUT);
-      $buffer = $model->{'nodes'}{$i}{'subhead'}{'raw'};
-      $totalbytes += length($buffer);
-      print($BMDLOUT $buffer);
-
-      # write out node specific data for mesh nodes
-      if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) {
-        # write out mesh type specific data
-        if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) { # node type 2081 I call it saber mesh
-          # write out a copy of the vertex coordinates
-          $model->{'nodes'}{$i}{'vertcoords2'}{'start'} = tell($BMDLOUT);
-          print("$i-vertcoords2: $model->{'nodes'}{$i}{'vertcoords2'}{'start'}\n") if $printall;
-          $buffer = $model->{'nodes'}{$i}{'vertcoords2'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out the node type 2081 data (what is this?)
-          $model->{'nodes'}{$i}{'data2081-3'}{'start'} = tell($BMDLOUT);
-          print("$i-data2081-3: $model->{'nodes'}{$i}{'data2081-3'}{'start'}\n") if $printall;
-          $buffer = $model->{'nodes'}{$i}{'data2081-3'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out the tverts+
-          $model->{'nodes'}{$i}{'tverts+'}{'start'} = tell($BMDLOUT);
-          print("$i-tverts+: $model->{'nodes'}{$i}{'tverts+'}{'start'}\n") if $printall;
-          $buffer = $model->{'nodes'}{$i}{'tverts+'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-        } elsif ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) { # skin mesh
-          # write out the bone map
-          $model->{'nodes'}{$i}{'bonemap'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'bonemap'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out the qbones
-          $model->{'nodes'}{$i}{'qbones'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'qbones'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out the tbones
-          $model->{'nodes'}{$i}{'tbones'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'tbones'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out unknown array 8
-          $model->{'nodes'}{$i}{'array8'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'array8'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-        } elsif ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_DANGLY) { # dangly mesh
-          # write out dangly constraints
-          $model->{'nodes'}{$i}{'constraints+'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'constraints+'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-        }
-
-        # write out the faces
-        $model->{'nodes'}{$i}{'faces'}{'start'} = tell($BMDLOUT);
-        $buffer = $model->{'nodes'}{$i}{'faces'}{'raw'};
-        $totalbytes += length($buffer);
-        print ($BMDLOUT $buffer);
-
-        if (!($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
-          # write out the pointer to the array that holds the number of vert indices
-          $model->{'nodes'}{$i}{'pntr_to_vert_num'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'pntr_to_vert_num'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-        }
-
-        # write out the vertex coordinates
-        $model->{'nodes'}{$i}{'vertcoords'}{'start'} = tell($BMDLOUT);
-        $buffer = $model->{'nodes'}{$i}{'vertcoords'}{'raw'};
-        $totalbytes += length($buffer);
-        print ($BMDLOUT $buffer);
-
-        if (!($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
-          # write out the pointer to the array that holds the location of the vert indices
-          $model->{'nodes'}{$i}{'pntr_to_vert_loc'}{'start'} = tell($BMDLOUT);
-          $buffer = pack("l", (tell($BMDLOUT) + 8) - 12);
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out unknown array that always has 1 element (what is this?)
-          $model->{'nodes'}{$i}{'array3'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'array3'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-
-          # write out the vert indices
-          $model->{'nodes'}{$i}{'vertindexes'}{'start'} = tell($BMDLOUT);
-          $buffer = $model->{'nodes'}{$i}{'vertindexes'}{'raw'};
-          $totalbytes += length($buffer);
-          print ($BMDLOUT $buffer);
-        } # {'nodetype'} != 2081
-      } # ($nodetype & NODE_HAS_MESH) if
-    } # write subheader, sub-subheader, and data if
-
-    #write out child node indexes (if any)
-    if ( $model->{'nodes'}{$i}{'childcount'} != 0 ) {
-      $model->{'nodes'}{$i}{'childcounter'} = 0;
-      $model->{'nodes'}{$i}{'childindexes'}{'start'} = tell($BMDLOUT);
-      $buffer = $model->{'nodes'}{$i}{'childindexes'}{'raw'};
-      $totalbytes += length($buffer);
-      print ($BMDLOUT $buffer);
-    }
-
-    # write out the controllers
-    $model->{'nodes'}{$i}{'controllers'}{'start'} = tell($BMDLOUT);
-    $buffer = $model->{'nodes'}{$i}{'controllers'}{'raw'};
-    $totalbytes += length($buffer);
-    print ($BMDLOUT $buffer);
-
-    # write out the controllers data
-    $model->{'nodes'}{$i}{'controllerdata'}{'start'} = tell($BMDLOUT);
-    $buffer = $model->{'nodes'}{$i}{'controllerdata'}{'raw'};
-    $totalbytes += length($buffer);
-    print ($BMDLOUT $buffer);
-
-    $nodestart = tell($BMDLOUT);
-
-    # go back and change all the pointers
-    # write in the header blanks
-    # location of this nodes parent
-    if ($i != 0) {
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 12, 0);
-      print($BMDLOUT pack("l", $model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'header'}{'start'} - 12));
-    } else {
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 12, 0);
-      print($BMDLOUT pack("l", 0));
-    }
-    if ($model->{'nodes'}{$i}{'childcount'} != 0) {
-      # pointer to the child array
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 44, 0);
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'childindexes'}{'start'} - 12));
-    }
-    # fill in mesh stuff blanks
-    if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) {
-      if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 340 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertcoords2'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 344 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'tverts+'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 348 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'data2081-3'}{'start'} - 12));
-      } elsif ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) {
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 360 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'bonemap'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 368 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'qbones'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 380 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'tbones'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 392 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'array8'}{'start'} - 12));
-      } elsif ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_DANGLY) {
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 340 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'constraints+'}{'start'} - 12));
-      }
-
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 8, 0);
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'faces'}{'start'} - 12));
-
-      if (!($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 176, 0);
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'pntr_to_vert_num'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 188, 0);
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'pntr_to_vert_loc'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 200, 0);
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'array3'}{'start'} - 12));
-        seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 332 + $roffset, 0); #
-        print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'mdxstart'}));
-      }
-
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 336 + $roffset, 0); #
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertcoords'}{'start'} - 12));
-    } # ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)
-
-    # fill in the controller blanks
-    if ( $model->{'nodes'}{$i}{'controllernum'} != 0) {
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 56, 0);
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'controllers'}{'start'} - 12));
-      seek($BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 68, 0);
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'controllerdata'}{'start'} - 12));
-    }
-
-    #if this is a child of another node fill in the child list for the parent
-    if (lc($model->{'nodes'}{$i}{'parent'}) ne "null") {
-      $temp1 =  $model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childindexes'}{'start'};
-      $temp1 += $model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childcounter'} * 4;
-      seek($BMDLOUT, $temp1, 0);
-      $model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childcounter'}++;
-      if (tell($BMDLOUT) == 0) {
-        print("$model->{'nodes'}{$i}{'parentnodenum'}\n");
-        print("$model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childindexes'}{'start'}\n");
-        print("$model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childcounter'}\n");
-        print("$model->{'nodes'}{$i}{'parent'}\n");
-      }
-      print($BMDLOUT pack("l", $model->{'nodes'}{$i}{'header'}{'start'} - 12));
-    }
-  }
+  #
+  # 2016 update: above spells out what was wrong here. now implemented
+  #   recursively for closer to exact binary matches.
+  $totalbytes += &writerawnodes($BMDLOUT, $model, $roffset);
 
   #fill in the last blank, the size of the mdl (minus the file header)
   seek($BMDLOUT, 4, 0);
@@ -4298,6 +4095,257 @@ sub writerawbinarymdl {
   print("done with: $filepath\n");
 
   close $BMDLOUT;
+}
+
+
+##########################################################
+# This is a recursive method to write raw nodes for the replacer.
+# Produces more exact binary matches than previous flat iterative approach.
+#
+sub writerawnodes {
+  my ($BMDLOUT, $model, $roffset, $node_index) = @_;
+
+  my ($buffer, $totalbytes);
+
+  $buffer = '';
+  $totalbytes = 0;
+
+  if (!defined($node_index)) {
+    # root node is nodenum 0 ... not a *great* assumption
+    #XXX we can get the rootnode location, maybe search for it by start location
+    $node_index = 0;
+  }
+
+  # assume caller has left the file seeked to where we should write the node
+  my $nodestart = tell($BMDLOUT);
+
+  #write out the node header
+  $model->{'nodes'}{$node_index}{'header'}{'start'} = $nodestart;
+  $buffer = $model->{'nodes'}{$node_index}{'header'}{'raw'};
+  $totalbytes += length($buffer);
+  print($BMDLOUT $buffer);
+
+  #write out the sub header, sub-sub-header, and data (if any)
+  if ( defined( $model->{'nodes'}{$node_index}{'subhead'}{'raw'} ) ) {
+    # write out the node header
+    $model->{'nodes'}{$node_index}{'subhead'}{'start'} = tell($BMDLOUT);
+    $buffer = $model->{'nodes'}{$node_index}{'subhead'}{'raw'};
+    $totalbytes += length($buffer);
+    print($BMDLOUT $buffer);
+
+    # write out node specific data for mesh nodes
+    if ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_MESH) {
+      # write out mesh type specific data
+      if ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SABER) { # node type 2081 I call it saber mesh
+        # write out a copy of the vertex coordinates
+        $model->{'nodes'}{$node_index}{'vertcoords2'}{'start'} = tell($BMDLOUT);
+        print("$node_index-vertcoords2: $model->{'nodes'}{$node_index}{'vertcoords2'}{'start'}\n") if $printall;
+        $buffer = $model->{'nodes'}{$node_index}{'vertcoords2'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out the node type 2081 data (what is this?)
+        $model->{'nodes'}{$node_index}{'data2081-3'}{'start'} = tell($BMDLOUT);
+        print("$node_index-data2081-3: $model->{'nodes'}{$node_index}{'data2081-3'}{'start'}\n") if $printall;
+        $buffer = $model->{'nodes'}{$node_index}{'data2081-3'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out the tverts+
+        $model->{'nodes'}{$node_index}{'tverts+'}{'start'} = tell($BMDLOUT);
+        print("$node_index-tverts+: $model->{'nodes'}{$node_index}{'tverts+'}{'start'}\n") if $printall;
+        $buffer = $model->{'nodes'}{$node_index}{'tverts+'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+      } elsif ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SKIN) { # skin mesh
+        # write out the bone map
+        $model->{'nodes'}{$node_index}{'bonemap'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'bonemap'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out the qbones
+        $model->{'nodes'}{$node_index}{'qbones'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'qbones'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out the tbones
+        $model->{'nodes'}{$node_index}{'tbones'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'tbones'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out unknown array 8
+        $model->{'nodes'}{$node_index}{'array8'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'array8'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+      } elsif ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_DANGLY) { # dangly mesh
+        # write out dangly constraints
+        $model->{'nodes'}{$node_index}{'constraints+'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'constraints+'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+      }
+
+      # write out the faces
+      $model->{'nodes'}{$node_index}{'faces'}{'start'} = tell($BMDLOUT);
+      $buffer = $model->{'nodes'}{$node_index}{'faces'}{'raw'};
+      $totalbytes += length($buffer);
+      print ($BMDLOUT $buffer);
+
+      if (!($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SABER)) {
+        # write out the pointer to the array that holds the number of vert indices
+        $model->{'nodes'}{$node_index}{'pntr_to_vert_num'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'pntr_to_vert_num'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+      }
+
+      # write out the vertex coordinates
+      $model->{'nodes'}{$node_index}{'vertcoords'}{'start'} = tell($BMDLOUT);
+      $buffer = $model->{'nodes'}{$node_index}{'vertcoords'}{'raw'};
+      $totalbytes += length($buffer);
+      print ($BMDLOUT $buffer);
+
+      if (!($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SABER)) {
+        # write out the pointer to the array that holds the location of the vert indices
+        $model->{'nodes'}{$node_index}{'pntr_to_vert_loc'}{'start'} = tell($BMDLOUT);
+        $buffer = pack("l", (tell($BMDLOUT) + 8) - 12);
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out unknown array that always has 1 element (what is this?)
+        $model->{'nodes'}{$node_index}{'array3'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'array3'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+
+        # write out the vert indices
+        $model->{'nodes'}{$node_index}{'vertindexes'}{'start'} = tell($BMDLOUT);
+        $buffer = $model->{'nodes'}{$node_index}{'vertindexes'}{'raw'};
+        $totalbytes += length($buffer);
+        print ($BMDLOUT $buffer);
+      } # {'nodetype'} != 2081
+    } # ($nodetype & NODE_HAS_MESH) if
+  } # write subheader, sub-subheader, and data if
+
+  #write out child node indexes (if any)
+  if ( $model->{'nodes'}{$node_index}{'childcount'} != 0 ) {
+    $model->{'nodes'}{$node_index}{'childcounter'} = 0;
+    $model->{'nodes'}{$node_index}{'childindexes'}{'start'} = tell($BMDLOUT);
+    $buffer = $model->{'nodes'}{$node_index}{'childindexes'}{'raw'};
+    $totalbytes += length($buffer);
+    print ($BMDLOUT $buffer);
+
+    #write out child nodes
+    my $childbytes = 0;
+    # record position where child(ren) begin
+    $nodestart = tell($BMDLOUT);
+    for my $child_index (@{$model->{'nodes'}{$node_index}{'childindexes'}{'nums'}}) {
+      # record size of child and maybe its children
+      $childbytes += &writerawnodes($BMDLOUT, $model, $roffset, $child_index);
+      # every child that is written seeks to its pointers as last activity,
+      # therefore we seek to just after the written child(ren) after write
+      seek($BMDLOUT, $nodestart + $childbytes, 0);
+    }
+    $totalbytes += $childbytes;
+  }
+
+  # write out the controllers
+  $model->{'nodes'}{$node_index}{'controllers'}{'start'} = tell($BMDLOUT);
+  $buffer = $model->{'nodes'}{$node_index}{'controllers'}{'raw'};
+  $totalbytes += length($buffer);
+  print ($BMDLOUT $buffer);
+
+  # write out the controllers data
+  $model->{'nodes'}{$node_index}{'controllerdata'}{'start'} = tell($BMDLOUT);
+  $buffer = $model->{'nodes'}{$node_index}{'controllerdata'}{'raw'};
+  $totalbytes += length($buffer);
+  print ($BMDLOUT $buffer);
+
+  # go back and change all the pointers
+  # write in the header blanks
+  # location of this nodes parent
+  if ($node_index != 0) {
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'header'}{'start'} + 12, 0);
+    print($BMDLOUT pack("l", $model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'header'}{'start'} - 12));
+  } else {
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'header'}{'start'} + 12, 0);
+    print($BMDLOUT pack("l", 0));
+  }
+  if ($model->{'nodes'}{$node_index}{'childcount'} != 0) {
+    # pointer to the child array
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'header'}{'start'} + 44, 0);
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'childindexes'}{'start'} - 12));
+  }
+  # fill in mesh stuff blanks
+  if ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_MESH) {
+    if ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SABER) {
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 340 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'vertcoords2'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 344 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'tverts+'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 348 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'data2081-3'}{'start'} - 12));
+    } elsif ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SKIN) {
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 360 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'bonemap'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 368 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'qbones'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 380 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'tbones'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 392 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'array8'}{'start'} - 12));
+    } elsif ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_DANGLY) {
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 340 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'constraints+'}{'start'} - 12));
+    }
+
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 8, 0);
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'faces'}{'start'} - 12));
+
+    if (!($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_SABER)) {
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 176, 0);
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'pntr_to_vert_num'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 188, 0);
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'pntr_to_vert_loc'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 200, 0);
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'array3'}{'start'} - 12));
+      seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 332 + $roffset, 0); #
+      print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'mdxstart'}));
+    }
+
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'subhead'}{'start'} + 336 + $roffset, 0); #
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'vertcoords'}{'start'} - 12));
+  } # ($model->{'nodes'}{$node_index}{'nodetype'} & NODE_HAS_MESH)
+
+  # fill in the controller blanks
+  if ( $model->{'nodes'}{$node_index}{'controllernum'} != 0) {
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'header'}{'start'} + 56, 0);
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'controllers'}{'start'} - 12));
+    seek($BMDLOUT, $model->{'nodes'}{$node_index}{'header'}{'start'} + 68, 0);
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'controllerdata'}{'start'} - 12));
+  }
+
+  #if this is a child of another node fill in the child list for the parent
+  if (lc($model->{'nodes'}{$node_index}{'parent'}) ne "null") {
+    my $temp1;
+    $temp1 =  $model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'childindexes'}{'start'};
+    $temp1 += $model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'childcounter'} * 4;
+    seek($BMDLOUT, $temp1, 0);
+    $model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'childcounter'}++;
+    if (tell($BMDLOUT) == 0) {
+      print("$model->{'nodes'}{$node_index}{'parentnodenum'}\n");
+      print("$model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'childindexes'}{'start'}\n");
+      print("$model->{'nodes'}{ $model->{'nodes'}{$node_index}{'parentnodenum'} }{'childcounter'}\n");
+      print("$model->{'nodes'}{$node_index}{'parent'}\n");
+    }
+    print($BMDLOUT pack("l", $model->{'nodes'}{$node_index}{'header'}{'start'} - 12));
+  }
+
+  return $totalbytes;
 }
 
 
