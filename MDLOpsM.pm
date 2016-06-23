@@ -947,7 +947,7 @@ my $dothis = 0;
   }
 
   #check the "node type" and read in the subheader for it
-  if ($nodetype != 1) {
+  if ( $nodetype != NODE_DUMMY ) {
     $temp = $startnode + 92;
     seek(MODELMDL, $temp, 0);
     print("$tree-$ref->{$node}{'header'}{'unpacked'}[NODEINDEX]_$structs{'subhead'}{$nodetype . $version}{'name'} " . tell(MODELMDL)) if $printall;
@@ -959,7 +959,7 @@ my $dothis = 0;
     $ref->{$node}{'subhead'}{'unpacked'} = [unpack($structs{'subhead'}{$nodetype . $version}{'tmplt'}, $buffer)];
   }
 
-  if ( $nodetype == 3 ) { # light
+  if ( $nodetype == NODE_LIGHT ) { # light
     # to do: flare radius, flare sizes array, flare positions array, flare color shifts array, flare texture names char pointer array
     $ref->{$node}{'lightpriority'} = $ref->{$node}{'subhead'}{'unpacked'}[16];
     $ref->{$node}{'ambientonly'} = $ref->{$node}{'subhead'}{'unpacked'}[17];
@@ -970,7 +970,7 @@ my $dothis = 0;
     $ref->{$node}{'fadinglight'} = $ref->{$node}{'subhead'}{'unpacked'}[22];
   }
 #tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};  
-  if ( $nodetype == 5) { # emitter
+  if ( $nodetype == NODE_EMITTER ) { # emitter
     $ref->{$node}{'deadspace'} = $ref->{$node}{'subhead'}{'unpacked'}[2];
     $ref->{$node}{'blastRadius'} = $ref->{$node}{'subhead'}{'unpacked'}[3];
     $ref->{$node}{'blastLength'} = $ref->{$node}{'subhead'}{'unpacked'}[4];
@@ -1035,11 +1035,11 @@ my $dothis = 0;
     
     $ref->{$node}{'MDXdataloc'} = $ref->{$node}{'subhead'}{'unpacked'}[72 + $uoffset];     
     $ref->{$node}{'vertcoordloc'} = $ref->{$node}{'subhead'}{'unpacked'}[73 + $uoffset];   
-    if ($nodetype == 289) {
+    if ( $nodetype == NODE_DANGLYMESH ) {
       $ref->{$node}{'displacement'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset]; 
       $ref->{$node}{'tightness'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];    
       $ref->{$node}{'period'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];       
-    } elsif ($nodetype == 97) {
+    } elsif ( $nodetype == NODE_SKIN ) {
       $ref->{$node}{'bonesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];     
       $ref->{$node}{'bonesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];     
       $ref->{$node}{'skinunk1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];  
@@ -1048,7 +1048,7 @@ my $dothis = 0;
       $ref->{$node}{'skinunk2num'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset];  
       $ref->{$node}{'skinunk3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[85 + $uoffset];  
       $ref->{$node}{'skinunk3num'} = $ref->{$node}{'subhead'}{'unpacked'}[86 + $uoffset];  
-    } elsif ($nodetype == 545) {
+    } elsif ( $nodetype == NODE_AABB ) {
       $ref->{$node}{'aabbloc'} = $ref->{$node}{'subhead'}{'unpacked'}[74 + $uoffset];  
     }
   } # if 97 or 33 or 289 or 2081
@@ -1306,30 +1306,30 @@ sub writeasciimdl {
     print("Node: " . $i . "\n") if $printall;
     $nodetype = $model->{'nodes'}{$i}{'nodetype'};
     $temp = $model->{'partnames'}[$i];
-    if ($nodetype == 1) {
+    if ($nodetype == NODE_DUMMY) {
       $temp2 = "dummy";
-    } elsif ($nodetype == 3) {
+    } elsif ($nodetype == NODE_LIGHT) {
       $temp2 = "light";
-    } elsif ($nodetype == 5) {
+    } elsif ($nodetype == NODE_EMITTER) {
       $temp2 = "emitter";
-    } elsif ($nodetype == 289) {
+    } elsif ($nodetype == NODE_DANGLYMESH) {
       $temp2 = "danglymesh";
-    } elsif ($nodetype == 97 && $convertskin == 0) {
+    } elsif ($nodetype == NODE_SKIN && $convertskin == 0) {
       $temp2 = "skin";
-    } elsif ($nodetype == 97 && $convertskin == 1) {
+    } elsif ($nodetype == NODE_SKIN && $convertskin == 1) {
       $temp2 = "trimesh";
-    } elsif ($nodetype == 33) {
+    } elsif ($nodetype == NODE_TRIMESH) {
       $temp2 = "trimesh";
-    } elsif ($nodetype == 545) {
+    } elsif ($nodetype == NODE_AABB) {
       $temp2 = "aabb";
-    } elsif ($nodetype == 2081) {
+    } elsif ($nodetype == NODE_SABER) {
 #      $temp2 = "dummy";
       $temp2 = "trimesh";
     } else {
       $temp2 = "dummy";
     }
 
-    if ( $nodetype == 2081 ) {
+    if ( $nodetype == NODE_SABER ) {
       print(MODELOUT "node " . $temp2 . " 2081__" . $temp . "\n");
     } else {
       print(MODELOUT "node " . $temp2 . " " . $temp . "\n");
@@ -1397,7 +1397,7 @@ sub writeasciimdl {
     }
      
     # light node
-    if ( $nodetype == 3 ) {
+    if ( $nodetype == NODE_LIGHT ) {
       # subheader data
       print(MODELOUT "  ambientonly " . $model->{'nodes'}{$i}{'ambientonly'} . "\n");
       print(MODELOUT "  nDynamicType " . $model->{'nodes'}{$i}{'ndynamictype'} . "\n"); #should possibly be isDynamic, but this is what nwmax outputs
@@ -1417,7 +1417,7 @@ sub writeasciimdl {
     }
     
     # emitter node
-    if ( $nodetype == 5 ) {
+    if ( $nodetype == NODE_EMITTER ) {
       # subheader data
       print(MODELOUT "  deadspace " . $model->{'nodes'}{$i}{'deadspace'} . "\n");
       print(MODELOUT "  blastRadius " . $model->{'nodes'}{$i}{'blastRadius'} . "\n");
@@ -1457,10 +1457,10 @@ sub writeasciimdl {
     }
     
     # mesh nodes
-    if ( $nodetype == 33 || $nodetype == 97 || $nodetype == 289 || $nodetype == 545 || $nodetype == 2081) {
+    if ( $nodetype == NODE_TRIMESH || $nodetype == NODE_SKIN || $nodetype == NODE_DANGLYMESH || $nodetype == NODE_AABB || $nodetype == NODE_SABER ) {
       printf(MODELOUT "  bitmap %s\n", $model->{'nodes'}{$i}{'bitmap'});
       $bitmaps{ lc($model->{'nodes'}{$i}{'bitmap'}) } += 1;
-      if ( $nodetype == 2081 ) {
+      if ( $nodetype == NODE_SABER ) {
         print(MODELOUT "  verts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
         foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
           print (MODELOUT "    $_->[0] $_->[1] $_->[2]\n");
@@ -1476,7 +1476,7 @@ sub writeasciimdl {
         print (MODELOUT "    $_\n");
       }
       if ($model->{'nodes'}{$i}{'texturenum'} != 0) {
-        if ( $nodetype == 2081 ) {
+        if ( $nodetype == NODE_SABER ) {
           print (MODELOUT "  tverts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
           foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
             print (MODELOUT "    $_->[0] $_->[1] 0.0\n");
@@ -1488,13 +1488,13 @@ sub writeasciimdl {
           }
         }
       }
-      if ($nodetype == 97 && $convertskin == 0) {
+      if ($nodetype == NODE_SKIN && $convertskin == 0) {
         printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'Abones'}} ) {
           printf(MODELOUT "    %s\n", $_);
         }
       }
-      if ($nodetype == 289) {
+      if ($nodetype == NODE_DANGLYMESH) {
         printf(MODELOUT "  displacement % .7f\n", $model->{'nodes'}{$i}{'displacement'});
         printf(MODELOUT "  tightness % .7f\n", $model->{'nodes'}{$i}{'tightness'});
         printf(MODELOUT "  period % .7f\n", $model->{'nodes'}{$i}{'period'});
@@ -1503,7 +1503,7 @@ sub writeasciimdl {
           printf(MODELOUT "    % .7f\n", $_);
         }
       }
-      if ($nodetype == 545) {
+      if ($nodetype == NODE_AABB) {
         print (MODELOUT "  aabb\n");
         foreach ( @{$model->{'nodes'}{$i}{'aabbnodes'}} ) {
           printf(MODELOUT "      % .7f % .7f % .7f % .7f % .7f % .7f %d\n", @{$_}[0..6]);
@@ -1939,7 +1939,7 @@ sub readasciimdl {
     } elsif (/\s*tverts\s+(\S*)/i && $innode) { # if in a node look for the start of the tverts
       $model{'nodes'}{$nodenum}{'tvertnum'} = $1;
       # if this is a tri mesh with tverts then adjust the MDX data size
-      if ($model{'nodes'}{$nodenum}{'nodetype'} == 33) {
+      if ($model{'nodes'}{$nodenum}{'nodetype'} == NODE_TRIMESH) {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 32;
       }
       $model{'nodes'}{$nodenum}{'texturenum'} = 1;
@@ -2079,7 +2079,7 @@ sub readasciimdl {
         $model{'largestsupernode'} = $supermodel->{'nodes'}{$_}{'supernode'};
       }
       if ( defined( $nodeindex{ lc( $supermodel->{'partnames'}[$_] ) } ) ) {
-        if ($supermodel->{'nodes'}{$_}{'nodetype'} == 97) {
+        if ($supermodel->{'nodes'}{$_}{'nodetype'} == NODE_SKIN) {
           $model{'nodes'}{$nodeindex{ lc($supermodel->{'partnames'}[$_]) }}{'qbones'}{'unpacked'} = [];
           @{$model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'}} = @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}};
           $model{'nodes'}{$nodeindex{ lc($supermodel->{'partnames'}[$_]) }}{'tbones'}{'unpacked'} = [];
@@ -2792,7 +2792,7 @@ $use_weights = 0;
   #cook the bone weights and prepare the bone map
   for (my $i = 0; $i < $nodenum; $i++) {
     $work = 0;
-    if ($model{'nodes'}{$i}{'nodetype'} == 97) {
+    if ($model{'nodes'}{$i}{'nodetype'} == NODE_SKIN) {
       #fill the bone map with -1
       for (my $j = 0; $j < $nodenum; $j++) {
         $model{'nodes'}{$i}{'node2index'}[$j] = -1;
@@ -2850,7 +2850,7 @@ sub writebinarymdl {
   seek (BMDXOUT, 0, 0);
   for (my $i = 0; $i < $model->{'nodes'}{'truenodenum'}; $i++) {
     #print ("MDX: $i\n");
-    if ($model->{'nodes'}{$i}{'nodetype'} == 33 || $model->{'nodes'}{$i}{'nodetype'} == 97 || $model->{'nodes'}{$i}{'nodetype'} == 289 || $model->{'nodes'}{$i}{'nodetype'} == 545) {
+    if ($model->{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN || $model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_AABB) {
       $model->{'nodes'}{$i}{'mdxstart'} = tell(BMDXOUT);
       #print($model->{'nodes'}{$i}{'vertnum'} . "|writing MDX data for node $i at starting location $model->{'nodes'}{$i}{'mdxstart'} datasize: $model->{'nodes'}{$i}{'mdxdatasize'}\n");
       for (my $j = 0; $j < $model->{'nodes'}{$i}{'vertnum'}; $j++) {
@@ -2866,7 +2866,7 @@ sub writebinarymdl {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
         }
         # if this is a skin mesh node then add in the bone weights
-        if ($model->{'nodes'}{$i}{'nodetype'} == 97) {
+        if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN) {
           $buffer .= pack("f*", @{$model->{'nodes'}{$i}{'Bbones'}[$j]} );
         }
         $mdxsize += length($buffer);
@@ -3532,7 +3532,7 @@ sub writebinarynode
         # end of mesh subheader
 
         # write out the mesh sub-sub-header and data (if there is any)
-        if ($model->{'nodes'}{$i}{'nodetype'} == 97)  # skin mesh sub-sub-header
+        if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN)  # skin mesh sub-sub-header
         {
             $buffer = pack("l*", 0, 0, 0, 32, 48); # compile-time only array, then ptr to skin weights in mdx, then ptr to skin bone refs in mdx
             $totalbytes += length($buffer);
@@ -3622,7 +3622,7 @@ sub writebinarynode
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
         }
-        elsif ($model->{'nodes'}{$i}{'nodetype'} == 289)  # dangly mesh sub-sub-header
+        elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH)  # dangly mesh sub-sub-header
         {
             $model->{'nodes'}{$i}{'constraintspointer'} = tell(BMDLOUT);
             $buffer = pack("lll", 0, $model->{'nodes'}{$i}{'vertnum'}, $model->{'nodes'}{$i}{'vertnum'} );
@@ -3657,7 +3657,7 @@ sub writebinarynode
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
         }
-        elsif ($model->{'nodes'}{$i}{'nodetype'} == 545)  # walk mesh sub-sub-header
+        elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_AABB)  # walk mesh sub-sub-header
         {
             $buffer = pack("l", (tell(BMDLOUT) - 8) );
             $totalbytes += length($buffer);
@@ -3667,7 +3667,7 @@ sub writebinarynode
             (undef, $buffer) = writeaabb($model, $i, 0, $temp1 );
             seek(BMDLOUT, $buffer, 0);
             $totalbytes += $buffer - $temp1;
-        } # end of nodetype == 97 sub-sub-header
+        } # end of nodetype == NODE_SKIN sub-sub-header
 
         # write out the mesh data
 
@@ -3892,7 +3892,7 @@ sub writebinarynode
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'childarraylocation'} - 12));
   }
   # fill in common mesh stuff blanks
-  if ($model->{'nodes'}{$i}{'nodetype'} == 33 || $model->{'nodes'}{$i}{'nodetype'} == 97 || $model->{'nodes'}{$i}{'nodetype'} == 289 || $model->{'nodes'}{$i}{'nodetype'} == 545) {
+  if ($model->{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN || $model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_AABB) {
     seek(BMDLOUT, $model->{'nodes'}{$i}{'faceslocpointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'faceslocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'vertnumpointer'}, 0);
@@ -3907,7 +3907,7 @@ sub writebinarynode
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertindicieslocation'} - 12));
   }
   # fill in mesh sub-sub-header blanks
-  if ($model->{'nodes'}{$i}{'nodetype'} == 97) {  # skin mesh
+  if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN) {  # skin mesh
     seek(BMDLOUT, $model->{'nodes'}{$i}{'bonemaplocpointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'bonemaplocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'qboneslocpointer'}, 0);
@@ -3916,7 +3916,7 @@ sub writebinarynode
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'tboneslocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'skinarray3locpointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'skinarray3location'} - 12));
-  } elsif ($model->{'nodes'}{$i}{'nodetype'} == 289) { # dangly mesh
+  } elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH) { # dangly mesh
     seek(BMDLOUT, $model->{'nodes'}{$i}{'constraintspointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'constraintslocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'danglyvertspointer'}, 0);
@@ -4087,7 +4087,7 @@ sub writerawbinarymdl {
       $buffer = $model->{'nodes'}{$i}{'subhead'}{'raw'};
       $totalbytes += length($buffer);
       print(BMDLOUT $buffer);
-      
+
       # write out node specific data for mesh nodes
       if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) {
         # write out mesh type specific data
@@ -4098,14 +4098,14 @@ sub writerawbinarymdl {
           $buffer = $model->{'nodes'}{$i}{'vertcoords2'}{'raw'};
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
-  
+
           # write out the node type 2081 data (what is this?)
           $model->{'nodes'}{$i}{'data2081-3'}{'start'} = tell(BMDLOUT);
           print("$i-data2081-3: $model->{'nodes'}{$i}{'data2081-3'}{'start'}\n") if $printall;
           $buffer = $model->{'nodes'}{$i}{'data2081-3'}{'raw'};
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
-    
+
           # write out the tverts+
           $model->{'nodes'}{$i}{'tverts+'}{'start'} = tell(BMDLOUT);
           print("$i-tverts+: $model->{'nodes'}{$i}{'tverts+'}{'start'}\n") if $printall;
@@ -4130,7 +4130,7 @@ sub writerawbinarymdl {
           $buffer = $model->{'nodes'}{$i}{'tbones'}{'raw'};
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
-        
+
           # write out unknown array 8
           $model->{'nodes'}{$i}{'array8'}{'start'} = tell(BMDLOUT);
           $buffer = $model->{'nodes'}{$i}{'array8'}{'raw'};
@@ -4157,26 +4157,26 @@ sub writerawbinarymdl {
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
         }
- 
+
         # write out the vertex coordinates
         $model->{'nodes'}{$i}{'vertcoords'}{'start'} = tell(BMDLOUT);
         $buffer = $model->{'nodes'}{$i}{'vertcoords'}{'raw'};
         $totalbytes += length($buffer);
         print (BMDLOUT $buffer);
-      
+
         if (!($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
           # write out the pointer to the array that holds the location of the vert indices
           $model->{'nodes'}{$i}{'pntr_to_vert_loc'}{'start'} = tell(BMDLOUT);
           $buffer = pack("l", (tell(BMDLOUT) + 8) - 12);
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
-      
+
           # write out unknown array that always has 1 element (what is this?)
           $model->{'nodes'}{$i}{'array3'}{'start'} = tell(BMDLOUT);
           $buffer = $model->{'nodes'}{$i}{'array3'}{'raw'};
           $totalbytes += length($buffer);
           print (BMDLOUT $buffer);
-        
+
           # write out the vert indices
           $model->{'nodes'}{$i}{'vertindexes'}{'start'} = tell(BMDLOUT);
           $buffer = $model->{'nodes'}{$i}{'vertindexes'}{'raw'};
@@ -4185,7 +4185,7 @@ sub writerawbinarymdl {
         } # {'nodetype'} != 2081
       } # ($nodetype & NODE_HAS_MESH) if
     } # write subheader, sub-subheader, and data if
-    
+
     #write out child node indexes (if any)
     if ( $model->{'nodes'}{$i}{'childcount'} != 0 ) {
       $model->{'nodes'}{$i}{'childcounter'} = 0;
@@ -4194,13 +4194,13 @@ sub writerawbinarymdl {
       $totalbytes += length($buffer);
       print (BMDLOUT $buffer);
     }
-    
+
     # write out the controllers
     $model->{'nodes'}{$i}{'controllers'}{'start'} = tell(BMDLOUT);
     $buffer = $model->{'nodes'}{$i}{'controllers'}{'raw'};
     $totalbytes += length($buffer);
     print (BMDLOUT $buffer);
-    
+
     # write out the controllers data
     $model->{'nodes'}{$i}{'controllerdata'}{'start'} = tell(BMDLOUT);
     $buffer = $model->{'nodes'}{$i}{'controllerdata'}{'raw'};
@@ -4208,7 +4208,7 @@ sub writerawbinarymdl {
     print (BMDLOUT $buffer);
 
     $nodestart = tell(BMDLOUT);
-    
+
     # go back and change all the pointers
     # write in the header blanks
     # location of this nodes parent
@@ -4260,11 +4260,11 @@ sub writerawbinarymdl {
         seek(BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 332 + $roffset, 0); #
         print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'mdxstart'}));
       }
-      
+
       seek(BMDLOUT, $model->{'nodes'}{$i}{'subhead'}{'start'} + 336 + $roffset, 0); #
       print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertcoords'}{'start'} - 12));
     } # ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)
-    
+
     # fill in the controller blanks
     if ( $model->{'nodes'}{$i}{'controllernum'} != 0) {
       seek(BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 56, 0);
@@ -4272,7 +4272,7 @@ sub writerawbinarymdl {
       seek(BMDLOUT, $model->{'nodes'}{$i}{'header'}{'start'} + 68, 0);
       print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'controllerdata'}{'start'} - 12));
     }
-    
+
     #if this is a child of another node fill in the child list for the parent
     if (lc($model->{'nodes'}{$i}{'parent'}) ne "null") {
       $temp1 =  $model->{'nodes'}{ $model->{'nodes'}{$i}{'parentnodenum'} }{'childindexes'}{'start'};
@@ -4287,7 +4287,7 @@ sub writerawbinarymdl {
       }
       print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'header'}{'start'} - 12));
     }
-  }  
+  }
 
   #fill in the last blank, the size of the mdl (minus the file header)
   seek(BMDLOUT, 4, 0);
@@ -4298,6 +4298,7 @@ sub writerawbinarymdl {
 
   close BMDLOUT;
 }
+
 
 ##########################################################
 # This takes data from an ascii source and makes it look
@@ -4331,7 +4332,7 @@ sub replaceraw {
       $buffer .= pack("f",$asciimodel->{'nodes'}{$asciinode}{'tverts'}[$asciimodel->{'nodes'}{$asciinode}{'tverti'}{$j}][1]);
     }
     # if this is a skin mesh node then add in the bone weights
-    if ($asciimodel->{'nodes'}{$asciinode}{'nodetype'} == 97) {
+    if ($asciimodel->{'nodes'}{$asciinode}{'nodetype'} == NODE_SKIN) {
       $buffer .= pack("f*", @{$asciimodel->{'nodes'}{$asciinode}{'Bbones'}[$j]} );
     }
   }
@@ -4344,7 +4345,7 @@ sub replaceraw {
   # get the raw data from the binary model
   $buffer = $binarymodel->{'nodes'}{$binarynode}{'header'}{'raw'};
   # replace parts of the raw data from the binary model with data from the ascii model
-  
+
   substr($buffer, 16, 4, pack("f", $asciimodel->{'nodes'}{$asciinode}{'Bcontrollers'}{8}{'values'}[0][0]) ); # x
   substr($buffer, 20, 4, pack("f", $asciimodel->{'nodes'}{$asciinode}{'Bcontrollers'}{8}{'values'}[0][1]) ); # y
   substr($buffer, 24, 4, pack("f", $asciimodel->{'nodes'}{$asciinode}{'Bcontrollers'}{8}{'values'}[0][2]) ); # z
@@ -4587,7 +4588,7 @@ sub buildtree {
                  -data => 1);
     }
     # if this node has a subheader make an entry for it
-    if ($model->{'nodes'}{$i}{'nodetype'} != 1) {
+    if ($model->{'nodes'}{$i}{'nodetype'} != NODE_DUMMY) {
       $tree->add(".nodes.$i.subhead", 
                  -text => "subhead",
                  -data => 1);
@@ -4658,7 +4659,7 @@ sub buildtree {
                  -data => $model->{'nodes'}{$i}{'mdxdata'}{'dnum'});
     }
     # if this is not a dummy node then make the branch closeable and close it
-    if ($model->{'nodes'}{$i}{'nodetype'} != 1) {
+    if ($model->{'nodes'}{$i}{'nodetype'} != NODE_DUMMY) {
       $tree->setmode(".nodes.$i.subhead", "close");
       $tree->close(".nodes.$i.subhead");
     }
