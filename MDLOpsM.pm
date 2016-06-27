@@ -1563,8 +1563,8 @@ sub writeasciimdl {
       print(MODELOUT "  deadspace " . $model->{'nodes'}{$i}{'deadspace'} . "\n");
       print(MODELOUT "  blastRadius " . $model->{'nodes'}{$i}{'blastRadius'} . "\n");
       print(MODELOUT "  blastLength " . $model->{'nodes'}{$i}{'blastLength'} . "\n");
-      print(MODELOUT "  m_bFrameBlending " . $model->{'nodes'}{$i}{'m_bFrameBlending'} . "\n");
-      print(MODELOUT "  m_sDepthTextureName " . $model->{'nodes'}{$i}{'m_sDepthTextureName'} . "\n");
+      print(MODELOUT "  numBranches " . $model->{'nodes'}{$i}{'numBranches'} . "\n");
+      print(MODELOUT "  controlptsmoothing " . $model->{'nodes'}{$i}{'controlptsmoothing'} . "\n");
       print(MODELOUT "  xgrid " . $model->{'nodes'}{$i}{'xgrid'} . "\n");
       print(MODELOUT "  ygrid " . $model->{'nodes'}{$i}{'ygrid'} . "\n");
       print(MODELOUT "  spawntype " . $model->{'nodes'}{$i}{'spawntype'} . "\n");
@@ -1758,7 +1758,7 @@ sub readsinglecontroller {
   my $temp;
 
   if ($line =~ /^\s*$controllername(\s+(\S*))+/i) {
-    $line =~ s/\s*$controllername//;
+    $line =~ s/\s*$controllername//i;
     @controllerdata = ($line =~ /\s+(\S+)/g);
     $modelref->{'nodes'}{$nodenum}{'controllernum'}++;
     $modelref->{'nodes'}{$nodenum}{'controllerdatanum'} += ($#controllerdata + 2); # add 1 for array starting at 0 and 1 for the time value
