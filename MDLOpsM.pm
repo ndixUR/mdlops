@@ -146,6 +146,7 @@ $structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name
 $structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
 $structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[16]S*"};
+$structs{'subhead'}{'161k1'}= {loc => -1, num => 1, size => 388, dnum => 1, name => "animmesh_header",  tmplt => $structs{'subhead'}{'33k1'}->{tmplt} . 'fL[3]f[9]'};
 $structs{'subhead'}{'289k1'}= {loc => -1, num => 1, size => 360, dnum => 1, name => "dangly_header",    tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[3]f[3]l"};
 $structs{'subhead'}{'545k1'} = {loc => -1, num => 1, size => 336, dnum => 1, name => "walkmesh_header", tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll"};
 $structs{'subhead'}{'2081k1'}={loc => -1, num => 1, size => 352, dnum => 1, name => "subhead2081",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll*"};
@@ -155,6 +156,7 @@ $structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name
 $structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
 $structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll[16]S*"};
+$structs{'subhead'}{'161k2'}= {loc => -1, num => 1, size => 396, dnum => 1, name => "animmesh_header", tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'fL[3]f[9]'};
 $structs{'subhead'}{'289k2'}= {loc => -1, num => 1, size => 368, dnum => 1, name => "dangly_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll[3]f[3]l"};
 $structs{'subhead'}{'545k2'}= {loc => -1, num => 1, size => 344, dnum => 1, name => "walkmesh_header", tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll"};
 $structs{'subhead'}{'2081k2'}={loc => -1, num => 1, size => 360, dnum => 1, name => "subhead2081",     tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll*"};
