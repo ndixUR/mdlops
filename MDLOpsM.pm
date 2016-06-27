@@ -142,7 +142,7 @@ $structs{'nodeheader'} =  {loc =>  -1, num =>  1, size => 80, dnum => 1, name =>
 $structs{'nodechildren'} ={loc =>  13, num => 14, size =>  4, dnum => 1, name => "node_children", tmplt => "l*"};
 
 $structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "f[4]L[12]l*"};
-$structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
+$structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[16]S*"};
 $structs{'subhead'}{'289k1'}= {loc => -1, num => 1, size => 360, dnum => 1, name => "dangly_header",    tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[3]f[3]l"};
@@ -150,7 +150,7 @@ $structs{'subhead'}{'545k1'} = {loc => -1, num => 1, size => 336, dnum => 1, nam
 $structs{'subhead'}{'2081k1'}={loc => -1, num => 1, size => 352, dnum => 1, name => "subhead2081",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll*"};
 
 $structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",    tmplt => "f[4]L[12]l*"};
-$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
+$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll[16]S*"};
 $structs{'subhead'}{'289k2'}= {loc => -1, num => 1, size => 368, dnum => 1, name => "dangly_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll[3]f[3]l"};
@@ -1056,11 +1056,13 @@ my $dothis = 0;
          ? $ref->{$node}{'texturenameslength'} : 0)
     ), 0);
   }
-#tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};  
+#tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
   if ( $nodetype == NODE_EMITTER ) { # emitter
-    $ref->{$node}{'deadspace'} = $ref->{$node}{'subhead'}{'unpacked'}[2];
-    $ref->{$node}{'blastRadius'} = $ref->{$node}{'subhead'}{'unpacked'}[3];
-    $ref->{$node}{'blastLength'} = $ref->{$node}{'subhead'}{'unpacked'}[4];
+    $ref->{$node}{'deadspace'} = $ref->{$node}{'subhead'}{'unpacked'}[0];
+    $ref->{$node}{'blastRadius'} = $ref->{$node}{'subhead'}{'unpacked'}[1];
+    $ref->{$node}{'blastLength'} = $ref->{$node}{'subhead'}{'unpacked'}[2];
+    $ref->{$node}{'numBranches'} = $ref->{$node}{'subhead'}{'unpacked'}[3];
+    $ref->{$node}{'controlptsmoothing'} = $ref->{$node}{'subhead'}{'unpacked'}[4];
     $ref->{$node}{'xgrid'} = $ref->{$node}{'subhead'}{'unpacked'}[5];
     $ref->{$node}{'ygrid'} = $ref->{$node}{'subhead'}{'unpacked'}[6];
     $ref->{$node}{'spawntype'} = $ref->{$node}{'subhead'}{'unpacked'}[7]; #spacetype??
@@ -1071,8 +1073,11 @@ my $dothis = 0;
     $ref->{$node}{'chunkname'} = $ref->{$node}{'subhead'}{'unpacked'}[12];
     $ref->{$node}{'twosidedtex'} = $ref->{$node}{'subhead'}{'unpacked'}[13];
     $ref->{$node}{'loop'} = $ref->{$node}{'subhead'}{'unpacked'}[14];
-    $ref->{$node}{'renderorder'} = $ref->{$node}{'subhead'}{'unpacked'}[15];
-    $ref->{$node}{'emitterflags'} = $ref->{$node}{'subhead'}{'unpacked'}[17];
+    #$ref->{$node}{'renderorder'} = $ref->{$node}{'subhead'}{'unpacked'}[15];
+    $ref->{$node}{'emitterflags'} = $ref->{$node}{'subhead'}{'unpacked'}[15];
+    $ref->{$node}{'m_bFrameBlending'} = $ref->{$node}{'subhead'}{'unpacked'}[16];
+    $ref->{$node}{'m_sDepthTextureName'} = $ref->{$node}{'subhead'}{'unpacked'}[17];
+
     $ref->{$node}{'p2p'} = ($ref->{$node}{'emitterflags'} & 0x0001) ? 1 : 0;
     $ref->{$node}{'p2p_sel'} = ($ref->{$node}{'emitterflags'} & 0x0002) ? 1 : 0;
     $ref->{$node}{'affectedByWind'} = ($ref->{$node}{'emitterflags'} & 0x0004) ? 1 : 0;
@@ -1084,6 +1089,9 @@ my $dothis = 0;
     $ref->{$node}{'inherit_local'} = ($ref->{$node}{'emitterflags'} & 0x0100) ? 1 : 0;
     $ref->{$node}{'splat'} = ($ref->{$node}{'emitterflags'} & 0x0200) ? 1 : 0;
     $ref->{$node}{'inherit_part'} = ($ref->{$node}{'emitterflags'} & 0x0400) ? 1 : 0;
+    # the following are complete guesses
+    $ref->{$node}{'depth_texture'} = ($ref->{$node}{'emitterflags'} & 0x0800) ? 1 : 0;
+    $ref->{$node}{'renderorder'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
   }
   # subheader flag data snagged from http://nwn-j3d.cvs.sourceforge.net/nwn-j3d/nwn/c-src/mdl2ascii.cpp?revision=1.31&view=markup
   
@@ -1543,6 +1551,8 @@ sub writeasciimdl {
       print(MODELOUT "  deadspace " . $model->{'nodes'}{$i}{'deadspace'} . "\n");
       print(MODELOUT "  blastRadius " . $model->{'nodes'}{$i}{'blastRadius'} . "\n");
       print(MODELOUT "  blastLength " . $model->{'nodes'}{$i}{'blastLength'} . "\n");
+      print(MODELOUT "  m_bFrameBlending " . $model->{'nodes'}{$i}{'m_bFrameBlending'} . "\n");
+      print(MODELOUT "  m_sDepthTextureName " . $model->{'nodes'}{$i}{'m_sDepthTextureName'} . "\n");
       print(MODELOUT "  xgrid " . $model->{'nodes'}{$i}{'xgrid'} . "\n");
       print(MODELOUT "  ygrid " . $model->{'nodes'}{$i}{'ygrid'} . "\n");
       print(MODELOUT "  spawntype " . $model->{'nodes'}{$i}{'spawntype'} . "\n");
@@ -1555,7 +1565,9 @@ sub writeasciimdl {
       }
       print(MODELOUT "  twosidedtex " . $model->{'nodes'}{$i}{'twosidedtex'} . "\n");
       print(MODELOUT "  loop " . $model->{'nodes'}{$i}{'loop'} . "\n");
-      print(MODELOUT "  renderorder " . $model->{'nodes'}{$i}{'renderorder'} . "\n");
+      print(MODELOUT "  m_bFrameBlending " . $model->{'nodes'}{$i}{'m_bFrameBlending'} . "\n");
+      print(MODELOUT "  m_sDepthTextureName " . $model->{'nodes'}{$i}{'m_sDepthTextureName'} . "\n");
+
       print(MODELOUT "  p2p " . $model->{'nodes'}{$i}{'p2p'} . "\n");
       print(MODELOUT "  p2p_sel " . $model->{'nodes'}{$i}{'p2p_sel'} . "\n");
       print(MODELOUT "  affectedByWind " . $model->{'nodes'}{$i}{'affectedByWind'} . "\n");
@@ -1567,6 +1579,8 @@ sub writeasciimdl {
       print(MODELOUT "  inherit_local " . $model->{'nodes'}{$i}{'inherit_local'} . "\n");
       print(MODELOUT "  splat " . $model->{'nodes'}{$i}{'splat'} . "\n");
       print(MODELOUT "  inherit_part " . $model->{'nodes'}{$i}{'inherit_part'} . "\n");
+      print(MODELOUT "  depth_texture " . $model->{'nodes'}{$i}{'depth_texture'} . "\n");
+      print(MODELOUT "  renderorder " . $model->{'nodes'}{$i}{'renderorder'} . "\n");
     
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
@@ -1885,6 +1899,33 @@ sub readasciimdl {
   $model{'filepath+name'} = $filepath;
   $pathonly = substr($filepath, 0, length($filepath)-length($model{'filename'}));
   print("$pathonly\n") if $printall;
+
+  # emitter properties
+  my $emitter_properties = [
+    'deadspace', 'blastRadius', 'blastLength',
+    'numBranches', 'controlptsmoothing', 'xgrid', 'ygrid', 'spawntype',
+    'update', 'render', 'blend', 'texture', 'chunkname',
+    'twosidedtex', 'loop', 'm_bFrameBlending', 'm_sDepthTextureName'
+  ];
+  # emitter flags
+  my $emitter_flags = {
+    p2p                 => 0x0001,
+    p2p_sel             => 0x0002,
+    affectedByWind      => 0x0004,
+    m_isTinted          => 0x0008,
+    bounce              => 0x0010,
+    random              => 0x0020,
+    inherit             => 0x0040,
+    inheritvel          => 0x0080,
+    inherit_local       => 0x0100,
+    splat               => 0x0200,
+    inherit_part        => 0x0400,
+    depth_texture       => 0x0800,
+    renderorder         => 0x1000
+  };
+  # prepare emitter regex matches, all properties and flags are handled alike
+  my $emitter_prop_match = join('|', @{$emitter_properties});
+  my $emitter_flag_match = join('|', keys %{$emitter_flags});
   
   #set some default values
   $model{'bmin'} = [-5, -5, -1];
@@ -1932,6 +1973,17 @@ sub readasciimdl {
       $model{'radius'} = $1;
     } elsif (/\s*setanimationscale\s+(\S*)/i) {
       $model{'animationscale'} = $1;
+    } elsif ($innode && $line =~ /^\s*($emitter_prop_match)\s+(\S+)\s*$/) {
+      $model{'nodes'}{$nodenum}{$1} = $2;
+    } elsif ($innode && $line =~ /^\s*($emitter_flag_match)\s+(\S+)\s*$/) {
+      if (!defined($model{'nodes'}{$nodenum}{'emitterflags'})) {
+        $model{'nodes'}{$nodenum}{'emitterflags'} = 0;
+      }
+      if ($2 == 1) {
+        $model{'nodes'}{$nodenum}{'emitterflags'} |= $emitter_flags->{$1};
+      }
+      $model{'nodes'}{$nodenum}{$1} = int $2;
+      next;
     } elsif (/\s*node\s+(\S*)\s+(\S*)/i && !$innode && $isanimation) { # look for the start of an animation node
       $innode = 1;
       $nodenum = $nodeindex{lc($2)};
@@ -3652,6 +3704,36 @@ sub writebinarynode
         }
     }
 
+    #write out the emitter sub header and data (if any)
+    if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_EMITTER)
+    {
+        # size 224: 32 + 32 + 32 + 32 + 32 + 16 + 8 + 2 + 1 + 37
+        $buffer = pack(
+          #'l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l', 0, 0,
+          'f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]',
+          $model->{'nodes'}{$i}{'deadspace'},           # 0
+          $model->{'nodes'}{$i}{'blastRadius'},         # 1
+          $model->{'nodes'}{$i}{'blastLength'},         # 2
+          $model->{'nodes'}{$i}{'numBranches'},         # 3
+          $model->{'nodes'}{$i}{'controlptsmoothing'},  # 4
+          $model->{'nodes'}{$i}{'xgrid'},               # 5
+          $model->{'nodes'}{$i}{'ygrid'},               # 6
+          $model->{'nodes'}{$i}{'spawntype'},           # 7
+          $model->{'nodes'}{$i}{'update'},              # 8
+          $model->{'nodes'}{$i}{'render'},              # 9
+          $model->{'nodes'}{$i}{'blend'},               # 10
+          $model->{'nodes'}{$i}{'texture'},             # 11
+          $model->{'nodes'}{$i}{'chunkname'},           # 12
+          $model->{'nodes'}{$i}{'twosidedtex'},         # 13
+          $model->{'nodes'}{$i}{'loop'},                # 14
+          $model->{'nodes'}{$i}{'emitterflags'},        # 15
+          $model->{'nodes'}{$i}{'m_bFrameBlending'},    # 16
+          $model->{'nodes'}{$i}{'m_sDepthTextureName'}, # 17
+        );
+        print (BMDLOUT $buffer);
+        $totalbytes += length($buffer);
+    }
+
     #write out the mesh sub header and data (if any)
     if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)
     {
@@ -4104,6 +4186,11 @@ sub writebinarynode
             {
                 $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
                 $timestart, $valuestart, $ccol, 255, 114, 17);
+            }
+            elsif ( $model->{'nodes'}{$i}{'nodetype'} == NODE_EMITTER ) {
+                # these numbers are still bad ... need to figure them out for real sometime soon
+                $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
+                $timestart, $valuestart, $ccol, 99, 121, 17);
             }
             else
             {
