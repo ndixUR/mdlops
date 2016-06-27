@@ -194,7 +194,7 @@ $structs{'darray'}[9] = {loc => 74, num => 75, size => 16, dnum =>   1, name => 
 $structs{'darray'}[10]= {loc => 74, num => -1, size => 40, dnum =>   6, name => "aabb",         tmplt => "ffffffllll"}; 
 
 our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
-                   'skin' => 97, 'danglymesh' => 289, 'aabb' => 545, 'saber' => 2081);
+                   'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'saber' => 2081);
 
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
                        'Door' => 0x08, 'Placeable' => 0x20, 'Other' => 0x00);
@@ -220,8 +220,10 @@ use constant NODE_HAS_SABER     => 0x00000800;
 # dummy =       NODE_HAS_HEADER =                                   0x001 = 1
 # light =       NODE_HAS_HEADER + NODE_HAS_LIGHT =                  0x003 = 3
 # emitter =     NODE_HAS_HEADER + NODE_HAS_EMITTER =                0x005 = 5
+# reference =   NODE_HAS_HEADER + NODE_HAS_REFERENCE =              0x011 = 17
 # mesh =        NODE_HAS_HEADER + NODE_HAS_MESH =                   0x021 = 33
 # skin mesh =   NODE_HAS_SKIN + NODE_HAS_MESH + NODE_HAS_HEADER =   0x061 = 97
+# anim mesh =   NODE_HAS_ANIM + NODE_HAS_MESH + NODE_HAS_HEADER =   0x0a1 = 161
 # dangly mesh = NODE_HAS_DANGLY + NODE_HAS_MESH + NODE_HAS_HEADER = 0x121 = 289
 # aabb mesh =   NODE_HAS_AABB + NODE_HAS_MESH + NODE_HAS_HEADER =   0x221 = 545
 # saber mesh =  NODE_HAS_SABER + NODE_HAS_MESH + NODE_HAS_HEADER =  0x821 = 2081
@@ -273,21 +275,14 @@ $controllernames{+NODE_HAS_EMITTER}{80}   = "alphaEnd"; 	# same
 $controllernames{+NODE_HAS_EMITTER}{84}   = "alphaStart";	# same - fx_flame01
 $controllernames{+NODE_HAS_EMITTER}{88}   = "birthrate"; 	# same - fx_flame01
 $controllernames{+NODE_HAS_EMITTER}{92}   = "bounce_co";
-$controllernames{+NODE_HAS_EMITTER}{284}  = "colorMid"; 	# was 468
-$controllernames{+NODE_HAS_EMITTER}{380}  = "colorEnd"; 	# was 96 - fx_flame01
-$controllernames{+NODE_HAS_EMITTER}{392}  = "colorStart"; 	# was 108 - fx_flame01
-
-#$controllernames{+NODE_HAS_EMITTER}{} = "combinetime"; # was 120
-
-$controllernames{+NODE_HAS_EMITTER}{124}  = "drag";
+$controllernames{+NODE_HAS_EMITTER}{96}   = "combinetime"; 	# was 120
+$controllernames{+NODE_HAS_EMITTER}{100}  = "drag";
 $controllernames{+NODE_HAS_EMITTER}{104}  = "fps";      	# was 128 - fx_flame01
 $controllernames{+NODE_HAS_EMITTER}{108}  = "frameEnd"; 	# was 132 - fx_flame01
 $controllernames{+NODE_HAS_EMITTER}{112}  = "frameStart"; 	# was 136
-
-#$controllernames{+NODE_HAS_EMITTER}{} = "grav";        # was 140
-
+$controllernames{+NODE_HAS_EMITTER}{116}  = "grav";		# was 140
 $controllernames{+NODE_HAS_EMITTER}{120}  = "lifeExp";  	# was 144 - fx_flame01 (why did I have 240?)
-$controllernames{+NODE_HAS_EMITTER}{116}  = "mass";     	# was 148 -> fx_flame01
+$controllernames{+NODE_HAS_EMITTER}{124}  = "mass";     	# was 148 -> fx_flame01
 $controllernames{+NODE_HAS_EMITTER}{128}  = "p2p_bezier2"; 	# was 152
 $controllernames{+NODE_HAS_EMITTER}{132}  = "p2p_bezier3"; 	# was 156
 $controllernames{+NODE_HAS_EMITTER}{136}  = "particleRot"; 	# was 160
@@ -305,15 +300,25 @@ $controllernames{+NODE_HAS_EMITTER}{180}  = "blurlength"; 	# was 204 - fx_flame0
 $controllernames{+NODE_HAS_EMITTER}{184}  = "lightningDelay"; 	# was 208
 $controllernames{+NODE_HAS_EMITTER}{188}  = "lightningRadius"; 	# was 212
 $controllernames{+NODE_HAS_EMITTER}{192}  = "lightningScale"; 	# was 216
-
-#$controllernames{+NODE_HAS_EMITTER}{} = "detonate";      # was 228
-
+$controllernames{+NODE_HAS_EMITTER}{196}  = "lightningSubDiv";	#
+$controllernames{+NODE_HAS_EMITTER}{200}  = "lightningzigzag";	#
 $controllernames{+NODE_HAS_EMITTER}{216}  = "alphaMid";   	# was 464
 $controllernames{+NODE_HAS_EMITTER}{220}  = "percentStart"; 	# was 480
 $controllernames{+NODE_HAS_EMITTER}{224}  = "percentMid"; 	# was 481
 $controllernames{+NODE_HAS_EMITTER}{228}  = "percentEnd"; 	# was 482
 $controllernames{+NODE_HAS_EMITTER}{232}  = "sizeMid";    	# was 484
 $controllernames{+NODE_HAS_EMITTER}{236}  = "sizeMid_y";   	# was 488
+$controllernames{+NODE_HAS_EMITTER}{240}  = "m_fRandomBirthRate"; #
+$controllernames{+NODE_HAS_EMITTER}{252}  = "targetsize"; 	#
+$controllernames{+NODE_HAS_EMITTER}{256}  = "numcontrolpts"; 	#
+$controllernames{+NODE_HAS_EMITTER}{260}  = "controlptradius";	#
+$controllernames{+NODE_HAS_EMITTER}{264}  = "controlptdelay"; 	#
+$controllernames{+NODE_HAS_EMITTER}{268}  = "tangentspread"; 	#
+$controllernames{+NODE_HAS_EMITTER}{272}  = "tangentlength"; 	#
+$controllernames{+NODE_HAS_EMITTER}{284}  = "colorMid"; 	# was 468
+$controllernames{+NODE_HAS_EMITTER}{380}  = "colorEnd"; 	# was 96 - fx_flame01
+$controllernames{+NODE_HAS_EMITTER}{392}  = "colorStart"; 	# was 108 - fx_flame01
+$controllernames{+NODE_HAS_EMITTER}{502}  = "detonate"; 	# was 228
 
 $controllernames{+NODE_HAS_MESH}{100} = "selfillumcolor";
 
