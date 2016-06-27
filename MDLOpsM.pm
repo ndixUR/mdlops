@@ -1960,41 +1960,41 @@ sub readasciimdl {
   # read in the ascii mdl
   while (<$ASCIIMDL>) {
     my $line = $_;
-    if (/beginmodelgeom/i) { # look for the start of the model
+    if ($line =~ /beginmodelgeom/i) { # look for the start of the model
       #print("begin model\n");
       $nodenum = 0;
       $isgeometry = 1;
-    } elsif (/endmodelgeom/i) { # look for the end of the model
+    } elsif ($line =~ /endmodelgeom/i) { # look for the end of the model
       #print("end model\n");
       $isgeometry = 0;
       $nodenum = 0;
-    } elsif (/\s*newanim\s+(\S*)\s+(\S*)/i) { # look for the start of an animation
+    } elsif ($line =~ /\s*newanim\s+(\S*)\s+(\S*)/i) { # look for the start of an animation
       $isanimation = 1; 
       $model{'anims'}{$animnum}{'name'} = $1;
       $model{'numanims'}++;
       $model{'anims'}{$animnum}{'nodelist'} = [];
-    } elsif (/doneanim/i && $isanimation) { # look for the end of an animation
+    } elsif ($line =~ /doneanim/i && $isanimation) { # look for the end of an animation
       $isanimation = 0;
       $animnum++;
-    } elsif (/\s*length\s+(\S*)/i && $isanimation) {
+    } elsif ($line =~ /\s*length\s+(\S*)/i && $isanimation) {
       $model{'anims'}{$animnum}{'length'} = $1;
-    } elsif (/\s*animroot\s+(\S*)/i && $isanimation) {
+    } elsif ($line =~ /\s*animroot\s+(\S*)/i && $isanimation) {
       $model{'anims'}{$animnum}{'animroot'} = $1;
-    } elsif (/\s*transtime\s+(\S*)/i && $isanimation) {
+    } elsif ($line =~ /\s*transtime\s+(\S*)/i && $isanimation) {
       $model{'anims'}{$animnum}{'transtime'} = $1; 
-    } elsif (/\s*newmodel\s+(\S*)/i) { # look for the model name
+    } elsif ($line =~ /\s*newmodel\s+(\S*)/i) { # look for the model name
       $model{'name'} = $1;
-    } elsif (/\s*setsupermodel\s+(\S*)\s+(\S*)/i) { #look for the super model
+    } elsif ($line =~ /\s*setsupermodel\s+(\S*)\s+(\S*)/i) { #look for the super model
       $model{'supermodel'} = $2;
-    } elsif (/\s*bmin\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box min
+    } elsif ($line =~ /\s*bmin\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box min
       $model{'bmin'} = [$1,$2,$3];
-    } elsif (/\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box max
+    } elsif ($line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box max
       $model{'bmax'} = [$1,$2,$3];
-    } elsif (/\s*classification\s+(\S*)/i) { # look for the model type
+    } elsif ($line =~ /\s*classification\s+(\S*)/i) { # look for the model type
       $model{'classification'} = $1;
-    } elsif (/\s*radius\s+(\S*)/i && !$innode) {
+    } elsif (!$innode && $line =~ /\s*radius\s+(\S*)/i) {
       $model{'radius'} = $1;
-    } elsif (/\s*setanimationscale\s+(\S*)/i) {
+    } elsif ($line =~ /\s*setanimationscale\s+(\S*)/i) {
       $model{'animationscale'} = $1;
     } elsif ($innode && $line =~ /^\s*($emitter_prop_match)\s+(\S+)\s*$/) {
       $model{'nodes'}{$nodenum}{$1} = $2;
@@ -2007,7 +2007,7 @@ sub readasciimdl {
       }
       $model{'nodes'}{$nodenum}{$1} = int $2;
       next;
-    } elsif (/\s*node\s+(\S*)\s+(\S*)/i && !$innode && $isanimation) { # look for the start of an animation node
+    } elsif (!$innode && $line =~ /\s*node\s+(\S*)\s+(\S*)/i && $isanimation) { # look for the start of an animation node
       $innode = 1;
       $nodenum = $nodeindex{lc($2)};
       push @{$model{'anims'}{$animnum}{'nodelist'}}, $nodenum;
@@ -2018,14 +2018,14 @@ sub readasciimdl {
       $model{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllerdatanum'} = 0;
       $model{'anims'}{$animnum}{'nodes'}{$nodenum}{'childcount'} = 0;
       $model{'anims'}{$animnum}{'nodes'}{$nodenum}{'children'} = [];
-    } elsif (/endnode/i && $innode && $isanimation) { # look for the end of an animation node
+    } elsif ($innode && $line =~ /endnode/i && $isanimation) { # look for the end of an animation node
       $innode = 0;
-    } elsif (/endnode/i && $innode && $isgeometry) { # look for the end of a geometry node
+    } elsif ($innode && $line =~ /endnode/i && $isgeometry) { # look for the end of a geometry node
       $nodenum++;
       $innode = 0;
       $task = "";
       $model{'nodes'}{$nodenum}{'header'} = {};
-    } elsif (/\s*node\s+(\S*)\s+(\S*)/i && !$innode && $isgeometry) { # look for the start of a geometry node
+    } elsif (!$innode && $line =~ /\s*node\s+(\S*)\s+(\S*)/i && $isgeometry) { # look for the start of a geometry node
       my ($ntype, $nname) = (lc($1), $2);
       # handle saber, currently tracked as a name prefix rather than a type
       if ($nname =~ /^2081__/) {
@@ -2062,12 +2062,12 @@ sub readasciimdl {
       #node index has the text node name (in lower case) as keys and node number as values
       $nodeindex{$nname_key} = $nodenum;
       $model{'nodeindex'}{$nname_key} = $nodenum;
-    } elsif (/^\s*radius\s+(\S*)/i && $innode && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
+    } elsif ($innode && $line =~ /^\s*radius\s+(\S*)/i && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
       $model{'radius'} = $1;
 
     } elsif (readasciicontroller($line, $model{'nodes'}{$nodenum}{'nodetype'}, $innode, $isanimation, \%model, $nodenum, $animnum, $ASCIIMDL)) {
 
-    } elsif (/\s*parent\s*(\S*)/i && $innode) { # if in a node look for the parent property
+    } elsif ($innode && $line =~ /\s*parent\s*(\S*)/i) { # if in a node look for the parent property
       if ($isgeometry) {
         $ref = $model{'nodes'};
       } else {
@@ -2095,56 +2095,56 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{$1 . 'num'} = int $2;
         $task = $1;
       }
-    } elsif (/\s*ambientonly\s+(\S*)/i && $innode) { # if in a node look for the ambientonly property
+    } elsif ($innode && $line =~ /\s*ambientonly\s+(\S*)/i) { # if in a node look for the ambientonly property
       $model{'nodes'}{$nodenum}{'ambientonly'} = $1;
-    } elsif (/\s*ndynamictype\s+(\S*)/i && $innode) { # if in a node look for the ndynamictype property
+    } elsif ($innode && $line =~ /\s*ndynamictype\s+(\S*)/i) { # if in a node look for the ndynamictype property
       $model{'nodes'}{$nodenum}{'ndynamictype'} = $1;
-    } elsif (/\s*affectdynamic\s+(\S*)/i && $innode) { # if in a node look for the affectDynamic property
+    } elsif ($innode && $line =~ /\s*affectdynamic\s+(\S*)/i) { # if in a node look for the affectDynamic property
       $model{'nodes'}{$nodenum}{'affectdynamic'} = $1;
-    } elsif (/\s*flare\s+(\S*)/i && $innode) { # if in a node look for the flare property
+    } elsif ($innode && $line =~ /\s*flare\s+(\S*)/i) { # if in a node look for the flare property
       $model{'nodes'}{$nodenum}{'flare'} = $1;
-    } elsif (/\s*lightpriority\s+(\S*)/i && $innode) { # if in a node look for the lightpriority property
+    } elsif ($innode && $line =~ /\s*lightpriority\s+(\S*)/i) { # if in a node look for the lightpriority property
       $model{'nodes'}{$nodenum}{'lightpriority'} = $1;
-    } elsif (/\s*fadinglight\s+(\S*)/i && $innode) { # if in a node look for the fadinglight property
+    } elsif ($innode && $line =~ /\s*fadinglight\s+(\S*)/i) { # if in a node look for the fadinglight property
       $model{'nodes'}{$nodenum}{'fadinglight'} = $1;
-    } elsif (/\s*render\s+(\S*)/i && $innode) { # if in a node look for the render property
+    } elsif ($innode && $line =~ /\s*render\s+(\S*)/i) { # if in a node look for the render property
       $model{'nodes'}{$nodenum}{'render'} = $1;
-    } elsif (/\s*shadow\s+(\S*)/i && $innode) { # if in a node look for the shadow property
+    } elsif ($innode && $line =~ /\s*shadow\s+(\S*)/i) { # if in a node look for the shadow property
       $model{'nodes'}{$nodenum}{'shadow'} = $1;
-    } elsif (/\s*diffuse\s+(\S*)\s+(\S*)\s+(\S*)/i && $innode) { # if in a node look for the diffuse property
+    } elsif ($innode && $line =~ /\s*diffuse\s+(\S*)\s+(\S*)\s+(\S*)/i) { # if in a node look for the diffuse property
       $model{'nodes'}{$nodenum}{'diffuse'} = [$1, $2, $3];
-    } elsif (/\s*ambient\s+(\S*)\s+(\S*)\s+(\S*)/i && $innode) {  # if in a node look for the ambient property
+    } elsif ($innode && $line =~ /\s*ambient\s+(\S*)\s+(\S*)\s+(\S*)/i) {  # if in a node look for the ambient property
       $model{'nodes'}{$nodenum}{'ambient'} = [$1, $2, $3];
-    } elsif (/\s*specular\s+(\S*)\s+(\S*)\s+(\S*)/i && $innode) {  # if in a node look for the specular property
+    } elsif ($innode && $line =~ /\s*specular\s+(\S*)\s+(\S*)\s+(\S*)/i) {  # if in a node look for the specular property
       $model{'nodes'}{$nodenum}{'specular'} = [$1, $2, $3];
-    } elsif (/\s*shininess\s+(\S*)/i && $innode) {  # if in a node look for the shininess property
+    } elsif ($innode && $line =~ /\s*shininess\s+(\S*)/i) {  # if in a node look for the shininess property
       $model{'nodes'}{$nodenum}{'shininess'} = $1;
-    } elsif (/\s*bitmap\s+(\S*)/i && $innode) {  # if in a node look for the bitmap property 
+    } elsif ($innode && $line =~ /\s*bitmap\s+(\S*)/i) {  # if in a node look for the bitmap property
       $model{'nodes'}{$nodenum}{'bitmap'} = $1;
       $model{'nodes'}{$nodenum}{'bitmap2'} = "";
-    } elsif (/\s*displacement\s+(\S*)/i && $innode) { # if in a node look for the displacement property
+    } elsif ($innode && $line =~ /\s*displacement\s+(\S*)/i) { # if in a node look for the displacement property
       $model{'nodes'}{$nodenum}{'displacement'} = $1;
-    } elsif (/\s*tightness\s+(\S*)/i && $innode) { # if in a node look for the tightness property
+    } elsif ($innode && $line =~ /\s*tightness\s+(\S*)/i) { # if in a node look for the tightness property
       $model{'nodes'}{$nodenum}{'tightness'} = $1;
-    } elsif (/\s*period\s+(\S*)/i && $innode) { # if in a node look for the period property
+    } elsif ($innode && $line =~ /\s*period\s+(\S*)/i) { # if in a node look for the period property
       $model{'nodes'}{$nodenum}{'period'} = $1;
-    } elsif (/eventlist/ && $innode == 0 && $isanimation) { # if in an animation look for the start of the event list
+    } elsif ($innode && $line =~ /eventlist/i == 0 && $isanimation) { # if in an animation look for the start of the event list
       $task = "events";
       $model{'anims'}{$animnum}{'numevents'} = 0;
       $count = 0;      
-    } elsif (/endlist/ && $innode == 0 && $isanimation) { # if in an animation look for the end of the event list
+    } elsif ($innode && $line =~ /endlist/i == 0 && $isanimation) { # if in an animation look for the end of the event list
       $task = "";
       $count = 0;
-    } elsif (/\s*[^t]verts\s+(\S*)/i && $innode) {  # if in a node look for the start of the verts
+    } elsif ($innode && $line =~ /\s*[^t]verts\s+(\S*)/i) {  # if in a node look for the start of the verts
       $model{'nodes'}{$nodenum}{'vertnum'} = $1;
       $task = "verts";
       $count = 0;
-    } elsif (/\s*faces\s+(\S*)/i && $innode) { # if in a node look for the start of the faces
+    } elsif ($innode && $line =~ /\s*faces\s+(\S*)/i) { # if in a node look for the start of the faces
       $model{'nodes'}{$nodenum}{'facesnum'} = $1;
       $model{'nodes'}{$nodenum}{'vertfaces'} = {};
       $task = "faces";
       $count = 0;
-    } elsif (/\s*tverts\s+(\S*)/i && $innode) { # if in a node look for the start of the tverts
+    } elsif ($innode && $line =~ /\s*tverts\s+(\S*)/i) { # if in a node look for the start of the tverts
       $model{'nodes'}{$nodenum}{'tvertnum'} = $1;
       # if this is a tri mesh with tverts then adjust the MDX data size
       if ($model{'nodes'}{$nodenum}{'nodetype'} == NODE_TRIMESH) {
@@ -2154,22 +2154,22 @@ sub readasciimdl {
       #print($task . "|" . $count . "\n");
       $task = "tverts";
       $count = 0;
-    } elsif (/\s*weights\s+(\S*)/i && $innode) { # if in a node look for the start of the weights
+    } elsif ($innode && $line =~ /\s*weights\s+(\S*)/i) { # if in a node look for the start of the weights
       $model{'nodes'}{$nodenum}{'weightsnum'} = $1;
       #print($task . "|" . $count . "\n");
       $task = "weights";
       $count = 0;
-    } elsif (/\s*constraints\s+(\S*)/i && $innode) { # if in a node look for the start of the constraints
+    } elsif ($innode && $line =~ /\s*constraints\s+(\S*)/i) { # if in a node look for the start of the constraints
       $model{'nodes'}{$nodenum}{'constraintnum'} = $1;
       #print($task . "|" . $count . "\n");
       $task = "constraints";
       $count = 0;
-    } elsif (/\s*aabb/i && $innode) { # if in a node look for the start of the constraints
+    } elsif ($innode && $line =~ /\s*aabb/i) { # if in a node look for the start of the constraints
       #print("Found aabb\n");
       #print($task . "|" . $count . "\n");
       $task = "aabb";
       $count = 0;
-      if(/\s*aabb\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/i) {
+      if($line =~ /\s*aabb\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/i) {
         $model{'nodes'}{$nodenum}{'aabbnodes'}[$count] = [$1, $2, $3, $4, $5, $6, $7];
         $count++;
       }
