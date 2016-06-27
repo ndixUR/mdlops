@@ -770,6 +770,7 @@ my $dothis = 0;
     $ref->{$node}{'controllers'}{'end'} = tell(MODELMDL)-1;
     $ref->{$node}{'controllers'}{'raw'} = $buffer;
     $ref->{$node}{'controllers'}{'unpacked'} = [unpack($structs{'controllers'}{'tmplt'} x $ref->{$node}{'controllernum'}, $buffer)];
+    $ref->{$node}{'controllers'}{'bezier'} = {};
     for (my $i = 0; $i < $ref->{$node}{'controllernum'}; $i++) {
       if($ref->{$node}{'controllers'}{'unpacked'}[($i * 9)] == 36 && $dothis == 0)
       {
@@ -822,6 +823,15 @@ my $dothis = 0;
       # $_->[4] = offset of first data byte
       # $_->[5] = columns of data
       # the rest is unknown values
+      # detect bezier key usage
+      my $bezier = 0;
+      if ($_->[5] & 16) {
+        # this is a bezier keyed controller
+        # (according to Torlack and experimental verification)
+        $bezier = 1;
+        # record a list of the bezierkeyed controllers
+        $ref->{$node}{'controllers'}{'bezier'}{$_->[0]} = 1;
+      }
       # add template for key time values
       $template .= "f" x $_->[2];
       if ($_->[1] != 128) {
@@ -829,7 +839,9 @@ my $dothis = 0;
         # special compressed quaternion, only read one value here
         if ($_->[0] == 20 && $_->[5] == 2) {
           $template .= "L" x ($_->[2]);
-        } elsif ($_->[0] == 8 && ($_->[5] > 16)) {
+        #} elsif ($_->[0] == 8 && ($_->[5] > 16)) {
+        } elsif ($bezier) {
+          # bezier key support expands data values to 3 values per column
           $template .= "f" x ( $_->[2] * ( ($_->[5] - 16) * 3) );
         } else {
           $template .= "f" x ($_->[2] * $_->[5]); 
@@ -859,6 +871,15 @@ my $dothis = 0;
     # special compressed quaternion, only read one value here
     if ($controllertype == 20 && $datacolumns == 2) {
       $datacolumns = 1;
+    }
+    # check for bezier key usage
+    if ($datacolumns >= 16 && $datacolumns & 16) {
+      $ref->{$node}{'controllers'}{'bezier'}{$controllertype} = 1;
+      #$datacolumns &= 0xEF;
+      # subtract off the bezier key flag (16)
+      $datacolumns -= 16;
+      # multiply by values per column (3)
+      $datacolumns *= 3;
     }
             
     # loop through the data rows    
@@ -953,11 +974,20 @@ my $dothis = 0;
 
   # Positions in animations are deltas from the initial position.
   if ($tree =~ /^anims/ && defined($ref->{$node}{'Acontrollers'}{8})) {
-    my @initialPosVals = split / /, $model->{'nodes'}{$node}{'Acontrollers'}{8}[0];
+    my @initialPosVals = split /\s+/, $model->{'nodes'}{$node}{'Acontrollers'}{8}[0];
+    # handle bezier key value expansion here. method designed for list like:
+    # 0, 1, 2, 3
+    # bezier list is like
+    # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    # best guess is we want 3, 6, 9
+    my $step = 1;
+    if (defined($ref->{$node}{'controllers'}{'bezier'}{8})) {
+      $step = 3;
+    }
     foreach (@{$ref->{$node}{'Acontrollers'}{8}}) {
-      my @curPosVals = split / /;
+      my @curPosVals = split /\s+/;
       for ($temp = 1; $temp <= 3; $temp++) {
-        $curPosVals[$temp] += $initialPosVals[$temp];
+        $curPosVals[$temp * $step] += $initialPosVals[$temp];
       }
       $_ = join(' ', map { sprintf('% .7f', $_) } @curPosVals);
     }
@@ -1697,14 +1727,19 @@ sub writeasciimdl {
         foreach $temp (keys %{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}} ) {
           if ($temp != 42) {
             my $controllername = getcontrollername($model, $temp, $node);
-            
+
+            my $keytype = '';
+            if (defined($model->{'anims'}{$i}{'nodes'}{$node}{'controllers'}{'bezier'}{$temp})) {
+              $keytype = 'bezier';
+            }
+
             if ($controllername ne "") {
-              printf(MODELOUT "    %skey\n", $controllername);
+              printf(MODELOUT "    %s%skey\n", $controllername, $keytype);
             } else {
               if ($temp != 0) {
                 print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
               }
-              printf(MODELOUT "    controller%ukey\n", $temp);
+              printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
             }
             foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
               printf(MODELOUT "      %s\n", $_);
@@ -1792,9 +1827,14 @@ sub readkeyedcontroller {
   my ($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername) = (@_);
   my $count;
 
-  if ($line =~ /^\s*${controllername}key/) {
+  if ($line =~ /^\s*${controllername}(bezier)key/i) {
     my $total;
-    if ($line =~ /key\s+(\d+)$/) {
+    my $bezier = 0;
+    if (lc($2) eq 'bezier') {
+      $bezier = 1;
+      $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllers'}{'bezier'}{$controller} = 1;
+    }
+    if ($line =~ /key\s+(\d+)$/i) {
       # old versions of mdlops did not use endlist, instead had 'positionkey 4' for 4 keyframes
       $total = int $1;
     }
@@ -1811,6 +1851,12 @@ sub readkeyedcontroller {
       if ($controller == 20) {
       # orientation: convert to quaternions
         aatoquaternion(\@controllerdata);
+      } elsif ($controller == 8 && $bezier && scalar(@controllerdata) == 9) {
+      # bezier position: take delta from geometry node
+        # data is every 3rd element in bezier position controller data
+        $controllerdata[2] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][0];
+        $controllerdata[5] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][1];
+        $controllerdata[8] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][2];
       } elsif ($controller == 8) {
       # position: take delta from geometry node
         $controllerdata[0] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][0];
