@@ -141,7 +141,7 @@ $structs{'animevents'} =  {loc =>   3, num =>  4, size => 36, dnum => 1, name =>
 $structs{'nodeheader'} =  {loc =>  -1, num =>  1, size => 80, dnum => 1, name => "node_header",   tmplt => "SSSSllffffffflllllllll"};
 $structs{'nodechildren'} ={loc =>  13, num => 14, size =>  4, dnum => 1, name => "node_children", tmplt => "l*"};
 
-$structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "fl*"};
+$structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "f[4]L[12]l*"};
 $structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
 $structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[16]S*"};
@@ -149,7 +149,7 @@ $structs{'subhead'}{'289k1'}= {loc => -1, num => 1, size => 360, dnum => 1, name
 $structs{'subhead'}{'545k1'} = {loc => -1, num => 1, size => 336, dnum => 1, name => "walkmesh_header", tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll"};
 $structs{'subhead'}{'2081k1'}={loc => -1, num => 1, size => 352, dnum => 1, name => "subhead2081",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll*"};
 
-$structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",    tmplt => "fl*"};
+$structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",    tmplt => "f[4]L[12]l*"};
 $structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
 $structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lllll[16]S*"};
@@ -974,6 +974,16 @@ my $dothis = 0;
 
   if ( $nodetype == NODE_LIGHT ) { # light
     # to do: flare radius, flare sizes array, flare positions array, flare color shifts array, flare texture names char pointer array
+    $ref->{$node}{'flareradius'} = $ref->{$node}{'subhead'}{'unpacked'}[0];
+    $ref->{$node}{'flaresizesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[4];
+    $ref->{$node}{'flaresizesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[5];
+    $ref->{$node}{'flarepositionsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[7];
+    $ref->{$node}{'flarepositionsnum'} = $ref->{$node}{'subhead'}{'unpacked'}[8];
+    $ref->{$node}{'flarecolorshiftsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[10];
+    $ref->{$node}{'flarecolorshiftsnum'} = $ref->{$node}{'subhead'}{'unpacked'}[11];
+    $ref->{$node}{'texturenamesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[13];
+    $ref->{$node}{'texturenamesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[14];
+
     $ref->{$node}{'lightpriority'} = $ref->{$node}{'subhead'}{'unpacked'}[16];
     $ref->{$node}{'ambientonly'} = $ref->{$node}{'subhead'}{'unpacked'}[17];
     $ref->{$node}{'ndynamictype'} = $ref->{$node}{'subhead'}{'unpacked'}[18];
@@ -981,6 +991,70 @@ my $dothis = 0;
     $ref->{$node}{'shadow'} = $ref->{$node}{'subhead'}{'unpacked'}[20];
     $ref->{$node}{'flare'} = $ref->{$node}{'subhead'}{'unpacked'}[21];
     $ref->{$node}{'fadinglight'} = $ref->{$node}{'subhead'}{'unpacked'}[22];
+
+    # now read any flare data
+    # do our reads in commonly laid out order, texturenames, then flare values in ascending order
+    if (defined($ref->{$node}{'texturenamesnum'}) && $ref->{$node}{'texturenamesnum'} > 0) {
+      $ref->{$node}{'texturenames'} = [];
+      $ref->{$node}{'texturenameslength'} = 0;
+      #while (scalar(@{$ref->{$node}{'texturenames'}}) < $ref->{$node}{'texturenamesnum'}) {
+      for my $name_pointer_num (0..$ref->{$node}{'texturenamesnum'} - 1) {
+        # get the pointer at offset
+        my $name = '';
+        my $name_ptr = 0;
+        seek(MODELMDL, ($ref->{$node}{'texturenamesloc'} + 12) + (4 * $name_pointer_num), 0);
+        read(MODELMDL, $name_ptr, 4);
+        $name_ptr = unpack('L', $name_ptr);
+        #print "NAME PTR = $name_ptr\n";
+        seek(MODELMDL, $name_ptr + 12, 0);
+        read(MODELMDL, $name, 12);
+        #print "NAME  = $name " . length($name) . "\n";
+        $name = unpack('Z[12]', $name);
+        #print "NAME  = $name " . length($name) . "\n";
+        $ref->{$node}{'texturenameslength'} += (length($name) + 1); # extra +1 for trailing null
+        $ref->{$node}{'texturenames'} = [ @{$ref->{$node}{'texturenames'}}, $name ];
+      }
+    }
+
+    if (defined($ref->{$node}{'flaresizesnum'}) && $ref->{$node}{'flaresizesnum'} > 0) {
+      $ref->{$node}{'flaresizes'} = [];
+      $buffer = '';
+      for my $flare_size_num (0..$ref->{$node}{'flaresizesnum'} - 1) {
+        seek(MODELMDL, ($ref->{$node}{'flaresizesloc'} + 12) + (4 * $flare_size_num), 0);
+        read(MODELMDL, $buffer, 4);
+        $ref->{$node}{'flaresizes'} = [ @{$ref->{$node}{'flaresizes'}}, unpack('f', $buffer) ];
+      }
+    }
+
+    if (defined($ref->{$node}{'flarepositionsnum'}) && $ref->{$node}{'flarepositionsnum'} > 0) {
+      $ref->{$node}{'flarepositions'} = [];
+      $buffer = '';
+      for my $flare_position_num (0..$ref->{$node}{'flarepositionsnum'} - 1) {
+        seek(MODELMDL, ($ref->{$node}{'flarepositionsloc'} + 12) + (4 * $flare_position_num), 0);
+        read(MODELMDL, $buffer, 4);
+        $ref->{$node}{'flarepositions'} = [ @{$ref->{$node}{'flarepositions'}}, unpack('f', $buffer) ];
+      }
+    }
+
+    if (defined($ref->{$node}{'flarecolorshiftsnum'}) && $ref->{$node}{'flarecolorshiftsnum'} > 0) {
+      $ref->{$node}{'flarecolorshifts'} = [];
+      $buffer = '';
+      for my $flare_colorshift_num (0..$ref->{$node}{'flarecolorshiftsnum'} - 1) {
+        seek(MODELMDL, ($ref->{$node}{'flarecolorshiftsloc'} + 12) + (12 * $flare_colorshift_num), 0);
+        read(MODELMDL, $buffer, 12);
+        $ref->{$node}{'flarecolorshifts'} = [ @{$ref->{$node}{'flarecolorshifts'}}, [ unpack('fff', $buffer) ] ];
+      }
+    }
+
+    # reposition file read position to after light subheader and data
+    seek(MODELMDL, $ref->{$node}{'subhead'}{'end'} + (
+      ($ref->{$node}{'flaresizesnum'} * 4) +
+      ($ref->{$node}{'flarepositionsnum'} * 4) +
+      ($ref->{$node}{'flarecolorshiftsnum'} * (4 * 3)) +
+      ($ref->{$node}{'texturenamesnum'} * 4) +
+      (defined($ref->{$node}{'texturenameslength'})
+         ? $ref->{$node}{'texturenameslength'} : 0)
+    ), 0);
   }
 #tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};  
   if ( $nodetype == NODE_EMITTER ) { # emitter
@@ -1421,7 +1495,39 @@ sub writeasciimdl {
       print(MODELOUT "  flare " . $model->{'nodes'}{$i}{'flare'} . "\n");
       print(MODELOUT "  lightpriority " . $model->{'nodes'}{$i}{'lightpriority'} . "\n");
       print(MODELOUT "  fadingLight " . $model->{'nodes'}{$i}{'fadinglight'} . "\n");
-      
+
+      my $has_flares = defined($model->{'nodes'}{$i}{'flarepositions'}) &&
+                       scalar(@{$model->{'nodes'}{$i}{'flarepositions'}});
+
+      # lens flare properties implementation
+      if ($has_flares) {
+        # not really planning to use this, but this is how neverblender outputs it ... nwmax?
+        printf(MODELOUT "  lensflares %u\n", scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}));
+      }
+      if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'texturenames'}})) {
+        printf(MODELOUT "  texturenames %u\n    %s\n",
+               scalar(@{$model->{'nodes'}{$i}{'texturenames'}}),
+               join("\n    ", @{$model->{'nodes'}{$i}{'texturenames'}}));
+      }
+      if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flarepositions'}})) {
+        printf(MODELOUT "  flarepositions %u\n    %s\n",
+               scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}),
+               join("\n    ", map { sprintf('%.7f', $_); } @{$model->{'nodes'}{$i}{'flarepositions'}}));
+      }
+      if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flaresizes'}})) {
+        printf(MODELOUT "  flaresizes %u\n    %s\n",
+               scalar(@{$model->{'nodes'}{$i}{'flaresizes'}}),
+               join("\n    ", map { sprintf('%.7f', $_); } @{$model->{'nodes'}{$i}{'flaresizes'}}));
+      }
+      if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}})) {
+        printf(MODELOUT "  flarecolorshifts %u\n",
+               scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}}));
+        for my $shift_col (@{$model->{'nodes'}{$i}{'flarecolorshifts'}}) {
+          printf(MODELOUT "    %.7f %.7f %.7f\n", @{$shift_col});
+        }
+      }
+      printf(MODELOUT "  flareradius %.7f\n", $model->{'nodes'}{$i}{'flareradius'});
+
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_LIGHT}}) {
         (undef, @args) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
@@ -1902,6 +2008,18 @@ sub readasciimdl {
         $ref->{ $ref->{$nodenum}{'parentnodenum'} }{'children'}[$ref->{$nodenum}{'childposition'}] = $nodenum;
         $ref->{ $ref->{$nodenum}{'parentnodenum'} }{'childcount'}++;
       }
+    } elsif ($innode && $line =~ /\s*flareradius\s+(\S*)/i) { # if in a node look for the flareradius property
+      $model{'nodes'}{$nodenum}{'flareradius'} = $1;
+    } elsif ($innode && $line =~ /\s*(flarepositions|flaresizes|flarecolorshifts|texturenames)\s+(\S*)/i) {
+      $task = '';
+      $count = 0;
+      if ($2 > 0) {
+        # there are flare data to read, initialize task list:
+        $model{'nodes'}{$nodenum}{$1} = [];
+        # set flarepositionsnum, flaresizesnum, flarecolorshiftsnum, or texturenamesnum
+        $model{'nodes'}{$nodenum}{$1 . 'num'} = int $2;
+        $task = $1;
+      }
     } elsif (/\s*ambientonly\s+(\S*)/i && $innode) { # if in a node look for the ambientonly property
       $model{'nodes'}{$nodenum}{'ambientonly'} = $1;
     } elsif (/\s*ndynamictype\s+(\S*)/i && $innode) { # if in a node look for the ndynamictype property
@@ -2073,6 +2191,20 @@ sub readasciimdl {
       } elsif ($task eq "aabb") { # read in the aabb stuff
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'aabbnodes'}[$count] = [$1, $2, $3, $4, $5, $6, $7];
+        $count++;
+      } elsif ($task eq 'flarepositions' ||
+               $task eq 'flaresizes' ||
+               $task eq 'texturenames') {
+        $line =~ /\s*(\S*)/;
+        $model{'nodes'}{$nodenum}{$task} = [
+          @{$model{'nodes'}{$nodenum}{$task}}, $1
+        ];
+        $count++;
+      } elsif ($task eq 'flarecolorshifts') {
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{$task} = [
+          @{$model{'nodes'}{$nodenum}{$task}}, [ $1, $2, $3 ]
+        ];
         $count++;
       } # if ($task eq "verts" )
     } # the big IF
@@ -3409,11 +3541,37 @@ sub writebinarynode
         print (BMDLOUT $buffer);
     }  
 
-    #write out the light sub header (if any)
+    #write out the light sub header and data (if any)
     if ($model->{'nodes'}{$i}{'nodetype'} == 3)
     {
-        $buffer  = pack("fLLLLLLLLLLLLLLL", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        $buffer .= pack("L", $model->{'nodes'}{$i}{'lightpriority'});
+        #$buffer  = pack("fLLLLLLLLLLLLLLL", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        # make our lives a little easier by assuring that these lists at least exist
+        foreach ('flaresizes', 'flarepositions', 'flarecolorshifts', 'texturenames') {
+          if (!defined($model->{'nodes'}{$i}{$_})) {
+            $model->{'nodes'}{$i}{$_} = [];
+          }
+        }
+        $buffer  = pack("fLLL", $model->{'nodes'}{$i}{'flareradius'}, 0, 0, 0);
+        $totalbytes += length($buffer);
+        print (BMDLOUT $buffer);
+        $model->{'nodes'}{$i}{'flaresizespointer'} = tell(BMDLOUT);
+        $buffer  = pack('LLL', 0, scalar(@{$model->{'nodes'}{$i}{'flaresizes'}}), scalar(@{$model->{'nodes'}{$i}{'flaresizes'}}));
+        $totalbytes += length($buffer);
+        print (BMDLOUT $buffer);
+        $model->{'nodes'}{$i}{'flarepositionspointer'} = tell(BMDLOUT);
+        $buffer  = pack('LLL', 0, scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}), scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}));
+        $totalbytes += length($buffer);
+        print (BMDLOUT $buffer);
+        $model->{'nodes'}{$i}{'flarecolorshiftspointer'} = tell(BMDLOUT);
+        $buffer  = pack('LLL', 0, scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}}), scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}}));
+        $totalbytes += length($buffer);
+        print (BMDLOUT $buffer);
+        $model->{'nodes'}{$i}{'texturenamespointer'} = tell(BMDLOUT);
+        $buffer  = pack('LLL', 0, scalar(@{$model->{'nodes'}{$i}{'texturenames'}}), scalar(@{$model->{'nodes'}{$i}{'texturenames'}}));
+        $totalbytes += length($buffer);
+        print (BMDLOUT $buffer);
+
+        $buffer  = pack("L", $model->{'nodes'}{$i}{'lightpriority'});
         $buffer .= pack("L", $model->{'nodes'}{$i}{'ambientonly'});
         $buffer .= pack("L", $model->{'nodes'}{$i}{'ndynamictype'});
         $buffer .= pack("L", $model->{'nodes'}{$i}{'affectdynamic'});
@@ -3422,6 +3580,76 @@ sub writebinarynode
         $buffer .= pack("L", $model->{'nodes'}{$i}{'fadinglight'});
         $totalbytes += length($buffer);
         print (BMDLOUT $buffer);
+
+        # write out flare data: texture names, sizes, positions, colorshifts
+        if (scalar(@{$model->{'nodes'}{$i}{'flarepositions'}})) {
+            # write out placeholders for the pointers to the texture names
+            $model->{'nodes'}{$i}{'texturenamespointerlocation'} = tell(BMDLOUT);
+            $model->{'nodes'}{$i}{'texturenameslocation'} = tell(BMDLOUT);
+            my $name_pointers = [];
+            foreach (1..scalar(@{$model->{'nodes'}{$i}{'texturenames'}})) {
+                $name_pointers = [ @{$name_pointers}, 0 ];
+            }
+            $buffer  = pack('L' x scalar(@{$model->{'nodes'}{$i}{'texturenames'}}), @{$name_pointers});
+            $totalbytes += (scalar(@{$model->{'nodes'}{$i}{'texturenames'}}) * 4);
+            print (BMDLOUT $buffer);
+
+            # write out the texture name strings
+            $model->{'nodes'}{$i}{'texturenameslocations'} = [];
+            for my $texname (@{$model->{'nodes'}{$i}{'texturenames'}}) {
+                $model->{'nodes'}{$i}{'texturenameslocations'} = [
+                    @{$model->{'nodes'}{$i}{'texturenameslocations'}},
+                    # subtract 12 (file header length) from offsets now
+                    tell(BMDLOUT) - 12
+                ];
+                $buffer = pack('Z*', $texname);
+                #print "TEX: $buffer\n";
+                $totalbytes += length($buffer);
+                print (BMDLOUT $buffer);
+            }
+
+            # go back and write out the name pointers
+            seek(BMDLOUT, $model->{'nodes'}{$i}{'texturenamespointerlocation'}, 0);
+            print (BMDLOUT pack('L' x scalar(@{$model->{'nodes'}{$i}{'texturenameslocations'}}),
+                                 @{$model->{'nodes'}{$i}{'texturenameslocations'}}));
+
+            # return file position to head
+            seek(BMDLOUT, $totalbytes, 0);
+
+            # note offset and write flaresizes
+            $model->{'nodes'}{$i}{'flaresizeslocation'} = tell(BMDLOUT);
+            $buffer = pack('f' x scalar(@{$model->{'nodes'}{$i}{'flaresizes'}}), @{$model->{'nodes'}{$i}{'flaresizes'}});
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            # note offset and write flarepositions
+            $model->{'nodes'}{$i}{'flarepositionslocation'} = tell(BMDLOUT);
+            $buffer = pack('f' x scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}), @{$model->{'nodes'}{$i}{'flarepositions'}});
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            # note offset and write flarecolorshifts
+            $buffer = '';
+            $model->{'nodes'}{$i}{'flarecolorshiftslocation'} = tell(BMDLOUT);
+            for my $col_shift (@{$model->{'nodes'}{$i}{'flarecolorshifts'}}) {
+                $buffer .= pack('fff', @{$col_shift});
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            # go back and write out the other pointers
+            seek(BMDLOUT, $model->{'nodes'}{$i}{'flaresizespointer'}, 0);
+            print(BMDLOUT pack('L', $model->{'nodes'}{$i}{'flaresizeslocation'} - 12));
+            seek(BMDLOUT, $model->{'nodes'}{$i}{'flarepositionspointer'}, 0);
+            print(BMDLOUT pack('L', $model->{'nodes'}{$i}{'flarepositionslocation'} - 12));
+            seek(BMDLOUT, $model->{'nodes'}{$i}{'flarecolorshiftspointer'}, 0);
+            print(BMDLOUT pack('L', $model->{'nodes'}{$i}{'flarecolorshiftslocation'} - 12));
+            seek(BMDLOUT, $model->{'nodes'}{$i}{'texturenamespointer'}, 0);
+            print(BMDLOUT pack('L', $model->{'nodes'}{$i}{'texturenameslocation'} - 12));
+
+            # return file position to head
+            seek(BMDLOUT, $totalbytes, 0);
+        }
     }
 
     #write out the mesh sub header and data (if any)
@@ -3870,6 +4098,12 @@ sub writebinarynode
                 $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
                 $timestart, $valuestart, $ccol, 50, 18, 0); #245, 245, 17);
                 # some models have 50, 17, 0... important? TBD
+            }
+            elsif ( ($model->{'nodes'}{$i}{'nodetype'} == NODE_LIGHT || $ga eq 'geo') &&
+                    ($controller == 88 || $controller == 140 || $controller == 76)) # radius, multiplier, color
+            {
+                $buffer .= pack("LSSSSCCCC", $controller, -1, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
+                $timestart, $valuestart, $ccol, 255, 114, 17);
             }
             else
             {
