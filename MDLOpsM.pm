@@ -142,7 +142,7 @@ $structs{'nodeheader'} =  {loc =>  -1, num =>  1, size => 80, dnum => 1, name =>
 $structs{'nodechildren'} ={loc =>  13, num => 14, size =>  4, dnum => 1, name => "node_children", tmplt => "l*"};
 
 $structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "fl*"};
-$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
+$structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "l[2]f[3]l[3]Z[32]Z[32]Z[32]Z[64]Z[16]l[2]S[2]l"};
 $structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[16]S*"};
 $structs{'subhead'}{'289k1'}= {loc => -1, num => 1, size => 360, dnum => 1, name => "dangly_header",    tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]lll[3]f[3]l"};
