@@ -1987,7 +1987,7 @@ sub readasciimdl {
       #node index has the text node name (in lower case) as keys and node number as values
       $nodeindex{$nname_key} = $nodenum;
       $model{'nodeindex'}{$nname_key} = $nodenum;
-    } elsif (/\s*radius\s+(\S*)/i && $innode && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
+    } elsif (/^\s*radius\s+(\S*)/i && $innode && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
       $model{'radius'} = $1;
 
     } elsif (readasciicontroller($line, $model{'nodes'}{$nodenum}{'nodetype'}, $innode, $isanimation, \%model, $nodenum, $animnum, $ASCIIMDL)) {
