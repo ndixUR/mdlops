@@ -1435,26 +1435,38 @@ sub writeasciimdl {
 
     print(MODELHINT "$temp,$model->{'nodes'}{$i}{'supernode'}\n");
 
+    # cleanup Acontrollers XXX move this sometime...
+    # remove leading and trailing space from all Acontroller 0 entries
+    # so that they split correctly
+    foreach(keys %{$model->{'nodes'}{$i}{'Acontrollers'}}) {
+        # continue if the length of this acontroller array is 0, aka empty
+        if (!scalar(@{$model->{'nodes'}{$i}{'Acontrollers'}{$_}})) {
+            next;
+        }
+        $model->{'nodes'}{$i}{'Acontrollers'}{$_}[0] =~ s/^\s+//;
+        $model->{'nodes'}{$i}{'Acontrollers'}{$_}[0] =~ s/\s+$//;
+    }
+
     # general controller types
     # position
-    (undef, $argh1, $argh2, $argh3) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{8}[0]);
+    (undef, $argh1, $argh2, $argh3) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{8}[0]);
     if ($argh1 ne "") {
       printf(MODELOUT "  position % .7f % .7f % .7f\n", $argh1, $argh2, $argh3);
     }
     # orientation
-    (undef, $argh1, $argh2, $argh3, $argh4) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{20}[0]);
+    (undef, $argh1, $argh2, $argh3, $argh4) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{20}[0]);
     if ($argh1 ne "") {
       printf(MODELOUT "  orientation % .7f % .7f % .7f % .7f\n", $argh1, $argh2, $argh3, $argh4);
     }
     # scale
-    (undef, $argh1) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{36}[0]);
+    (undef, $argh1) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{36}[0]);
     if ($argh1 ne "") {
       printf(MODELOUT "  scale % .7f\n", $argh1);
     }
     
     # alpha i.e. "see through" - controller number overlaps with an emitter controller number.
     if (!($nodetype & NODE_HAS_EMITTER)) {
-      (undef, $argh1) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{132}[0]);
+      (undef, $argh1) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{132}[0]);
       if ($argh1 ne "") {
         printf(MODELOUT "  alpha % .7f\n", $argh1);
       }
@@ -1463,7 +1475,7 @@ sub writeasciimdl {
     # mesh node controller types
     if ($nodetype & NODE_HAS_MESH) {
       # self illumination i.e. "glow"    
-      (undef, $argh1, $argh2, $argh3) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{100}[0]);  
+      (undef, $argh1, $argh2, $argh3) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{100}[0]);
       if ($argh1 ne "" && $argh2 ne "") {
         printf(MODELOUT "  selfillumcolor %.7f %.7f %.7f\n", $argh1, $argh2, $argh3);
       }
@@ -1538,7 +1550,7 @@ sub writeasciimdl {
 
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_LIGHT}}) {
-        (undef, @args) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
+        (undef, @args) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
         if ($args[0] ne "") {
           printf(MODELOUT "  %s %s\n", $controllername, join(" ", @args));
         }
@@ -1584,7 +1596,7 @@ sub writeasciimdl {
     
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
-        (undef, @args) = split(/ /,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
+        (undef, @args) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{$controller}[0]);
         if ($args[0] ne "") {
           printf(MODELOUT "  %s %s\n", $controllername, join(" ", @args));
         }
