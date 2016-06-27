@@ -2173,14 +2173,22 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'aabbnodes'}[$count] = [$1, $2, $3, $4, $5, $6, $7];
         $count++;
       }
-    } elsif ($innode == 0 && $isanimation && $task eq "events") { # if in an animation read in events
+    } elsif (!$innode && $isanimation && $task eq "events") { # if in an animation read in events
       $line =~ /\s+(\S*)\s+(\S*)/;
       $model{'anims'}{$animnum}{'eventtimes'}[$count] = $1;
       $model{'anims'}{$animnum}{'eventnames'}[$count] = $2;
       $model{'anims'}{$animnum}{'numevents'}++;
       $count++;      
-    } elsif ($innode == 1 && $isanimation) { # if in an animation node read in controllers
-    } elsif ($innode == 1 && $isgeometry) {  # if in a node and in verts, faces, tverts or constraints read them in 
+    } elsif ($innode && $isanimation) { # if in an animation node read in controllers
+    } elsif ($innode && $isgeometry && $task ne '') {  # if in a node and in verts, faces, tverts or constraints read them in
+      if (defined($model{'nodes'}{$nodenum}{$task . 'num'}) &&
+          $count >= $model{'nodes'}{$nodenum}{$task . 'num'}) {
+        # this isn't going to end all of the numbered data gathering tasks
+        # that are currently implemented, but it will end the ones that use
+        # the normal naming conventions...
+        $task = '';
+        $count = 0;
+      }
       if ($task eq "verts" ) { # read in the verts
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'verts'}[$count] = [$1, $2, $3];
