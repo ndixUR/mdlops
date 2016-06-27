@@ -1780,6 +1780,58 @@ sub getcontrollername {
 }
 
 
+#########################################################
+# Used by readasciimdl.
+# compute angle as radians between face edges at vertex lp
+# uses edges lp <-> rp1 and lp <-> rp2
+#
+sub compute_vertex_angle {
+  my ($lp, $rp1, $rp2) = @_;
+  my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+  my $angle;
+  # point 1, the local point around which angle is calculated
+  my @pt1 = @{$lp};
+  # point 2, comparison, the first remote point describing an edge
+  my @cpt2 = @{$rp1};
+  # point 3, comparison, the second remote point describing an edge
+  my @cpt3 = @{$rp2};
+#use Data::Dumper;
+#print Dumper($lp, $rp1, $rp2);
+
+  $v1[0] = $pt1[0] - $cpt2[0];
+  $v1[1] = $pt1[1] - $cpt2[1];
+  $v1[2] = $pt1[2] - $cpt2[2];
+
+  $v2[0] = $pt1[0] - $cpt3[0];
+  $v2[1] = $pt1[1] - $cpt3[1];
+  $v2[2] = $pt1[2] - $cpt3[2];
+
+  $v3[0] = -1 * $v1[0] - $v2[0];
+  $v3[1] = -1 * $v1[1] - $v2[1];
+  $v3[2] = -1 * $v1[2] - $v2[2];
+
+  my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
+  # a terse way to divide x,y,z by length1 w/ results back into v1
+  $length1 and @v1 = map { $_ / $length1 } @v1;
+
+  my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
+  # a terse way to divide x,y,z by length2 w/ results back into v2
+  $length2 and @v2 = map { $_ / $length2 } @v2;
+
+  my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
+
+  my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
+
+  $angle = 2 * asin(($length3 / 2));
+  if ($ratio < 0) {
+    # pi is part of Math::Trig pulled in for quaternion calculations
+    $angle = pi - $angle;
+  }
+
+  return $angle;
+}
+
+
 ###########################################################
 # Used by readsinglecontroller and readkeyedcontroller.
 # Convert angle-axis to quaternion. Outputs as (x,y,z,w).
@@ -2608,127 +2660,25 @@ sub readasciimdl {
                            $model{'nodes'}{$i}{'verts'}[$work][1] == $model{'nodes'}{$i}{'Bfaces'}[$_][8][1] &&
                            $model{'nodes'}{$i}{'verts'}[$work][2] == $model{'nodes'}{$i}{'Bfaces'}[$_][8][2])
                         {
-                            # radians between, using the vertices (P1 - P2) and (P1 - P3)
-                            my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][0];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][1];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][2];
-
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][0];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][1];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][8][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][2];
-
-                            $v3[0] = -1 * $v1[0] - $v2[0];
-                            $v3[1] = -1 * $v1[1] - $v2[1];
-                            $v3[2] = -1 * $v1[2] - $v2[2];
-
-                            my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                            $v1[0] /= $length1;
-                            $v1[1] /= $length1;
-                            $v1[2] /= $length1;
-
-                            my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                            $v2[0] /= $length2;
-                            $v2[1] /= $length2;
-                            $v2[2] /= $length2;
-
-                            my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                            my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                            if($ratio < 0)
-                            {
-                                $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                            }
-                            else
-                            {
-                                $angle = 2 * asin(($length3/ 2));
-                            }
+                            $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][9],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][10]);
                         }
                         elsif($model{'nodes'}{$i}{'verts'}[$work][0] == $model{'nodes'}{$i}{'Bfaces'}[$_][9][0] &&
                               $model{'nodes'}{$i}{'verts'}[$work][1] == $model{'nodes'}{$i}{'Bfaces'}[$_][9][1] &&
                               $model{'nodes'}{$i}{'verts'}[$work][2] == $model{'nodes'}{$i}{'Bfaces'}[$_][9][2])
                         {
-                            # radians between, using the vertices (P2 - P1) and (P2 - P3)
-                            my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][0];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][1];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][2];
-
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][0];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][1];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][9][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][10][2];
-
-                            $v3[0] = -1 * $v1[0] - $v2[0];
-                            $v3[1] = -1 * $v1[1] - $v2[1];
-                            $v3[2] = -1 * $v1[2] - $v2[2];
-
-                            my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                            $v1[0] /= $length1;
-                            $v1[1] /= $length1;
-                            $v1[2] /= $length1;
-
-                            my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                            $v2[0] /= $length2;
-                            $v2[1] /= $length2;
-                            $v2[2] /= $length2;
-
-                            my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                            my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                            if($ratio < 0)
-                            {
-                                $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                            }
-                            else
-                            {
-                                $angle = 2 * asin(($length3/ 2));
-                            }
+                            $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][9],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][10]);
                         }
                         elsif($model{'nodes'}{$i}{'verts'}[$work][0] == $model{'nodes'}{$i}{'Bfaces'}[$_][10][0] &&
                               $model{'nodes'}{$i}{'verts'}[$work][1] == $model{'nodes'}{$i}{'Bfaces'}[$_][10][1] &&
                               $model{'nodes'}{$i}{'verts'}[$work][2] == $model{'nodes'}{$i}{'Bfaces'}[$_][10][2])
                         {
-                            # radians between, using the vertices (P3 - P1) and (P3 - P2)
-                            my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][0];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][1];
-                            $v1[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][8][2];
-
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][0] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][0];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][1] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][1];
-                            $v2[0] = $model{'nodes'}{$i}{'Bfaces'}[$_][10][2] - $model{'nodes'}{$i}{'Bfaces'}[$_][9][2];
-
-                            $v3[0] = -1 * $v1[0] - $v2[0];
-                            $v3[1] = -1 * $v1[1] - $v2[1];
-                            $v3[2] = -1 * $v1[2] - $v2[2];
-
-                            my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                            $v1[0] /= $length1;
-                            $v1[1] /= $length1;
-                            $v1[2] /= $length1;
-
-                            my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                            $v2[0] /= $length2;
-                            $v2[1] /= $length2;
-                            $v2[2] /= $length2;
-
-                            my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                            my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                            if($ratio < 0)
-                            {
-                                $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                            }
-                            else
-                            {
-                                $angle = 2 * asin(($length3/ 2));
-                            }
+                            $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][10],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                          $model{'nodes'}{$i}{'Bfaces'}[$_][9]);
                         }
                         else
                         {print " Vertex $work didn't match squat in Face $_, so return -1\n";
@@ -2791,128 +2741,25 @@ $use_weights = 0;
                                    $model{'nodes'}{$mesh}{'verts'}[$vert][1] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][1] &&
                                    $model{'nodes'}{$mesh}{'verts'}[$vert][2] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][2])
                                 {
-                                    # radians between, using the vertices (P1 - P2) and (P1 - P3)
-                                    my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][0];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][1];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][2];
-
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][0];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][1];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][2];
-
-                                    $v3[0] = -1 * $v1[0] - $v2[0];
-                                    $v3[1] = -1 * $v1[1] - $v2[1];
-                                    $v3[2] = -1 * $v1[2] - $v2[2];
-
-                                    my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                                    $v1[0] /= $length1;
-                                    $v1[1] /= $length1;
-                                    $v1[2] /= $length1;
-
-                                    my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                                    $v2[0] /= $length2;
-                                    $v2[1] /= $length2;
-                                    $v2[2] /= $length2;
-
-                                    my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                                    my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                                    if($ratio < 0)
-                                    {
-                                        $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                                    }
-                                    else
-                                    {
-                                        $angle = 2 * asin(($length3/ 2));
-                                    }
+                                    $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][9],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][10]);
                                 }
                                 elsif($model{'nodes'}{$mesh}{'verts'}[$vert][0] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][0] &&
                                       $model{'nodes'}{$mesh}{'verts'}[$vert][1] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][1] &&
                                       $model{'nodes'}{$mesh}{'verts'}[$vert][2] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][2])
                                 {
-                                    # radians between, using the vertices (P2 - P1) and (P2 - P3)
-                                    my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][0];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][1];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][2];
-
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][0];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][1];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][2];
-
-                                    $v3[0] = -1 * $v1[0] - $v2[0];
-                                    $v3[1] = -1 * $v1[1] - $v2[1];
-                                    $v3[2] = -1 * $v1[2] - $v2[2];
-
-                                    my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                                    $v1[0] /= $length1;
-                                    $v1[1] /= $length1;
-                                    $v1[2] /= $length1;
-
-                                    my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                                    $v2[0] /= $length2;
-                                    $v2[1] /= $length2;
-                                    $v2[2] /= $length2;
-
-                                    my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                                    my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                                    if($ratio < 0)
-                                    {
-                                        $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                                    }
-                                    else
-                                    {
-                                        $angle = 2 * asin(($length3/ 2));
-                                    }
+                                    $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][9],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][10]);
                                 }
                                 elsif($model{'nodes'}{$mesh}{'verts'}[$vert][0] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][0] &&
                                       $model{'nodes'}{$mesh}{'verts'}[$vert][1] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][1] &&
                                       $model{'nodes'}{$mesh}{'verts'}[$vert][2] == $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][2])
                                 {
-                                    # radians between, using the vertices (P3 - P1) and (P3 - P2)
-                                    my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][0];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][1];
-                                    $v1[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][8][2];
-
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][0] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][0];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][1] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][1];
-                                    $v2[0] = $model{'nodes'}{$mesh}{'Bfaces'}[$_][10][2] - $model{'nodes'}{$mesh}{'Bfaces'}[$_][9][2];
-
-                                    $v3[0] = -1 * $v1[0] - $v2[0];
-                                    $v3[1] = -1 * $v1[1] - $v2[1];
-                                    $v3[2] = -1 * $v1[2] - $v2[2];
-
-                                    my $length1 = sqrt($v1[0] * $v1[0] + $v1[1] * $v1[1] + $v1[2] * $v1[2]);
-                                    $v1[0] /= $length1;
-                                    $v1[1] /= $length1;
-                                    $v1[2] /= $length1;
-
-                                    my $length2 = sqrt($v2[0] * $v2[0] + $v2[1] * $v2[1] + $v2[2] * $v2[2]);
-                                    $v2[0] /= $length2;
-                                    $v2[1] /= $length2;
-                                    $v2[2] /= $length2;
-
-
-                                    my $length3 = sqrt($v3[0] * $v3[0] + $v3[1] * $v3[1] + $v3[2] * $v3[2]);
-
-                                    my $ratio = ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]);
-
-                                    if($ratio < 0)
-                                    {
-                                        $angle = 3.14159265358979 - 2 * asin(($length3 / 2));
-                                    }
-                                    else
-                                    {
-                                        $angle = 2 * asin(($length3/ 2));
-                                    }
+                                    $angle = compute_vertex_angle($model{'nodes'}{$i}{'Bfaces'}[$_][10],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][8],
+                                                                  $model{'nodes'}{$i}{'Bfaces'}[$_][9]);
                                 }
                                 else
                                 {print " Vertex $vert didn't match squat in Face $_, so return -1\n";
