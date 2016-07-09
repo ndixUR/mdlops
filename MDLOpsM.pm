@@ -2089,7 +2089,8 @@ sub readasciimdl {
     } elsif ($line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box max
       $model{'bmax'} = [$1,$2,$3];
     } elsif ($line =~ /\s*classification\s+(\S*)/i) { # look for the model type
-      $model{'classification'} = $1;
+      # using this as a key into the classifications hash, so format the string
+      $model{'classification'} = ucfirst lc $1;
     } elsif (!$innode && $line =~ /\s*radius\s+(\S*)/i) {
       $model{'radius'} = $1;
     } elsif ($line =~ /\s*setanimationscale\s+(\S*)/i) {
