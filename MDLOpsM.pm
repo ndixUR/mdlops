@@ -1879,10 +1879,10 @@ sub readkeyedcontroller {
   my ($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername) = (@_);
   my $count;
 
-  if ($line =~ /^\s*${controllername}(bezier)key/i) {
+  if ($line =~ /^\s*${controllername}(bezier)?key/i) {
     my $total;
     my $bezier = 0;
-    if (lc($2) eq 'bezier') {
+    if (defined($1) && lc($1) eq 'bezier') {
       $bezier = 1;
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllers'}{'bezier'}{$controller} = 1;
     }
