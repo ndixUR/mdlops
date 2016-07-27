@@ -206,6 +206,46 @@ our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
 our %reversenode  = reverse %nodelookup;
 our %reverseclass = reverse %classification;
 
+# MDX Row data bitmap masks
+# The common mesh header contains offsets for 11 different potential row fields,
+# 7 have been identified, 6 are (thought) unused in kotor games, 4 are unknown.
+use constant MDX_VERTICES               => 0x00000001;
+use constant MDX_TEX0_VERTICES          => 0x00000002;
+use constant MDX_TEX1_VERTICES          => 0x00000004;
+use constant MDX_TEX2_VERTICES          => 0x00000008; # unconfirmed
+use constant MDX_TEX3_VERTICES          => 0x00000010; # unconfirmed
+use constant MDX_VERTEX_NORMALS         => 0x00000020;
+#use constant MDX_???                    => 0x00000040; # unknown
+use constant MDX_TANGENT_SPACE          => 0x00000080;
+#use constant MDX_???                    => 0x00000100; # unknown
+#use constant MDX_???                    => 0x00000200; # unknown
+#use constant MDX_???                    => 0x00000400; # unknown
+# Type-specific MDX row data:
+# the following are all 'made up' and do not appear in vanilla MDXDataBitmap fields,
+# they are set while reading type-specific sub-headers from binary models
+# so that the MDXDataBitmap will contain a full view of MDX row data
+# Skin mesh:
+use constant MDX_BONE_WEIGHTS           => 0x00000800;
+use constant MDX_BONE_INDICES           => 0x00001000;
+
+# MDX Row definitions
+#  bitfield: the mdxdatabitmap value for the data
+#  num: the number of floats composing the data
+#  offset_i: the index of the data into an array of 11 mdx offsets in the common mesh header (ascii read)
+#  offset: the key where the data's row offset is stored in a node (when read from binary)
+#  data: the key where the data should be stored in a node (when read from binary)
+$structs{'mdxrows'} = [
+  { bitfield => MDX_VERTICES,       num => 3, offset_i => 0,  offset => 'mdxvertcoordsloc',  data => 'verts' },
+  { bitfield => MDX_VERTEX_NORMALS, num => 3, offset_i => 1,  offset => 'mdxvertnormalsloc', data => 'vertexnormals' },
+  { bitfield => MDX_TEX0_VERTICES,  num => 2, offset_i => 3,  offset => 'mdxtex0vertsloc',   data => 'tverts' },
+  { bitfield => MDX_TEX1_VERTICES,  num => 2, offset_i => 4,  offset => 'mdxtex1vertsloc',   data => 'tverts1' },
+  { bitfield => MDX_TEX2_VERTICES,  num => 2, offset_i => 5,  offset => 'mdxtex2vertsloc',   data => 'tverts2' },
+  { bitfield => MDX_TEX3_VERTICES,  num => 2, offset_i => 6,  offset => 'mdxtex3vertsloc',   data => 'tverts3' },
+  { bitfield => MDX_TANGENT_SPACE,  num => 9, offset_i => 7,  offset => 'mdxtanspaceloc',    data => 'tangentspace' },
+  { bitfield => MDX_BONE_WEIGHTS,   num => 4, offset_i => -1, offset => 'mdxboneweightsloc', data => 'boneweights' },
+  { bitfield => MDX_BONE_INDICES,   num => 4, offset_i => -1, offset => 'mdxboneindicesloc', data => 'boneindices' },
+];
+
 # Node Type bitmasks
 # Types are combinations of these, use for bitwise logic comparisons
 use constant NODE_HAS_HEADER    => 0x00000001;
@@ -1147,9 +1187,26 @@ my $dothis = 0;
     $ref->{$node}{'vertlocloc'} = $ref->{$node}{'subhead'}{'unpacked'}[33];  
     $ref->{$node}{'unknown'} = $ref->{$node}{'subhead'}{'unpacked'}[36];     
     $ref->{$node}{'mdxdatasize'} = $ref->{$node}{'subhead'}{'unpacked'}[49]; 
-    $ref->{$node}{'loc61'} = $ref->{$node}{'subhead'}{'unpacked'}[54];       
-    $ref->{$node}{'loc62'} = $ref->{$node}{'subhead'}{'unpacked'}[55];       
-    $ref->{$node}{'loc65'} = $ref->{$node}{'subhead'}{'unpacked'}[58];       
+    # the MDX data bitmap contains a bit for each element present in MDX data rows
+    $ref->{$node}{'mdxdatabitmap'} = $ref->{$node}{'subhead'}{'unpacked'}[50];
+    #$ref->{$node}{'loc61'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
+    #$ref->{$node}{'loc62'} = $ref->{$node}{'subhead'}{'unpacked'}[55];
+    #$ref->{$node}{'loc65'} = $ref->{$node}{'subhead'}{'unpacked'}[58];
+    # offset to vertices in MDX row
+    $ref->{$node}{'mdxvertcoordsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[51];
+    # offset to vertex normals in MDX row
+    $ref->{$node}{'mdxvertnormalsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[52];
+    # offset to texture0 tvertices in MDX row
+    $ref->{$node}{'mdxtex0vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
+    # offset to texture1 tvertices in MDX row
+    $ref->{$node}{'mdxtex1vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[55];
+    # offset to texture2 tvertices in MDX row
+    $ref->{$node}{'mdxtex2vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[56];
+    # offset to texture3 tvertices in MDX row
+    $ref->{$node}{'mdxtex3vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[57];
+    # offset to tangent space (bumpmap) info in MDX row
+    $ref->{$node}{'mdxtanspaceloc'} = $ref->{$node}{'subhead'}{'unpacked'}[58];
+
     $ref->{$node}{'vertcoordnum'} = $ref->{$node}{'subhead'}{'unpacked'}[62];
     $ref->{$node}{'texturenum'} = $ref->{$node}{'subhead'}{'unpacked'}[63];  
 
@@ -1172,14 +1229,19 @@ my $dothis = 0;
       $ref->{$node}{'tightness'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];    
       $ref->{$node}{'period'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];       
     } elsif ( $nodetype == NODE_SKIN ) {
-      $ref->{$node}{'bonesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];     
-      $ref->{$node}{'bonesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];     
-      $ref->{$node}{'skinunk1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];  
-      $ref->{$node}{'skinunk1num'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];  
-      $ref->{$node}{'skinunk2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset];  
-      $ref->{$node}{'skinunk2num'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset];  
-      $ref->{$node}{'skinunk3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[85 + $uoffset];  
-      $ref->{$node}{'skinunk3num'} = $ref->{$node}{'subhead'}{'unpacked'}[86 + $uoffset];  
+      $ref->{$node}{'bonesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
+      $ref->{$node}{'bonesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];
+      $ref->{$node}{'skinunk1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset];
+      $ref->{$node}{'skinunk1num'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset];
+      $ref->{$node}{'skinunk2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[84 + $uoffset];
+      $ref->{$node}{'skinunk2num'} = $ref->{$node}{'subhead'}{'unpacked'}[85 + $uoffset];
+      $ref->{$node}{'skinunk3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[87 + $uoffset];
+      $ref->{$node}{'skinunk3num'} = $ref->{$node}{'subhead'}{'unpacked'}[88 + $uoffset];
+      # Note: fixed offsets in the above even though they are never used by code
+      # MDX row offsets for skin-specific data, bone weights & bone indices
+      $ref->{$node}{'mdxboneweightsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];
+      $ref->{$node}{'mdxboneindicesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];
+      $ref->{$node}{'mdxdatabitmap'} |= MDX_BONE_WEIGHTS | MDX_BONE_INDICES;
     } elsif ( $nodetype == NODE_AABB ) {
       $ref->{$node}{'aabbloc'} = $ref->{$node}{'subhead'}{'unpacked'}[74 + $uoffset];  
     }
@@ -1342,27 +1404,56 @@ my $dothis = 0;
 
     $temp = $ref->{$node}{'mdxdatasize'}/4;  # divide by 4 cuz the data is unpacked
     for (my $i = 0; $i < $ref->{$node}{'vertcoordnum'}; $i++) {
-      $ref->{$node}{'verts'}[$i][0] = $ref->{$node}{'mdxdata'}{'unpacked'}[($i * $temp) + 0];
-      $ref->{$node}{'verts'}[$i][1] = $ref->{$node}{'mdxdata'}{'unpacked'}[($i * $temp) + 1];
-      $ref->{$node}{'verts'}[$i][2] = $ref->{$node}{'mdxdata'}{'unpacked'}[($i * $temp) + 2];
-      if ($ref->{$node}{'subhead'}{'unpacked'}[DATAEXTLEN+1] != 0) {
-        $ref->{$node}{'tverts'}[$i][0] = $ref->{$node}{'mdxdata'}{'unpacked'}[($i * $temp) + 6];
-        $ref->{$node}{'tverts'}[$i][1] = $ref->{$node}{'mdxdata'}{'unpacked'}[($i * $temp) + 7];
-        # for dangly mesh nodes (type 289) cook the vertex constraints
-        if ($nodetype & NODE_HAS_DANGLY) {
-          $ref->{$node}{'constraints'}[$i] = $ref->{$node}{$structs{'darray'}[9]{'name'}}{'unpacked'}[$i] ;
+      ### NEW APPROACH TO READING MDX:
+      my $row_index = $i * $temp;
+      my $row_offset = 0;
+      # go through all the types of MDX data
+      #XXX we could copy & filter the MDX struct for each node before entering row loop
+      for my $mdx_data_type (@{$structs{'mdxrows'}}) {
+        if (!($ref->{$node}{'mdxdatabitmap'} & $mdx_data_type->{bitfield}) ||
+            !defined($ref->{$node}{$mdx_data_type->{offset}}) ||
+            $ref->{$node}{$mdx_data_type->{offset}} == -1) {
+          # this type of data is not present in the MDX row
+          next;
         }
-      } 
-      # for skin mesh nodes (type 97) cook the vertex weights
+        # convert from number of bytes to unpacked array index offset
+        $row_offset = $ref->{$node}{$mdx_data_type->{offset}} / 4;
+        # read the number of values from the row into the specified node data field
+        for my $datum_index (0..$mdx_data_type->{num} - 1) {
+          $ref->{$node}{$mdx_data_type->{data}}[$i][$datum_index] = $ref->{$node}{'mdxdata'}{'unpacked'}[$row_index + $row_offset + $datum_index];
+        }
+        print "read mdx $mdx_data_type->{offset} vert $i\n" if $printall;
+      } # for $mdx_data_type
+
+      ### MDX DATA POST-PROCESSING
+      # if this is a skin node, cook the weights for this vertex
       if ($nodetype & NODE_HAS_SKIN) {
-        for (my $j = 0; $j < 4; $j++) {
-          if ($ref->{$node}{'mdxdata'}{'unpacked'}[((($i+1) * $temp) + $j ) - 8] != 0) {
-            $temp2 = $ref->{$node}{'index2node'}[$ref->{$node}{'mdxdata'}{'unpacked'}[((($i+1) * $temp) +$j) - 4]];
-            $ref->{$node}{'Abones'}[$i] .= $model->{'partnames'}[$temp2] . " " . $ref->{$node}{'mdxdata'}{'unpacked'}[((($i+1) * $temp) + $j) - 8] . " ";
-            $ref->{$node}{'Bbones'}[$i][$j] = $ref->{$node}{'mdxdata'}{'unpacked'}[((($i+1) * $temp) + $j) - 8];
-            $ref->{$node}{'Bbones'}[$i][$j+4] = $ref->{$node}{'mdxdata'}{'unpacked'}[((($i+1) * $temp) +$j) - 4]
+        # construct text representation of bone weights map
+        $ref->{$node}{'Abones'}[$i] = '';
+        for my $weight_num (0..3) {
+          if ($ref->{$node}{'boneweights'}[$i][$weight_num] == 0 ||
+              $ref->{$node}{'boneindices'}[$i][$weight_num] == -1) {
+            # skip 0 value weights and -1 bone indices
+            # in the ASCII bone weight construction
+            next;
           }
+          my $bone_name = $model->{'partnames'}[
+            $ref->{$node}{'index2node'}[$ref->{$node}{'boneindices'}[$i][$weight_num]]
+          ];
+          $ref->{$node}{'Abones'}[$i] .= sprintf('%s %.7f ', $bone_name, $ref->{$node}{'boneweights'}[$i][$weight_num]);
         }
+        # clean off the superfluous trailing space character
+        $ref->{$node}{'Abones'}[$i] =~ s/\s+$//;
+        # construct binary representation of bone weights map
+        $ref->{$node}{'Bbones'}[$i] = [ @{$ref->{$node}{'boneweights'}[$i]},
+                                        @{$ref->{$node}{'boneindices'}[$i]} ];
+      }
+      # if this is a dangly node, cook the constraints for this vertex
+      # NOTE: this is here for historical reasons, and isn't even MDX data...
+      # according to the original situation of the code,
+      # it should only run on textured danglymesh?
+      if ($nodetype & NODE_HAS_DANGLY) {
+        $ref->{$node}{'constraints'}[$i] = $ref->{$node}{$structs{'darray'}[9]{'name'}}{'unpacked'}[$i];
       }
     } # for $i
   } # if 33 or 97 or 289 or 545
@@ -2140,6 +2231,7 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'shadow'} = 0;
       $model{'nodes'}{$nodenum}{'nodetype'} = $nodelookup{$ntype};
       # determine the MDX data size from the node type
+      # we will recalculate this more accurately based on known data later
       if ($model{'nodes'}{$nodenum}{'nodetype'} & NODE_HAS_SKIN) { # skin mesh
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 64;
         $model{'nodes'}{$nodenum}{'texturenum'} = 1;
@@ -2150,6 +2242,7 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 24; # tri mesh with no texture map
         $model{'nodes'}{$nodenum}{'texturenum'} = 0;
       }
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} = 0;
       $model{'nodes'}{$nodenum}{'diffuse'} = [0.8, 0.8, 0.8];
       $model{'nodes'}{$nodenum}{'ambient'} = [0.2, 0.2, 0.2];
       $model{'nodes'}{$nodenum}{'controllernum'} = 0;
@@ -2236,6 +2329,7 @@ sub readasciimdl {
       $count = 0;
     } elsif ($innode && $line =~ /\s*[^t]verts\s+(\S*)/i) {  # if in a node look for the start of the verts
       $model{'nodes'}{$nodenum}{'vertnum'} = $1;
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_VERTICES | MDX_VERTEX_NORMALS;
       $task = "verts";
       $count = 0;
     } elsif ($innode && $line =~ /\s*faces\s+(\S*)/i) { # if in a node look for the start of the faces
@@ -2244,12 +2338,13 @@ sub readasciimdl {
       $task = "faces";
       $count = 0;
     } elsif ($innode && $line =~ /\s*tverts\s+(\S*)/i) { # if in a node look for the start of the tverts
-      $model{'nodes'}{$nodenum}{'tvertnum'} = $1;
+      $model{'nodes'}{$nodenum}{'tvertsnum'} = $1;
       # if this is a tri mesh with tverts then adjust the MDX data size
       if ($model{'nodes'}{$nodenum}{'nodetype'} == NODE_TRIMESH) {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 32;
       }
       $model{'nodes'}{$nodenum}{'texturenum'} = 1;
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX0_VERTICES;
       #print($task . "|" . $count . "\n");
       $task = "tverts";
       $count = 0;
@@ -2435,6 +2530,37 @@ sub readasciimdl {
 
 
 #    open LOG, ">", "log.txt";
+
+    # compute what goes into the MDX data rows for this node, and the offsets for each type of data
+    for (my $i = 0; $i < $nodenum; $i++)
+    {
+        $model{'nodes'}{$i}{'mdxdatasize'} = 0;
+        $model{'nodes'}{$i}{'mdxrowoffsets'} = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+        foreach (keys @{$structs{'mdxrows'}}) {
+            if ($model{'nodes'}{$i}{'mdxdatabitmap'} & $structs{'mdxrows'}->[$_]{bitfield}) {
+                # handle row offset in 2 ways, using same keys as readbinary, and a secondary method
+                # using a combined array of the 11 possible offsets in common mesh header
+                $model{'nodes'}{$i}{$structs{'mdxrows'}->[$_]{offset}} = $model{'nodes'}{$i}{'mdxdatasize'};
+                $model{'nodes'}{$i}{'mdxrowoffsets'}->[$structs{'mdxrows'}->[$_]{offset_i}] = $model{'nodes'}{$i}{'mdxdatasize'};
+                $model{'nodes'}{$i}{'mdxdatasize'} += $structs{'mdxrows'}->[$_]{num} * 4;
+            } else {
+                $model{'nodes'}{$i}{$structs{'mdxrows'}->[$_]{offset}} = -1;
+            }
+        }
+        # add in the sub-type MDX row data
+        if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) {
+            # add separate offsets for boneweights & boneindices, add their size to overall mdxdatasize
+            $model{'nodes'}{$i}{'mdxboneweightsloc'} = $model{'nodes'}{$i}{'mdxdatasize'};
+            $model{'nodes'}{$i}{'mdxdatasize'} += 4 * 4; # 4 4-byte floats
+            $model{'nodes'}{$i}{'mdxboneindicesloc'} = $model{'nodes'}{$i}{'mdxdatasize'};
+            $model{'nodes'}{$i}{'mdxdatasize'} += 4 * 4; # 4 4-byte floats
+        }
+        printf(
+            'mdx bitmap %u size %u: offsets %s',
+            $model{'nodes'}{$i}{'mdxdatabitmap'}, $model{'nodes'}{$i}{'mdxdatasize'},
+            join(',', $model{'nodes'}{$i}{'mdxrowoffsets'})
+        ) if $printall;
+    }
 
     # Create a flat list of all vertices in all meshes
     # Loop through all of the model's nodes
@@ -3918,25 +4044,29 @@ sub writebinarynode
         $buffer .= pack("l", $model->{'nodes'}{$i}{'mdxdatasize'});
 
         # don't know what this is, but is definately has something to do with textures
-        if ($model->{'nodes'}{$i}{'texturenum'} == 1)
-        {
-            $buffer .= pack("l", 35 );
-        }
-        else
-        {
-            $buffer .= pack("l", 33 );
-        }
-        $buffer .= pack("l*", 0, 12, -1);
+        # MDXDataBitmap, bitfield describing what mesh info is found in the MDX row
+        # 35 = 1, 2, 32 = (i believe) verts, uv verts, normals
+        #if ($model->{'nodes'}{$i}{'texturenum'} == 1)
+        #{
+        #    $buffer .= pack("l", 35 );
+        #}
+        #else
+        #{
+        #    $buffer .= pack("l", 33 );
+        #}
+        #$buffer .= pack("l*", 0, 12, -1);
 
-        if ($model->{'nodes'}{$i}{'mdxdatasize'} > 24)
-        {
-            $buffer .= pack("l*", 24);
-        }
-        else
-        {
-            $buffer .= pack("l*", -1);
-        }
-        $buffer .= pack("l*", -1, -1, -1, -1, -1, -1, -1);
+        #if ($model->{'nodes'}{$i}{'mdxdatasize'} > 24)
+        #{
+        #    $buffer .= pack("l*", 24);
+        #}
+        #else
+        #{
+        #    $buffer .= pack("l*", -1);
+        #}
+        #$buffer .= pack("l*", -1, -1, -1, -1, -1, -1, -1);
+        $buffer .= pack('L', $model->{'nodes'}{$i}{'mdxdatabitmap'});
+        $buffer .= pack('l[11]', @{$model->{'nodes'}{$i}{'mdxrowoffsets'}});
 
         $buffer .= pack("ss", $model->{'nodes'}{$i}{'vertnum'}, $model->{'nodes'}{$i}{'texturenum'} );
 
@@ -3976,7 +4106,9 @@ sub writebinarynode
         # write out the mesh sub-sub-header and data (if there is any)
         if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN)  # skin mesh sub-sub-header
         {
-            $buffer = pack("l*", 0, 0, 0, 32, 48); # compile-time only array, then ptr to skin weights in mdx, then ptr to skin bone refs in mdx
+            # compile-time only array, then ptr to skin weights in mdx, then ptr to skin bone refs in mdx
+            $buffer = pack("l*", 0, 0, 0, $model->{'nodes'}{$i}{'mdxboneweightsloc'},
+                                          $model->{'nodes'}{$i}{'mdxboneindicesloc'});
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
