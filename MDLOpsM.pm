@@ -2342,6 +2342,11 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'shininess'} = $1;
     } elsif ($innode && $line =~ /\s*bitmap\s+(\S*)/i) {  # if in a node look for the bitmap property
       $model{'nodes'}{$nodenum}{'bitmap'} = $1;
+      # if this is a bump mapped texture, indicate that we need tangent space calculations
+      if (defined($model{'bumpmapped_texture'}) &&
+          defined($model{'bumpmapped_texture'}{lc $1})) {
+          $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TANGENT_SPACE;
+      }
       $model{'nodes'}{$nodenum}{'bitmap2'} = "";
     } elsif ($innode && $line =~ /\s*displacement\s+(\S*)/i) { # if in a node look for the displacement property
       $model{'nodes'}{$nodenum}{'displacement'} = $1;
@@ -2774,6 +2779,7 @@ sub readasciimdl {
     }
 
     # Calculate face surface normals
+    # Calculate face tangent and bitangent vectors if bumpmapping
     # Loop through all of the model's nodes
     for (my $i = 0; $i < $nodenum; $i ++)
     {
@@ -2900,6 +2906,101 @@ sub readasciimdl {
 #                    $_->[3] = 0;
                 }
                 # print ("$i " . $_->[0] . " " . $_->[1] . " " . $_->[2] . " " . $_->[3] . "\n");
+
+                # determine whether this node uses normal/bump mapping requiring tangent space calculations
+                if ($model{'nodes'}{$i}{'bitmap'} =~ /null/i ||
+                    !($model{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE)) {
+                    # skip tangent/bitangent calculations for non-bump-mapped textures
+                    next;
+                }
+                # compute face tangent and bitangent vectors for bump-mapped textures
+                # based on (with key differences for what bioware wants) technique from:
+                # http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/
+                my ($v0, $v1, $v2) = (
+                    $model{'nodes'}{$i}{'verts'}[$_->[8]],
+                    $model{'nodes'}{$i}{'verts'}[$_->[9]],
+                    $model{'nodes'}{$i}{'verts'}[$_->[10]]
+                );
+                my ($uv0, $uv1, $uv2) = (
+                    $model{'nodes'}{$i}{'tverts'}[$model{'nodes'}{$i}{'tverti'}{$_->[8]}],
+                    $model{'nodes'}{$i}{'tverts'}[$model{'nodes'}{$i}{'tverti'}{$_->[9]}],
+                    $model{'nodes'}{$i}{'tverts'}[$model{'nodes'}{$i}{'tverti'}{$_->[10]}]
+                );
+                my ($deltaPos1, $deltaPos2, $deltaUV1, $deltaUV2);
+                $deltaPos1 = [ $v1->[0] - $v0->[0], $v1->[1] - $v0->[1], $v1->[2] - $v0->[2] ];
+                $deltaPos2 = [ $v2->[0] - $v0->[0], $v2->[1] - $v0->[1], $v2->[2] - $v0->[2] ];
+                $deltaUV1  = [ $uv1->[0] - $uv0->[0], $uv1->[1] - $uv0->[1] ];
+                $deltaUV2  = [ $uv2->[0] - $uv0->[0], $uv2->[1] - $uv0->[1] ];
+                if ($deltaUV1->[0] == $deltaUV2->[0] && $deltaUV1->[1] == $deltaUV2->[1]) {
+                  # prevent a divide-by-zero, this doesn't usually happen for actually-textured objects
+                  printf("Overlapping texture vertices in node: %s\n" .
+                         "x: % .7f, y: % .7f\nx: % .7f, y: % .7f\nx: % .7f, y: % .7f\n",
+                         $model{'partnames'}[$i], @{$uv0}, @{$uv1}, @{$uv2});
+                  $model{'nodes'}{$i}{'facetangents'}[$count - 1] = [ 0, 0, 0 ];
+                  $model{'nodes'}{$i}{'facebitangents'}[$count - 1] = [ 0, 0, 0 ];
+                  next;
+                }
+                my $r = 1.0 / ($deltaUV1->[0] * $deltaUV2->[1] - $deltaUV1->[1] * $deltaUV2->[0]);
+                # compute face tangent vector
+                my $tangent = [
+                    ($deltaPos1->[0] * $deltaUV2->[1] - $deltaPos2->[0] * $deltaUV1->[1]) * $r,
+                    ($deltaPos1->[1] * $deltaUV2->[1] - $deltaPos2->[1] * $deltaUV1->[1]) * $r,
+                    ($deltaPos1->[2] * $deltaUV2->[1] - $deltaPos2->[2] * $deltaUV1->[1]) * $r
+                ];
+                # compute normalizing factor for tangent vector
+                my $bnormalizing_factor = sqrt(
+                    ($tangent->[0] ** 2) +
+                    ($tangent->[1] ** 2) +
+                    ($tangent->[2] ** 2)
+                );
+                # normalize the face tangent vector by applying the computed factor
+                if ($bnormalizing_factor) {
+                    # divide each component by normalizing factor
+                    $tangent = [
+                        map { $_ / $bnormalizing_factor } @{$tangent}
+                    ];
+                }
+                $model{'nodes'}{$i}{'facetangents'}[$count - 1] = $tangent;
+
+                # compute face bitangent vector
+                my $bitangent = [
+                    ($deltaPos2->[0] * $deltaUV1->[0] - $deltaPos1->[0] * $deltaUV2->[0]) * $r,
+                    ($deltaPos2->[1] * $deltaUV1->[0] - $deltaPos1->[1] * $deltaUV2->[0]) * $r,
+                    ($deltaPos2->[2] * $deltaUV1->[0] - $deltaPos1->[2] * $deltaUV2->[0]) * $r
+                ];
+                # compute normalizing factor for bitangent vector
+                my $bnormalizing_factor = sqrt(
+                    ($bitangent->[0] ** 2) +
+                    ($bitangent->[1] ** 2) +
+                    ($bitangent->[2] ** 2)
+                );
+                # normalize the face bitangent vector by applying the computed factor
+                if ($bnormalizing_factor) {
+                    # divide each component by normalizing factor
+                    $bitangent = [
+                        map { $_ / $bnormalizing_factor } @{$bitangent}
+                    ];
+                }
+                $model{'nodes'}{$i}{'facebitangents'}[$count - 1] = $bitangent;
+
+                # fix tangent space handedness: make this true: dot(cross(n,t),b) < 0
+                # that's right, bioware wants TBN NOT to form a right-handed coordinate system
+                # or, cross(n,t) must have a different orientation from vector b
+                my $cross_nt = [
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][1] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[2] -
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][2] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[1],
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][2] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[0] -
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][0] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[2],
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][0] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[1] -
+                    $model{'nodes'}{$i}{'facenormals'}[$count - 1][1] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[0]
+                ];
+                if (($cross_nt->[0] * $model{'nodes'}{$i}{'facebitangents'}[$count - 1]->[0] +
+                     $cross_nt->[1] * $model{'nodes'}{$i}{'facebitangents'}[$count - 1]->[1] +
+                     $cross_nt->[2] * $model{'nodes'}{$i}{'facebitangents'}[$count - 1]->[2]) > 0.0) {
+                    $model{'nodes'}{$i}{'facetangents'}[$count - 1] = [
+                        map { $_ * -1.0 } @{$model{'nodes'}{$i}{'facetangents'}[$count - 1]}
+                    ];
+                }
             }
         }
     }
@@ -2956,6 +3057,15 @@ sub readasciimdl {
 
             # initialize vertex normal with value from chosen face surface normal
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ @{$model{'nodes'}{$i}{'facenormals'}[$faceA]} ];
+            # initialize tangent space vectors with value from chosen face vectors
+            if (defined($model{'nodes'}{$i}{'facetangents'}) &&
+                defined($model{'nodes'}{$i}{'facetangents'}[$faceA])) {
+                $model{'nodes'}{$i}{'vertextangents'}[$work] = [ @{$model{'nodes'}{$i}{'facetangents'}[$faceA]} ];
+            }
+            if (defined($model{'nodes'}{$i}{'facebitangents'}) &&
+                defined($model{'nodes'}{$i}{'facebitangents'}[$faceA])) {
+                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ @{$model{'nodes'}{$i}{'facebitangents'}[$faceA]} ];
+            }
             # skip better vertex normal calculations for non-rendering geometry
             if (!$model{'nodes'}{$i}{render}) {
                 next;
@@ -3026,6 +3136,15 @@ sub readasciimdl {
                 $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[0] * $area * $angle);
                 $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[1] * $area * $angle);
                 $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[2] * $area * $angle);
+                # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
+                if (defined($model{'nodes'}{$mesh}{'facetangents'}[$faceB])) {
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[0] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[0] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[1] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[1] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[2] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[2] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[0] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[1] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[2] * $area * $angle);
+                }
             }
             # normalize the vertex normal
             #print "unnormalized:\n";
@@ -3050,6 +3169,41 @@ sub readasciimdl {
             }
             #print "normalized:\n";
             #print Dumper($model{'nodes'}{$i}{'vertexnormals'}{$work});
+            # normalize the averaged vertex tangent and bitangent vectors, for bump-mapped textures
+            if (defined($model{'nodes'}{$i}{'vertextangents'}) &&
+                defined($model{'nodes'}{$i}{'vertextangents'}[$work])) {
+                my $bnormalizing_factor;
+                $bnormalizing_factor = sqrt(
+                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[0] ** 2) +
+                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[1] ** 2) +
+                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[2] ** 2)
+                );
+                # normalize the averaged tangent vector by applying the computed factor
+                if ($bnormalizing_factor) {
+                    # divide each component by normalizing factor
+                    $model{'nodes'}{$i}{'vertextangents'}[$work] = [
+                        map { $_ / $bnormalizing_factor } @{$model{'nodes'}{$i}{'vertextangents'}[$work]}
+                    ];
+                }
+                $bnormalizing_factor = sqrt(
+                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] ** 2) +
+                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] ** 2) +
+                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] ** 2)
+                );
+                # normalize the averaged bitangent vector by applying the computed factor
+                if ($bnormalizing_factor) {
+                    # divide each component by normalizing factor
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [
+                        map { $_ / $bnormalizing_factor } @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]}
+                    ];
+                }
+                # construct the MDX-ready representation of the tangent space data
+                $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
+                    @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
+                    @{$model{'nodes'}{$i}{'vertextangents'}[$work]},
+                    @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
+                ];
+            }
         }
     }
 
@@ -3333,6 +3487,10 @@ sub writebinarymdl {
         if ($model->{'nodes'}{$i}{'mdxdatasize'} > 24) {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+        }
+        # if this mesh has normal mapping, include the tangent space data
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
+          $buffer .= pack('f[9]', @{$model->{'nodes'}{$i}{'Btangentspace'}});
         }
         # if this is a skin mesh node then add in the bone weights
         if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN) {
