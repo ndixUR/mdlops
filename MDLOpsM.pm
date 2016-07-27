@@ -1365,7 +1365,17 @@ my $dothis = 0;
       $ref->{$node}{'Afaces'}[$i] = $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10];
-      $ref->{$node}{'Afaces'}[$i] .=" ". 2**($ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4] - 1);
+      # some models have non-bitflag-compatible smoothgroup numbers.
+      # the theory w/ bitflag smooth-group numbers is that there can only be 32 max.
+      # in p_bastilba in k1, there are smooth-groups numbered 251 ... an FF byte missing the 4 bit
+      # of course, the vanilla models don't use bitfields in the first place so this is done for nwmax?
+      # for now, just passing through sg numbers that are gt 32, also a commented technique to force it into 32 range
+      $ref->{$node}{'Afaces'}[$i] .= sprintf(
+        " %u", $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4] < 33
+                 ? 2**($ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4] - 1)
+                 : $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4]
+                 #: 2**(($ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4] % 32) - 1)
+      );
       #$ref->{$node}{'Afaces'}[$i] .=" 1";
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9];
