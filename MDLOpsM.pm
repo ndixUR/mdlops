@@ -1397,6 +1397,12 @@ my $dothis = 0;
     }
   }
 
+  # if this mesh has tangent space data in the MDX, then the texture is supposed to be bump-mapped,
+  # record that fact at the model level
+  if ($ref->{$node}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
+    $model->{'bumpmapped_texture'}{lc $ref->{$node}{'bitmap'}} = 1;
+  }
+
   #if we have a non-saber mesh node then we have MDX data to read in
   if ( ($nodetype & NODE_HAS_MESH) && !($nodetype & NODE_HAS_SABER) && ($ref->{$node}{'vertcoordnum'} > 0) ) {
     $ref->{$node}{'verts'} = [];
@@ -1531,6 +1537,17 @@ sub writeasciimdl {
   print(MODELOUT "classification $model->{'classification'}\n");
   print(MODELOUT "setanimationscale $model->{'animationscale'}\n\n");
   
+  # track bumpmapped textures at the model level,
+  # this will need to be tested against client software like nwmax
+  # this is our only way to know whether a mesh requires tangent space calculations
+  if (defined($model->{'bumpmapped_texture'}) &&
+      scalar(keys %{$model->{'bumpmapped_texture'}})) {
+      foreach (keys %{$model->{'bumpmapped_texture'}}) {
+          printf(MODELOUT "bumpmapped_texture %s\n", $_);
+      }
+      print(MODELOUT "\n");
+  }
+
   print(MODELOUT "beginmodelgeom $model->{'partnames'}[0]\n");
   print(MODELOUT "  bmin $model->{'bmin'}[0] $model->{'bmin'}[1] $model->{'bmin'}[2]\n");
   print(MODELOUT "  bmax $model->{'bmax'}[0] $model->{'bmax'}[1] $model->{'bmax'}[2]\n");
@@ -2167,6 +2184,8 @@ sub readasciimdl {
       #print("end model\n");
       $isgeometry = 0;
       $nodenum = 0;
+    } elsif ($line =~ /\s*bumpmapped_texture\s+(\S*)/i) { # look for a model-wide bumpmapped texture
+      $model{'bumpmapped_texture'}{lc $1} = 1;
     } elsif ($line =~ /\s*newanim\s+(\S*)\s+(\S*)/i) { # look for the start of an animation
       $isanimation = 1; 
       $model{'anims'}{$animnum}{'name'} = $1;
