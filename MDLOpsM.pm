@@ -144,7 +144,8 @@ $structs{'nodechildren'} ={loc =>  13, num => 14, size =>  4, dnum => 1, name =>
 $structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "f[4]L[12]l*"};
 #$structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
-$structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
+#$structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
+$structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SfL[3]"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => $structs{'subhead'}{'33k1'}->{tmplt} . 'l[16]S*'};
 $structs{'subhead'}{'161k1'}= {loc => -1, num => 1, size => 388, dnum => 1, name => "animmesh_header",  tmplt => $structs{'subhead'}{'33k1'}->{tmplt} . 'fL[3]f[9]'};
 $structs{'subhead'}{'289k1'}= {loc => -1, num => 1, size => 360, dnum => 1, name => "dangly_header",    tmplt => $structs{'subhead'}{'33k1'}->{tmplt} . 'l[3]f[3]l'};
@@ -154,7 +155,8 @@ $structs{'subhead'}{'2081k1'}={loc => -1, num => 1, size => 352, dnum => 1, name
 $structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",    tmplt => "f[4]L[12]l*"};
 #$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
-$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
+#$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
+$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SfL[5]"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'l[16]S*'};
 $structs{'subhead'}{'161k2'}= {loc => -1, num => 1, size => 396, dnum => 1, name => "animmesh_header", tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'fL[3]f[9]'};
 $structs{'subhead'}{'289k2'}= {loc => -1, num => 1, size => 368, dnum => 1, name => "dangly_header",   tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'l[3]f[3]l'};
@@ -169,33 +171,33 @@ $structs{'data'}{3}[1]={loc =>  4, num =>  5, size =>  0, dnum => 1, name => "fl
 $structs{'data'}{3}[2]={loc =>  7, num =>  8, size =>  0, dnum => 1, name => "flare_pos",        tmplt => "f*"};
 $structs{'data'}{3}[3]={loc => 10, num => 11, size =>  0, dnum => 1, name => "flare_color",      tmplt => "f*"};
 $structs{'data'}{3}[4]={loc => 13, num => 14, size =>  0, dnum => 1, name => "texture_names",    tmplt => "C*"};
-$structs{'data'}{33} = {loc => 73, num => 62, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};       
-$structs{'data'}{97} = {loc => 73, num => 62, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};       
-$structs{'data'}{289}= {loc => 73, num => 62, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};       
-$structs{'data'}{545}= {loc => 73, num => 62, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};       
-$structs{'data'}{2081}[0] = {loc => 73, num => 62, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};  
-$structs{'data'}{2081}[1] = {loc => 74, num => 62, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"}; 
-$structs{'data'}{2081}[2] = {loc => 75, num => 62, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};     
-$structs{'data'}{2081}[3] = {loc => 76, num => 62, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};  
+$structs{'data'}{33} = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
+$structs{'data'}{97} = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
+$structs{'data'}{289}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
+$structs{'data'}{545}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
+$structs{'data'}{2081}[0] = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};
+$structs{'data'}{2081}[1] = {loc => 79, num => 64, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"};
+$structs{'data'}{2081}[2] = {loc => 80, num => 64, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};
+$structs{'data'}{2081}[3] = {loc => 81, num => 64, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};
 
-$structs{'mdxdata'}{33} = {loc => 72, num => 62, size => 24, dnum => 1, name => "mdxdata33",  tmplt => "f*"};   
-$structs{'mdxdata'}{97} = {loc => 72, num => 62, size => 56, dnum => 1, name => "mdxdata97",  tmplt => "f*"};   
-$structs{'mdxdata'}{545}= {loc => 72, num => 62, size => 24, dnum => 1, name => "mdxdata545", tmplt => "f*"};   
-$structs{'mdxdata'}{289}= {loc => 72, num => 62, size => 24, dnum => 1, name => "mdxdata289", tmplt => "f*"};  
+$structs{'mdxdata'}{33} = {loc => 77, num => 64, size => 24, dnum => 1, name => "mdxdata33",  tmplt => "f*"};
+$structs{'mdxdata'}{97} = {loc => 77, num => 64, size => 56, dnum => 1, name => "mdxdata97",  tmplt => "f*"};
+$structs{'mdxdata'}{545}= {loc => 77, num => 64, size => 24, dnum => 1, name => "mdxdata545", tmplt => "f*"};
+$structs{'mdxdata'}{289}= {loc => 77, num => 64, size => 24, dnum => 1, name => "mdxdata289", tmplt => "f*"};
 
 $structs{'darray'}[0] = {loc =>  2, num =>  3, size => 32, dnum =>  11, name => "faces",            tmplt => "fffflssssss"};
-$structs{'darray'}[1] = {loc => 30, num => 31, size =>  4, dnum =>   1, name => "pntr_to_vert_num", tmplt => "l"}; 
-$structs{'darray'}[2] = {loc => 33, num => 34, size =>  4, dnum =>   1, name => "pntr_to_vert_loc", tmplt => "l"}; 
-$structs{'darray'}[3] = {loc => 36, num => 37, size =>  4, dnum =>   1, name => "array3",           tmplt => "l"};           
+$structs{'darray'}[1] = {loc => 26, num => 27, size =>  4, dnum =>   1, name => "pntr_to_vert_num", tmplt => "l"};
+$structs{'darray'}[2] = {loc => 29, num => 30, size =>  4, dnum =>   1, name => "pntr_to_vert_loc", tmplt => "l"};
+$structs{'darray'}[3] = {loc => 32, num => 33, size =>  4, dnum =>   1, name => "array3",           tmplt => "l"};
 
 #num and loc for darray4 are extracted from darray1 and darray2 respectively
 $structs{'darray'}[4] = {loc => -1, num => -1, size =>  2, dnum =>   3, name => "vertindexes",  tmplt => "s*"};
-$structs{'darray'}[5] = {loc => 79, num => 80, size =>  4, dnum =>   1, name => "bonemap",      tmplt => "f"};         
-$structs{'darray'}[6] = {loc => 81, num => 82, size => 16, dnum =>   4, name => "qbones",       tmplt => "f[4]"};       
-$structs{'darray'}[7] = {loc => 84, num => 85, size => 12, dnum =>   3, name => "tbones",       tmplt => "f[3]"};       
-$structs{'darray'}[8] = {loc => 87, num => 88, size =>  4, dnum =>   2, name => "array8",       tmplt => "SS"};         
-$structs{'darray'}[9] = {loc => 74, num => 75, size => 16, dnum =>   1, name => "constraints+", tmplt => "f[4]"}; 
-$structs{'darray'}[10]= {loc => 74, num => -1, size => 40, dnum =>   6, name => "aabb",         tmplt => "ffffffllll"}; 
+$structs{'darray'}[5] = {loc => 84, num => 85, size =>  4, dnum =>   1, name => "bonemap",      tmplt => "f"};
+$structs{'darray'}[6] = {loc => 86, num => 87, size => 16, dnum =>   4, name => "qbones",       tmplt => "f[4]"};
+$structs{'darray'}[7] = {loc => 89, num => 90, size => 12, dnum =>   3, name => "tbones",       tmplt => "f[3]"};
+$structs{'darray'}[8] = {loc => 92, num => 93, size =>  4, dnum =>   2, name => "array8",       tmplt => "SS"};
+$structs{'darray'}[9] = {loc => 79, num => 80, size => 16, dnum =>   1, name => "constraints+", tmplt => "f[4]"};
+$structs{'darray'}[10]= {loc => 79, num => -1, size => 40, dnum =>   6, name => "aabb",         tmplt => "ffffffllll"};
 
 our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
                    'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'saber' => 2081);
@@ -1181,69 +1183,87 @@ my $dothis = 0;
     $ref->{$node}{'average'} = [@{$ref->{$node}{'subhead'}{'unpacked'}}[12..14]];
     $ref->{$node}{'diffuse'} = [@{$ref->{$node}{'subhead'}{'unpacked'}}[15..17]];
     $ref->{$node}{'ambient'} = [@{$ref->{$node}{'subhead'}{'unpacked'}}[18..20]];
+    $ref->{$node}{'transparencyhint'} = $ref->{$node}{'subhead'}{'unpacked'}[21];
     $ref->{$node}{'bitmap'} = $ref->{$node}{'subhead'}{'unpacked'}[22];
     $ref->{$node}{'bitmap2'} = $ref->{$node}{'subhead'}{'unpacked'}[23];
-    $ref->{$node}{'vertnumloc'} = $ref->{$node}{'subhead'}{'unpacked'}[30];  
-    $ref->{$node}{'vertlocloc'} = $ref->{$node}{'subhead'}{'unpacked'}[33];  
-    $ref->{$node}{'unknown'} = $ref->{$node}{'subhead'}{'unpacked'}[36];     
-    $ref->{$node}{'mdxdatasize'} = $ref->{$node}{'subhead'}{'unpacked'}[49]; 
+    $ref->{$node}{'texture0'} = $ref->{$node}{'subhead'}{'unpacked'}[24];
+    $ref->{$node}{'texture1'} = $ref->{$node}{'subhead'}{'unpacked'}[25];
+    $ref->{$node}{'vertnumloc'} = $ref->{$node}{'subhead'}{'unpacked'}[26];
+    $ref->{$node}{'vertlocloc'} = $ref->{$node}{'subhead'}{'unpacked'}[29];
+    $ref->{$node}{'unknown'} = $ref->{$node}{'subhead'}{'unpacked'}[32];
+    # the following 5 things are hypothetical at this point
+    $ref->{$node}{'animateuv'} = $ref->{$node}{'subhead'}{'unpacked'}[46];
+    $ref->{$node}{'uvdirectionx'} = $ref->{$node}{'subhead'}{'unpacked'}[47];
+    $ref->{$node}{'uvdirectiony'} = $ref->{$node}{'subhead'}{'unpacked'}[48];
+    $ref->{$node}{'uvjitter'} = $ref->{$node}{'subhead'}{'unpacked'}[49];
+    $ref->{$node}{'uvjitterspeed'} = $ref->{$node}{'subhead'}{'unpacked'}[50];
+    $ref->{$node}{'mdxdatasize'} = $ref->{$node}{'subhead'}{'unpacked'}[51];
     # the MDX data bitmap contains a bit for each element present in MDX data rows
-    $ref->{$node}{'mdxdatabitmap'} = $ref->{$node}{'subhead'}{'unpacked'}[50];
+    $ref->{$node}{'mdxdatabitmap'} = $ref->{$node}{'subhead'}{'unpacked'}[52];
     #$ref->{$node}{'loc61'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
     #$ref->{$node}{'loc62'} = $ref->{$node}{'subhead'}{'unpacked'}[55];
     #$ref->{$node}{'loc65'} = $ref->{$node}{'subhead'}{'unpacked'}[58];
     # offset to vertices in MDX row
-    $ref->{$node}{'mdxvertcoordsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[51];
+    $ref->{$node}{'mdxvertcoordsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[53];
     # offset to vertex normals in MDX row
-    $ref->{$node}{'mdxvertnormalsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[52];
+    $ref->{$node}{'mdxvertnormalsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
     # offset to texture0 tvertices in MDX row
-    $ref->{$node}{'mdxtex0vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
+    $ref->{$node}{'mdxtex0vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[56];
     # offset to texture1 tvertices in MDX row
-    $ref->{$node}{'mdxtex1vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[55];
+    $ref->{$node}{'mdxtex1vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[57];
     # offset to texture2 tvertices in MDX row
-    $ref->{$node}{'mdxtex2vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[56];
+    $ref->{$node}{'mdxtex2vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[58];
     # offset to texture3 tvertices in MDX row
-    $ref->{$node}{'mdxtex3vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[57];
+    $ref->{$node}{'mdxtex3vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[59];
     # offset to tangent space (bumpmap) info in MDX row
-    $ref->{$node}{'mdxtanspaceloc'} = $ref->{$node}{'subhead'}{'unpacked'}[58];
+    $ref->{$node}{'mdxtanspaceloc'} = $ref->{$node}{'subhead'}{'unpacked'}[60];
 
-    $ref->{$node}{'vertcoordnum'} = $ref->{$node}{'subhead'}{'unpacked'}[62];
-    $ref->{$node}{'texturenum'} = $ref->{$node}{'subhead'}{'unpacked'}[63];  
+    $ref->{$node}{'vertcoordnum'} = $ref->{$node}{'subhead'}{'unpacked'}[64];
+    $ref->{$node}{'texturenum'} = $ref->{$node}{'subhead'}{'unpacked'}[65];
 
-    if ($ref->{$node}{'subhead'}{'unpacked'}[65] & 256) {  
-      $ref->{$node}{'shadow'} = 1;
-    } else {
-      $ref->{$node}{'shadow'} = 0;
+    $ref->{$node}{'lightmapped'} = $ref->{$node}{'subhead'}{'unpacked'}[66];
+    $ref->{$node}{'rotatetexture'} = $ref->{$node}{'subhead'}{'unpacked'}[67];
+    $ref->{$node}{'m_bIsBackgroundGeometry'} = $ref->{$node}{'subhead'}{'unpacked'}[68];
+    $ref->{$node}{'shadow'} = $ref->{$node}{'subhead'}{'unpacked'}[69];
+    $ref->{$node}{'beaming'} = $ref->{$node}{'subhead'}{'unpacked'}[70];
+    $ref->{$node}{'render'} = $ref->{$node}{'subhead'}{'unpacked'}[71];
+
+    if ($uoffset == 0) {
+        # kotor2 specific things: dirt_enabled, dirt_texture, dirt_worldspace, hologram_donotdraw
+        # these are not specifically/correctly unpacked by the main template
+        $ref->{$node}{'dirt_enabled'} = unpack('C', pack('C[2]', $ref->{$node}{'subhead'}{'unpacked'}[72]));
+        # prevent tongue & teeth from showing up inside closed mouths in holograms:
+        $ref->{$node}{'hologram_donotdraw'} = $ref->{$node}{'subhead'}{'unpacked'}[74] % 2;
     }
 
-    if ($ref->{$node}{'subhead'}{'unpacked'}[66] & 256) {  
-      $ref->{$node}{'render'} = 1;
-    } else {
-      $ref->{$node}{'render'} = 0;
-    }
-    
-    $ref->{$node}{'MDXdataloc'} = $ref->{$node}{'subhead'}{'unpacked'}[72 + $uoffset];     
-    $ref->{$node}{'vertcoordloc'} = $ref->{$node}{'subhead'}{'unpacked'}[73 + $uoffset];   
+    #XXX not sure this is really a thing ... testing:
+    $ref->{$node}{'totalarea'} = $ref->{$node}{'subhead'}{'unpacked'}[73];
+
+    $ref->{$node}{'MDXdataloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];
+    $ref->{$node}{'vertcoordloc'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];
     if ( $nodetype == NODE_DANGLYMESH ) {
-      $ref->{$node}{'displacement'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset]; 
-      $ref->{$node}{'tightness'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];    
-      $ref->{$node}{'period'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];       
+      $ref->{$node}{'displacement'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset];
+      $ref->{$node}{'tightness'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset];
+      $ref->{$node}{'period'} = $ref->{$node}{'subhead'}{'unpacked'}[84 + $uoffset];
     } elsif ( $nodetype == NODE_SKIN ) {
-      $ref->{$node}{'bonesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
-      $ref->{$node}{'bonesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];
-      $ref->{$node}{'skinunk1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset];
-      $ref->{$node}{'skinunk1num'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset];
-      $ref->{$node}{'skinunk2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[84 + $uoffset];
-      $ref->{$node}{'skinunk2num'} = $ref->{$node}{'subhead'}{'unpacked'}[85 + $uoffset];
-      $ref->{$node}{'skinunk3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[87 + $uoffset];
-      $ref->{$node}{'skinunk3num'} = $ref->{$node}{'subhead'}{'unpacked'}[88 + $uoffset];
-      # Note: fixed offsets in the above even though they are never used by code
       # MDX row offsets for skin-specific data, bone weights & bone indices
-      $ref->{$node}{'mdxboneweightsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];
-      $ref->{$node}{'mdxboneindicesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];
+      $ref->{$node}{'mdxboneweightsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset];
+      $ref->{$node}{'mdxboneindicesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset];
       $ref->{$node}{'mdxdatabitmap'} |= MDX_BONE_WEIGHTS | MDX_BONE_INDICES;
+      # weights
+      $ref->{$node}{'weightsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[84 + $uoffset];
+      $ref->{$node}{'weightsnum'} = $ref->{$node}{'subhead'}{'unpacked'}[85 + $uoffset];
+      # qbone_ref_inv
+      $ref->{$node}{'qbone_ref_invloc'} = $ref->{$node}{'subhead'}{'unpacked'}[86 + $uoffset];
+      $ref->{$node}{'qbone_ref_invnum'} = $ref->{$node}{'subhead'}{'unpacked'}[87 + $uoffset];
+      # tbone_ref_inv
+      $ref->{$node}{'tbone_ref_invloc'} = $ref->{$node}{'subhead'}{'unpacked'}[89 + $uoffset];
+      $ref->{$node}{'tbone_ref_invnum'} = $ref->{$node}{'subhead'}{'unpacked'}[90 + $uoffset];
+      # boneconstantindices
+      $ref->{$node}{'boneconstantindicesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[92 + $uoffset];
+      $ref->{$node}{'boneconstantindicesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[93 + $uoffset];
     } elsif ( $nodetype == NODE_AABB ) {
-      $ref->{$node}{'aabbloc'} = $ref->{$node}{'subhead'}{'unpacked'}[74 + $uoffset];  
+      $ref->{$node}{'aabbloc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
     }
   } # if 97 or 33 or 289 or 2081
   
@@ -1763,6 +1783,35 @@ sub writeasciimdl {
     
     # mesh nodes
     if ( $nodetype == NODE_TRIMESH || $nodetype == NODE_SKIN || $nodetype == NODE_DANGLYMESH || $nodetype == NODE_AABB || $nodetype == NODE_SABER ) {
+      printf(MODELOUT "  bmin % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'bboxmin'}}[0..2]);
+      printf(MODELOUT "  bmax % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'bboxmax'}}[0..2]);
+      printf(MODELOUT "  radius % .7f\n", $model->{'nodes'}{$i}{'radius'});
+      printf(MODELOUT "  average % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'average'}}[0..2]);
+
+      # render, shadow, ambient, and diffuse should all be in here, they are not actually general
+      printf(MODELOUT "  lightmapped %u\n", $model->{'nodes'}{$i}{'lightmapped'});
+      printf(MODELOUT "  rotatetexture %u\n", $model->{'nodes'}{$i}{'rotatetexture'});
+      printf(MODELOUT "  m_bIsBackgroundGeometry %u\n", $model->{'nodes'}{$i}{'m_bIsBackgroundGeometry'});
+      printf(MODELOUT "  beaming %u\n", $model->{'nodes'}{$i}{'beaming'});
+      printf(MODELOUT "  transparencyhint %u\n", $model->{'nodes'}{$i}{'transparencyhint'});
+
+      # test for presence of k2 specific flags
+      if (defined($model->{'nodes'}{$i}{'dirt_enabled'})) {
+          printf(MODELOUT "  dirt_enabled %u\n", $model->{'nodes'}{$i}{'dirt_enabled'});
+          # still no idea where other dirt properties are...
+          printf(MODELOUT "  hologram_donotdraw %u\n", $model->{'nodes'}{$i}{'hologram_donotdraw'});
+      }
+
+      # this is the property magnusII classified as 'shininess'
+      # my current understanding is that this is actually animated uv maps,
+      # used, for example, to show the 'current' of a river, or a moving cloud,
+      # that is the theory, definitely unconfirmed at this time
+      printf(MODELOUT "  animateuv %u\n", $model->{'nodes'}{$i}{'animateuv'});
+      printf(MODELOUT "  uvdirectionx % .7f\n", $model->{'nodes'}{$i}{'uvdirectionx'});
+      printf(MODELOUT "  uvdirectiony % .7f\n", $model->{'nodes'}{$i}{'uvdirectiony'});
+      printf(MODELOUT "  uvjitter % .7f\n", $model->{'nodes'}{$i}{'uvjitter'});
+      printf(MODELOUT "  uvjitterspeed % .7f\n", $model->{'nodes'}{$i}{'uvjitterspeed'});
+
       printf(MODELOUT "  bitmap %s\n", $model->{'nodes'}{$i}{'bitmap'});
       $bitmaps{ lc($model->{'nodes'}{$i}{'bitmap'}) } += 1;
       if ( $nodetype == NODE_SABER ) {
@@ -2204,10 +2253,18 @@ sub readasciimdl {
       $model{'name'} = $1;
     } elsif ($line =~ /\s*setsupermodel\s+(\S*)\s+(\S*)/i) { #look for the super model
       $model{'supermodel'} = $2;
-    } elsif ($line =~ /\s*bmin\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box min
+    } elsif (!$innode && $line =~ /\s*bmin\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box min
       $model{'bmin'} = [$1,$2,$3];
-    } elsif ($line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box max
+    } elsif (!$innode && $line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the bounding box max
       $model{'bmax'} = [$1,$2,$3];
+    } elsif ($innode && $line =~ /\s*bmin\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the mesh bounding box min
+      $model{nodes}{$nodenum}{'bboxmin'} = [$1,$2,$3];
+    } elsif ($innode && $line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the mesh bounding box max
+      $model{nodes}{$nodenum}{'bboxmax'} = [$1,$2,$3];
+    } elsif ($innode && $line =~ /^\s*radius\s+(\S+)/i) { #look for the mesh radius
+      $model{nodes}{$nodenum}{'radius'} = $1;
+    } elsif ($innode && $line =~ /\s*average\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the mesh average point
+      $model{nodes}{$nodenum}{'average'} = [$1,$2,$3];
     } elsif ($line =~ /\s*classification\s+(\S*)/i) { # look for the model type
       # using this as a key into the classifications hash, so format the string
       $model{'classification'} = ucfirst lc $1;
@@ -2272,6 +2329,10 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'texturenum'} = 0;
       }
       $model{'nodes'}{$nodenum}{'mdxdatabitmap'} = 0;
+      $model{'nodes'}{$nodenum}{'bboxmin'} = [-5, -5, -5];
+      $model{'nodes'}{$nodenum}{'bboxmax'} = [5, 5, 5];
+      $model{'nodes'}{$nodenum}{'radius'} = 10;
+      $model{'nodes'}{$nodenum}{'average'} = [0, 0, 0];
       $model{'nodes'}{$nodenum}{'diffuse'} = [0.8, 0.8, 0.8];
       $model{'nodes'}{$nodenum}{'ambient'} = [0.2, 0.2, 0.2];
       $model{'nodes'}{$nodenum}{'controllernum'} = 0;
@@ -2332,13 +2393,33 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'render'} = $1;
     } elsif ($innode && $line =~ /\s*shadow\s+(\S*)/i) { # if in a node look for the shadow property
       $model{'nodes'}{$nodenum}{'shadow'} = $1;
+    } elsif ($innode && $line =~ /\s*lightmapped\s+(\S*)/i) { # if in a node look for the lightmapped property
+      $model{'nodes'}{$nodenum}{'lightmapped'} = $1;
+    } elsif ($innode && $line =~ /\s*rotatetexture\s+(\S*)/i) { # if in a node look for the rotatetexture property
+      $model{'nodes'}{$nodenum}{'rotatetexture'} = $1;
+    } elsif ($innode && $line =~ /\s*m_bIsBackgroundGeometry\s+(\S*)/i) { # if in a node look for the BackgroundGeometry property
+      $model{'nodes'}{$nodenum}{'m_bIsBackgroundGeometry'} = $1;
+    } elsif ($innode && $line =~ /\s*beaming\s+(\S*)/i) { # if in a node look for the beaming property
+      $model{'nodes'}{$nodenum}{'beaming'} = $1;
+    } elsif ($innode && $line =~ /\s*transparencyhint\s+(\S*)/i) { # if in a node look for the transparencyhint property
+      $model{'nodes'}{$nodenum}{'transparencyhint'} = $1;
+    } elsif ($innode && $line =~ /\s*uvdirectionx\s+(\S*)/i) { # if in a node look for the uvdirectionx property
+      $model{'nodes'}{$nodenum}{'uvdirectionx'} = $1;
+    } elsif ($innode && $line =~ /\s*uvdirectiony\s+(\S*)/i) { # if in a node look for the uvdirectiony property
+      $model{'nodes'}{$nodenum}{'uvdirectiony'} = $1;
+    } elsif ($innode && $line =~ /\s*uvjitter\s+(\S*)/i) { # if in a node look for the uvjitter property
+      $model{'nodes'}{$nodenum}{'uvjitter'} = $1;
+    } elsif ($innode && $line =~ /\s*uvjitterspeed\s+(\S*)/i) { # if in a node look for the uvjitterspeed property
+      $model{'nodes'}{$nodenum}{'uvjitterspeed'} = $1;
     } elsif ($innode && $line =~ /\s*diffuse\s+(\S*)\s+(\S*)\s+(\S*)/i) { # if in a node look for the diffuse property
       $model{'nodes'}{$nodenum}{'diffuse'} = [$1, $2, $3];
     } elsif ($innode && $line =~ /\s*ambient\s+(\S*)\s+(\S*)\s+(\S*)/i) {  # if in a node look for the ambient property
       $model{'nodes'}{$nodenum}{'ambient'} = [$1, $2, $3];
     } elsif ($innode && $line =~ /\s*specular\s+(\S*)\s+(\S*)\s+(\S*)/i) {  # if in a node look for the specular property
+      # specular numbers are not used, have no place in binary models
       $model{'nodes'}{$nodenum}{'specular'} = [$1, $2, $3];
     } elsif ($innode && $line =~ /\s*shininess\s+(\S*)/i) {  # if in a node look for the shininess property
+      # shininess numbers are not used, have no place in binary models
       $model{'nodes'}{$nodenum}{'shininess'} = $1;
     } elsif ($innode && $line =~ /\s*bitmap\s+(\S*)/i) {  # if in a node look for the bitmap property
       $model{'nodes'}{$nodenum}{'bitmap'} = $1;
@@ -4204,14 +4285,20 @@ sub writebinarynode
         $model->{'nodes'}{$i}{'faceslocpointer'} = tell(BMDLOUT);
         $buffer =  pack("LLL", 0, $model->{'nodes'}{$i}{'facesnum'}, $model->{'nodes'}{$i}{'facesnum'});
 
-        # ** skipping bounding box min, max, radius, average
-        $buffer .= pack("f[10]", -5, -5, -5, 5, 5, 5, 10 , 0, 0, 0);
+        # set bounding box min, max, radius, average
+        $buffer .= pack("f[3]", @{$model->{'nodes'}{$i}{'bboxmin'}});
+        $buffer .= pack("f[3]", @{$model->{'nodes'}{$i}{'bboxmax'}});
+        $buffer .= pack("f", $model->{'nodes'}{$i}{'radius'});
+        $buffer .= pack("f[3]", @{$model->{'nodes'}{$i}{'average'}});
         $buffer .= pack("f[3]", @{$model->{'nodes'}{$i}{'diffuse'}} );
         $buffer .= pack("f[3]", @{$model->{'nodes'}{$i}{'ambient'}} );
-        $buffer .= pack("fZ[32]", 0, $model->{'nodes'}{$i}{'bitmap'} );
+        $buffer .= pack("L", $model->{'nodes'}{$i}{'transparencyhint'} );
+        $buffer .= pack("Z[32]", $model->{'nodes'}{$i}{'bitmap'} );
         $buffer .= pack("Z[32]", $model->{'nodes'}{$i}{'bitmap2'} );
+        $buffer .= pack("Z[12]", $model->{'nodes'}{$i}{'texture0'} );
+        $buffer .= pack("Z[12]", $model->{'nodes'}{$i}{'texture1'} );
         #$buffer .= pack("f[14]", 0,0,0,0,0,0,0,0,0,0,0,0,0,0);
-        $buffer .= pack("f[6]", 0,0,0,0,0,0); #compile time vertex indices, left over faces
+        #$buffer .= pack("f[6]", 0,0,0,0,0,0); #compile time vertex indices, left over faces
         $totalbytes += length($buffer);
         print(BMDLOUT $buffer);
 
@@ -4227,7 +4314,19 @@ sub writebinarynode
 
         $model->{'nodes'}{$i}{'unknownpointer'} = tell(BMDLOUT);      
         $buffer = pack("L*", 0, 1, 1);
-        $buffer .= pack("l*", -1, -1, 0, 3, 0, 0, 0, 0, 0 ,0);
+        $buffer .= pack("l*", -1, -1, 0);
+        # the following 8 bytes are not well understood yet and probably wrong
+        if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
+          $buffer .= pack("C*", 0, 0, 0, 0, 0, 0, 0, 17);
+        } else {
+          $buffer .= pack("C*", 3, 0, 0, 0, 0, 0, 0, 0);
+        }
+        $buffer .= pack('Lffff', 0, # sparkle? .lmt?
+                                 $model->{'nodes'}{$i}{'uvdirectionx'},
+                                 $model->{'nodes'}{$i}{'uvdirectiony'},
+                                 $model->{'nodes'}{$i}{'uvjitter'},
+                                 $model->{'nodes'}{$i}{'uvjitterspeed'});
+
         $buffer .= pack("l", $model->{'nodes'}{$i}{'mdxdatasize'});
 
         # don't know what this is, but is definately has something to do with textures
@@ -4257,30 +4356,24 @@ sub writebinarynode
 
         $buffer .= pack("ss", $model->{'nodes'}{$i}{'vertnum'}, $model->{'nodes'}{$i}{'texturenum'} );
 
-        if ( $model->{'nodes'}{$i}{'shadow'} != 0)
-        {
-            $buffer .= pack("ss", 0, 256);
-        }
-        else
-        {
-            $buffer .= pack("ss", 0, 0);
-        }
+        $buffer .= pack('C*', $model->{'nodes'}{$i}{'lightmapped'},
+                              $model->{'nodes'}{$i}{'rotatetexture'},
+                              $model->{'nodes'}{$i}{'m_bIsBackgroundGeometry'},
+                              $model->{'nodes'}{$i}{'shadow'},
+                              $model->{'nodes'}{$i}{'beaming'},
+                              $model->{'nodes'}{$i}{'render'});
 
-        if ( $model->{'nodes'}{$i}{'render'} != 0)
-        {
-            $buffer .= pack("ss", 256, 0);
-        }
-        else
-        {
-            $buffer .= pack("ss", 0, 0);
-        }
+        # not sure this surface area hypothesis is actually correct,
+        # i have not seen it with a value that makes sense in any models...
+        $buffer .= pack('sfL', 0, $model->{'nodes'}{$i}{'surfacearea'}, 0);
 
         if ($version eq 'k2')
         {
+            # this is not placed correctly at all
             $buffer .= pack("l*", 0, 0);
         }
 
-        $buffer .= pack("l*", 0, 0, $model->{'nodes'}{$i}{'mdxstart'});
+        $buffer .= pack("l", $model->{'nodes'}{$i}{'mdxstart'});
         $totalbytes += length($buffer);
         print(BMDLOUT $buffer);
         $model->{'nodes'}{$i}{'vertfloatpointer'} = tell(BMDLOUT);
