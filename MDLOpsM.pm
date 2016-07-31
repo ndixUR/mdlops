@@ -3275,6 +3275,16 @@ sub readasciimdl {
                 if (!defined($model{'nodes'}{$mesh}{'Bfaces'}[$faceB])) { next; }
                 # don't let influence of geometry from different smooth groups accumulate into the vertex normal
                 if ($model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4] != $model{'nodes'}{$mesh}{'Bfaces'}[$faceB]->[4]) { next; } #print ("$_ skipped\n"); next; }
+                # don't let influence of geometry across excessive crease angles accumulate into the vertex normal,
+                # currently only doing this for trimesh,
+                # this calculation is based on angle between normals, not the actual angle between face planes
+                if ($model{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH &&
+                    acos($model{'nodes'}{$i}{'facenormals'}[$faceA]->[0] *
+                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[0] +
+                         $model{'nodes'}{$i}{'facenormals'}[$faceA]->[1] *
+                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[1] +
+                         $model{'nodes'}{$i}{'facenormals'}[$faceA]->[2] *
+                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[2]) > pi / 4.0) { next; }
                 #print "$_ not skipped\n";
                 # use already computed area for surface area weight
                 my $area = $faceareas{$mesh}{$faceB};
