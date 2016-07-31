@@ -1842,6 +1842,27 @@ sub writeasciimdl {
           }
         }
       }
+      if (length($model->{'nodes'}{$i}{'bitmap2'}) &&
+          scalar(@{$model->{'nodes'}{$i}{'tverts1'}})) {
+        printf(MODELOUT "  tverts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'tverts1'}} ) {
+          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+        }
+      }
+      if (length($model->{'nodes'}{$i}{'texture0'}) &&
+          scalar(@{$model->{'nodes'}{$i}{'tverts2'}})) {
+        printf(MODELOUT "  tverts2 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts2'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'tverts2'}} ) {
+          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+        }
+      }
+      if (length($model->{'nodes'}{$i}{'texture1'}) &&
+          scalar(@{$model->{'nodes'}{$i}{'tverts3'}})) {
+        printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
+          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+        }
+      }
       if ($nodetype == NODE_SKIN && $convertskin == 0) {
         printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'Abones'}} ) {
@@ -2328,6 +2349,8 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 24; # tri mesh with no texture map
         $model{'nodes'}{$nodenum}{'texturenum'} = 0;
       }
+      # number of textures will be added to as they are found in parsing
+      $model{'nodes'}{$nodenum}{'texturenum'} = 0;
       $model{'nodes'}{$nodenum}{'mdxdatabitmap'} = 0;
       $model{'nodes'}{$nodenum}{'bboxmin'} = [-5, -5, -5];
       $model{'nodes'}{$nodenum}{'bboxmax'} = [5, 5, 5];
@@ -2429,6 +2452,14 @@ sub readasciimdl {
           $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TANGENT_SPACE;
       }
       $model{'nodes'}{$nodenum}{'bitmap2'} = "";
+      $model{'nodes'}{$nodenum}{'texture0'} = "";
+      $model{'nodes'}{$nodenum}{'texture1'} = "";
+    } elsif ($innode && $line =~ /\s*bitmap2\s+(\S*)/i) {  # if in a node look for the bitmap2 property
+      $model{'nodes'}{$nodenum}{'bitmap2'} = $1;
+    } elsif ($innode && $line =~ /\s*texture0\s+(\S*)/i) {  # if in a node look for the texture0 property
+      $model{'nodes'}{$nodenum}{'texture0'} = $1;
+    } elsif ($innode && $line =~ /\s*texture1\s+(\S*)/i) {  # if in a node look for the texture1 property
+      $model{'nodes'}{$nodenum}{'texture1'} = $1;
     } elsif ($innode && $line =~ /\s*displacement\s+(\S*)/i) { # if in a node look for the displacement property
       $model{'nodes'}{$nodenum}{'displacement'} = $1;
     } elsif ($innode && $line =~ /\s*tightness\s+(\S*)/i) { # if in a node look for the tightness property
@@ -2458,10 +2489,31 @@ sub readasciimdl {
       if ($model{'nodes'}{$nodenum}{'nodetype'} == NODE_TRIMESH) {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 32;
       }
-      $model{'nodes'}{$nodenum}{'texturenum'} = 1;
+      $model{'nodes'}{$nodenum}{'texturenum'} += 1;
       $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX0_VERTICES;
       #print($task . "|" . $count . "\n");
       $task = "tverts";
+      $count = 0;
+    } elsif ($innode && $line =~ /\s*tverts1\s+(\S*)/i) { # if in a node look for the start of the tverts for 2nd texture
+      $model{'nodes'}{$nodenum}{'tverts1num'} = $1;
+      $model{'nodes'}{$nodenum}{'texturenum'} += 1;
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX1_VERTICES;
+      #print($task . "|" . $count . "\n");
+      $task = "tverts1";
+      $count = 0;
+    } elsif ($innode && $line =~ /\s*tverts2\s+(\S*)/i) { # if in a node look for the start of the tverts for 3rd texture
+      $model{'nodes'}{$nodenum}{'tverts2num'} = $1;
+      $model{'nodes'}{$nodenum}{'texturenum'} += 1;
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX2_VERTICES;
+      #print($task . "|" . $count . "\n");
+      $task = "tverts2";
+      $count = 0;
+    } elsif ($innode && $line =~ /\s*tverts3\s+(\S*)/i) { # if in a node look for the start of the tverts for 4th texture
+      $model{'nodes'}{$nodenum}{'tverts3num'} = $1;
+      $model{'nodes'}{$nodenum}{'texturenum'} += 1;
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX3_VERTICES;
+      #print($task . "|" . $count . "\n");
+      $task = "tverts3";
       $count = 0;
     } elsif ($innode && $line =~ /\s*weights\s+(\S*)/i) { # if in a node look for the start of the weights
       $model{'nodes'}{$nodenum}{'weightsnum'} = $1;
@@ -2554,6 +2606,18 @@ sub readasciimdl {
       } elsif ($task eq "tverts") { # read in the tverts
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'tverts'}[$count] = [$1, $2];
+        $count++;
+      } elsif ($task eq "tverts1") { # read in the tverts for 2nd texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'tverts1'}[$count] = [$1, $2];
+        $count++;
+      } elsif ($task eq "tverts2") { # read in the tverts for 3rd texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'tverts2'}[$count] = [$1, $2];
+        $count++;
+      } elsif ($task eq "tverts3") { # read in the tverts for 4th texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'tverts3'}[$count] = [$1, $2];
         $count++;
       } elsif ($task eq "weights") { # read in the bone weights
         $line =~ /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
@@ -3565,9 +3629,21 @@ sub writebinarymdl {
         $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[1]); 
         $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[2]); 
         # if this mesh has uv coordinates add them in
-        if ($model->{'nodes'}{$i}{'mdxdatasize'} > 24) {
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES) {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+        }
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX1_VERTICES) {
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+        }
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX2_VERTICES) {
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+        }
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX3_VERTICES) {
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
         }
         # if this mesh has normal mapping, include the tangent space data
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
