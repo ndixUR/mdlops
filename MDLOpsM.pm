@@ -3076,16 +3076,27 @@ sub readasciimdl {
                 $deltaPos2 = [ $v2->[0] - $v0->[0], $v2->[1] - $v0->[1], $v2->[2] - $v0->[2] ];
                 $deltaUV1  = [ $uv1->[0] - $uv0->[0], $uv1->[1] - $uv0->[1] ];
                 $deltaUV2  = [ $uv2->[0] - $uv0->[0], $uv2->[1] - $uv0->[1] ];
-                if ($deltaUV1->[0] == $deltaUV2->[0] && $deltaUV1->[1] == $deltaUV2->[1]) {
-                  # prevent a divide-by-zero, this doesn't usually happen for actually-textured objects
-                  printf("Overlapping texture vertices in node: %s\n" .
-                         "x: % .7f, y: % .7f\nx: % .7f, y: % .7f\nx: % .7f, y: % .7f\n",
-                         $model{'partnames'}[$i], @{$uv0}, @{$uv1}, @{$uv2});
-                  $model{'nodes'}{$i}{'facetangents'}[$count - 1] = [ 0, 0, 0 ];
-                  $model{'nodes'}{$i}{'facebitangents'}[$count - 1] = [ 0, 0, 0 ];
-                  next;
+                # this is the texture normal's Z component, used to detect texture mirroring
+                # it was originally a = uv0 - uv1, b = uv2 - uv1, N=cross(a,b),
+                # but since we're talking about a 2d triangle, there's never any XY vector component,
+                # so it reduces to just calculating the Z (or w) component of the cross product
+                my $tNz = (
+                    ($uv0->[0] - $uv1->[0]) * ($uv2->[1] - $uv1->[1]) -
+                    ($uv0->[1] - $uv1->[1]) * ($uv2->[0] - $uv1->[0])
+                );
+
+                my $r = ($deltaUV1->[0] * $deltaUV2->[1] - $deltaUV1->[1] * $deltaUV2->[0]);
+                if ($r == 0.000000) {
+                    # prevent a divide-by-zero, this doesn't usually happen for actually-textured objects
+                    printf("Overlapping texture vertices in node: %s\n" .
+                           "x: % .7f, y: % .7f\nx: % .7f, y: % .7f\nx: % .7f, y: % .7f\n",
+                           $model{'partnames'}[$i], @{$uv0}, @{$uv1}, @{$uv2});
+                    # this is a weird magic factor determined algebraically from analyzing how p_g0t0.mdl copes
+                    # with all the overlapping tex vertices
+                    $r = 2406.6388;
+                } else {
+                    $r = 1.0 / $r;
                 }
-                my $r = 1.0 / ($deltaUV1->[0] * $deltaUV2->[1] - $deltaUV1->[1] * $deltaUV2->[0]);
                 # compute face tangent vector
                 my $tangent = [
                     ($deltaPos1->[0] * $deltaUV2->[1] - $deltaPos2->[0] * $deltaUV1->[1]) * $r,
@@ -3104,6 +3115,12 @@ sub readasciimdl {
                     $tangent = [
                         map { $_ / $bnormalizing_factor } @{$tangent}
                     ];
+                }
+                # fix 0-vectors arising from overlapping texture vertices
+                if ($tangent->[0] == 0.0000 && $tangent->[1] == 0.0000 && $tangent->[2] == 0.0000) {
+                    # it seems incredibly unlikely that these should both just be set to 1,0,0 unconditionally.
+                    # my guess here is that there is some criteria for determining whether X,Y, or Z should be 1
+                    $tangent = [ 1.0, 0.0, 0.0 ];
                 }
                 $model{'nodes'}{$i}{'facetangents'}[$count - 1] = $tangent;
 
@@ -3126,10 +3143,16 @@ sub readasciimdl {
                         map { $_ / $bnormalizing_factor } @{$bitangent}
                     ];
                 }
+                # fix 0-vectors arising from overlapping texture vertices
+                if ($bitangent->[0] == 0.0000 && $bitangent->[1] == 0.0000 && $bitangent->[2] == 0.0000) {
+                    # it seems incredibly unlikely that these should both just be set to 1,0,0 unconditionally.
+                    # my guess here is that there is some criteria for determining whether X,Y, or Z should be 1
+                    $bitangent = [ 1.0, 0.0, 0.0 ];
+                }
                 $model{'nodes'}{$i}{'facebitangents'}[$count - 1] = $bitangent;
 
                 # fix tangent space handedness: make this true: dot(cross(n,t),b) < 0
-                # that's right, bioware wants TBN NOT to form a right-handed coordinate system
+                # the game seems to want TBN NOT to form a right-handed coordinate system
                 # or, cross(n,t) must have a different orientation from vector b
                 my $cross_nt = [
                     $model{'nodes'}{$i}{'facenormals'}[$count - 1][1] * $model{'nodes'}{$i}{'facetangents'}[$count - 1]->[2] -
@@ -3146,6 +3169,17 @@ sub readasciimdl {
                         map { $_ * -1.0 } @{$model{'nodes'}{$i}{'facetangents'}[$count - 1]}
                     ];
                 }
+                # if texture is mirrored, we need to invert both tangent and bitangent now
+                if ($tNz > 0.0) {
+                    $model{'nodes'}{$i}{'facetangents'}[$count - 1] = [
+                        map { $_ * -1.0 } @{$model{'nodes'}{$i}{'facetangents'}[$count - 1]}
+                    ];
+                    $model{'nodes'}{$i}{'facebitangents'}[$count - 1] = [
+                        map { $_ * -1.0 } @{$model{'nodes'}{$i}{'facebitangents'}[$count - 1]}
+                    ];
+                }
+                #XXX there is some condition where the tangent space vertex normals differ greatly from the usual vertex normals,
+                # it seems to have something to do with the overlapping texture vertex situation, but i'm not sure how yet.
             }
         }
     }
@@ -3206,10 +3240,13 @@ sub readasciimdl {
             if (defined($model{'nodes'}{$i}{'facetangents'}) &&
                 defined($model{'nodes'}{$i}{'facetangents'}[$faceA])) {
                 $model{'nodes'}{$i}{'vertextangents'}[$work] = [ @{$model{'nodes'}{$i}{'facetangents'}[$faceA]} ];
-            }
-            if (defined($model{'nodes'}{$i}{'facebitangents'}) &&
-                defined($model{'nodes'}{$i}{'facebitangents'}[$faceA])) {
                 $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ @{$model{'nodes'}{$i}{'facebitangents'}[$faceA]} ];
+                # this is where we store the final numbers, store them now in case the calculations get skipped
+                $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
+                    @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
+                    @{$model{'nodes'}{$i}{'vertextangents'}[$work]},
+                    @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
+                ];
             }
             # skip better vertex normal calculations for non-rendering geometry
             if (!$model{'nodes'}{$i}{render}) {
