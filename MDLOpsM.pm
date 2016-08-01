@@ -1820,6 +1820,15 @@ sub writeasciimdl {
       printf(MODELOUT "  uvjitterspeed % .7f\n", $model->{'nodes'}{$i}{'uvjitterspeed'});
 
       printf(MODELOUT "  bitmap %s\n", $model->{'nodes'}{$i}{'bitmap'});
+      if (length($model->{'nodes'}{$i}{'bitmap2'})) {
+          printf(MODELOUT "  bitmap2 %s\n", $model->{'nodes'}{$i}{'bitmap2'});
+      }
+      if (length($model->{'nodes'}{$i}{'texture0'})) {
+          printf(MODELOUT "  texture0 %s\n", $model->{'nodes'}{$i}{'texture0'});
+      }
+      if (length($model->{'nodes'}{$i}{'texture1'})) {
+          printf(MODELOUT "  texture1 %s\n", $model->{'nodes'}{$i}{'texture1'});
+      }
       $bitmaps{ lc($model->{'nodes'}{$i}{'bitmap'}) } += 1;
       if ( $nodetype == NODE_SABER ) {
         print(MODELOUT "  verts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
