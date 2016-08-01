@@ -175,10 +175,10 @@ $structs{'data'}{33} = {loc => 78, num => 64, size => 12, dnum => 3, name => "ve
 $structs{'data'}{97} = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
 $structs{'data'}{289}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
 $structs{'data'}{545}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
-$structs{'data'}{2081}[0] = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};
-$structs{'data'}{2081}[1] = {loc => 79, num => 64, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"};
-$structs{'data'}{2081}[2] = {loc => 80, num => 64, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};
-$structs{'data'}{2081}[3] = {loc => 81, num => 64, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};
+$structs{'data'}{2081}[0] = {loc => 77, num => 64, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};
+$structs{'data'}{2081}[1] = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"};
+$structs{'data'}{2081}[2] = {loc => 79, num => 64, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};
+$structs{'data'}{2081}[3] = {loc => 80, num => 64, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};
 
 $structs{'mdxdata'}{33} = {loc => 77, num => 64, size => 24, dnum => 1, name => "mdxdata33",  tmplt => "f*"};
 $structs{'mdxdata'}{97} = {loc => 77, num => 64, size => 56, dnum => 1, name => "mdxdata97",  tmplt => "f*"};
@@ -1264,6 +1264,13 @@ my $dothis = 0;
       $ref->{$node}{'boneconstantindicesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[93 + $uoffset];
     } elsif ( $nodetype == NODE_AABB ) {
       $ref->{$node}{'aabbloc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
+    } elsif ( $nodetype == NODE_SABER) {
+      # don't yet know much about these values, but let's record them so we can start using them
+      $ref->{$node}{'saber1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
+      $ref->{$node}{'saber2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];
+      $ref->{$node}{'saber1num'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset]; # ???
+      $ref->{$node}{'saber2num'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset]; # ???
+      $ref->{$node}{'saber_magic'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset]; # ???
     }
   } # if 97 or 33 or 289 or 2081
   
@@ -2715,6 +2722,11 @@ sub readasciimdl {
     {
         $model{'nodes'}{$i}{'mdxdatasize'} = 0;
         $model{'nodes'}{$i}{'mdxrowoffsets'} = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+        # this is the right time to do any override tests for MDX contents
+        if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
+            # mesh of type lightsaber does not use MDX data, make sure size is 0 and offsets are -1
+            next;
+        }
         foreach (keys @{$structs{'mdxrows'}}) {
             if ($model{'nodes'}{$i}{'mdxdatabitmap'} & $structs{'mdxrows'}->[$_]{bitfield}) {
                 # handle row offset in 2 ways, using same keys as readbinary, and a secondary method
@@ -3665,16 +3677,22 @@ sub writebinarymdl {
   seek (BMDXOUT, 0, 0);
   for (my $i = 0; $i < $model->{'nodes'}{'truenodenum'}; $i++) {
     #print ("MDX: $i\n");
-    if ($model->{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN || $model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_AABB) {
+    if (($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) &&
+        $model->{'nodes'}{$i}{'mdxdatasize'} > 0 &&
+        $model->{'nodes'}{$i}{'mdxdatabitmap'} != 0) {
       $model->{'nodes'}{$i}{'mdxstart'} = tell(BMDXOUT);
       #print($model->{'nodes'}{$i}{'vertnum'} . "|writing MDX data for node $i at starting location $model->{'nodes'}{$i}{'mdxstart'} datasize: $model->{'nodes'}{$i}{'mdxdatasize'}\n");
       for (my $j = 0; $j < $model->{'nodes'}{$i}{'vertnum'}; $j++) {
-        $buffer = pack("f",$model->{'nodes'}{$i}{'verts'}[$j][0]);
-        $buffer .= pack("f",$model->{'nodes'}{$i}{'verts'}[$j][1]);
-        $buffer .= pack("f",$model->{'nodes'}{$i}{'verts'}[$j][2]);
-        $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[0]); 
-        $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[1]); 
-        $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[2]); 
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_VERTICES) {
+          $buffer = pack("f",$model->{'nodes'}{$i}{'verts'}[$j][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'verts'}[$j][1]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'verts'}[$j][2]);
+        }
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_VERTEX_NORMALS) {
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[1]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'vertexnormals'}{$j}[2]);
+        }
         # if this mesh has uv coordinates add them in
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES) {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
@@ -4441,6 +4459,30 @@ sub writebinarynode
         # the following 8 bytes are not well understood yet and probably wrong
         if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
           $buffer .= pack("C*", 0, 0, 0, 0, 0, 0, 0, 17);
+          #shortsbr1,6 1st lightsaber mesh plane:
+          #$buffer .= pack("C*", 171, 91, 237, 62, 120, 144, 188, 1);
+          #$buffer .= pack("C*", -85, 91, -19, 62, 120, -112, -68, 1);
+          #shortsbr1,6 2nd lightsaber mesh plane:
+          #$buffer .= pack("C*", 0, 0, 0, 0, 0, 145, 6, 2);
+          #$buffer .= pack("C*", 0, 0, 0, 0, 0, -111, 6, 2);
+          #lghtsbr1,2,3 1st lightsaber mesh plane:
+          #$buffer .= pack("C*", 171, 91, 237, 62, 104, 176, 207, 1);
+          #$buffer .= pack("C*", -85, 91, -19, 62, 104, -80, -49, 1);
+          #lghtsbr1,2,3 2nd lightsaber mesh plane:
+          #$buffer .= pack("C*", 0, 0, 0, 0, 232, 210, 6, 2);
+          #$buffer .= pack("C*", 0, 0, 0, 0, -24, -46, 6, 2);
+          #dblsbr1 1st lightsaber mesh plane:
+          #$buffer .= pack("C*", 171, 91, 237, 64, 206, 192, 207, 1);
+          #$buffer .= pack("C*", -85, 91, -19, 64, -50, -64, -49, 1);
+          #dblsbr1 2nd lightsaber mesh plane:
+          #$buffer .= pack("C*", 0, 0, 0, 0, 112, 35, 193, 1);
+          #$buffer .= pack("C*", 0, 0, 0, 0, 112, 35, -63, 1);
+          #dblsbr1 3rd lightsaber mesh plane:
+          #$buffer .= pack("C*", 29, 133, 171, 56, 232, 45, 54, 0);
+          #$buffer .= pack("C*", 29, -123, -85, 56, -24, 45, 54, 0);
+          #dblsbr1 4th lightsaber mesh plane:
+          #$buffer .= pack("C*", 184, 166, 239, 1, 120, 6, 232, 1);
+          #$buffer .= pack("C*", -72, -90, -17, 1, 120, 6, -24, 1);
         } else {
           $buffer .= pack("C*", 3, 0, 0, 0, 0, 0, 0, 0);
         }
@@ -4598,6 +4640,24 @@ sub writebinarynode
             }
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
+        }
+        elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_SABER) # lightsaber mesh sub-sub-header
+        {
+            $buffer = pack('L', 0); # offset into data
+            $buffer .= pack('L', 0); # offset into data
+            $buffer .= pack('LL', 98, 97); # 87 - 98, 2 values between 1 and 4 apart
+            $buffer .= pack('C[4]', 0, 0, 0, 0); # for lghtsbr and dblsbr
+            #$buffer .= pack('C[4]', 235, 219, 57, 185); # for shrtsbr
+            #$buffer .= pack('C[4]', -21, -37, 57, -71); # for shrtsbr (signed)
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            # there will be data to write out:
+            # vertcoords2 (loc 2)
+            # data2081-3 (loc 4)
+            # tverts1offset (loc 3)
+            # 384 bytes of total mystery
+            # vertcoords (loc 1)
         }
         elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH)  # dangly mesh sub-sub-header
         {
