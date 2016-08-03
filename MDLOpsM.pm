@@ -2141,50 +2141,23 @@ sub readasciicontroller {
   my ($controller, $controllername, $nodetype);
   
   $nodetype = $modelref->{'nodes'}{$nodenum}{'nodetype'};
-  if ($nodetype & NODE_HAS_LIGHT) {
-    while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_LIGHT}}) {
-      if ($isanimation) {
-        if (readkeyedcontroller($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername)) {
-          return 1;
-        }
-      } elsif (readsinglecontroller($line, $modelref, $nodenum, $controller, $controllername)) {
-        return 1;
+  # go through each of the types that have controllers (last is essentially "any node")
+  for my $type_test (NODE_HAS_LIGHT, NODE_HAS_EMITTER, NODE_HAS_MESH, NODE_HAS_HEADER) {
+      # if this node has this type
+      if ($nodetype & $type_test) {
+          # this was being done with a while & each before, but that didn't seem to be resetting some kind of iterator??
+          # this for loop is more reliable for some reason...
+          for $controller (keys %{$controllernames{$type_test}}) {
+              $controllername = $controllernames{$type_test}{$controller};
+              if ($isanimation) {
+                  if (readkeyedcontroller($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername)) {
+                      return 1;
+                  }
+              } elsif (readsinglecontroller($line, $modelref, $nodenum, $controller, $controllername)) {
+                  return 1;
+              }
+          }
       }
-
-    }
-  }
-  if ($nodetype & NODE_HAS_EMITTER) {
-    while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
-      if ($isanimation) {
-        if (readkeyedcontroller($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername)) {
-          return 1;
-        }
-      } elsif (readsinglecontroller($line, $modelref, $nodenum, $controller, $controllername)) {
-        return 1;
-      }
-
-    }
-  }
-  if ($nodetype & NODE_HAS_MESH) {
-    while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_MESH}}) {
-      if ($isanimation) {
-        if (readkeyedcontroller($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername)) {
-          return 1;
-        }
-      } elsif (readsinglecontroller($line, $modelref, $nodenum, $controller, $controllername)) {
-        return 1;
-      }
-
-    }
-  }
-  while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_HEADER}}) {
-    if ($isanimation) {
-        if (readkeyedcontroller($line, $modelref, $nodenum, $animnum, $ASCIIFILE, $controller, $controllername)) {
-          return 1;
-        }
-      } elsif (readsinglecontroller($line, $modelref, $nodenum, $controller, $controllername)) {
-      return 1;
-    }
   }
   return 0;
 }
