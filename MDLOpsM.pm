@@ -3431,6 +3431,16 @@ sub readasciimdl {
                 ];
             }
         }
+        if ($printall && defined($model{'nodes'}{$i}{'vertextangents'})) {
+            foreach (keys @{$model{'nodes'}{$i}{'vertextangents'}}) {
+                printf("$i %u (%.7f, %.7f, %.7f) (%.7f, %.7f, %.7f) (%.7f, %.7f, %.7f)\n",
+                       $_,
+                       @{$model{'nodes'}{$i}{'Btangentspace'}[$_]});
+                       #@{$model{'nodes'}{$i}{'vertexbitangents'}[$_]},
+                       #@{$model{'nodes'}{$i}{'vertextangents'}[$_]},
+                       #@{$model{'nodes'}{$i}{'vertexnormals'}{$_}});
+            }
+        }
     }
 
     # Calculate adjacent faces
@@ -3734,7 +3744,7 @@ sub writebinarymdl {
         }
         # if this mesh has normal mapping, include the tangent space data
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
-          $buffer .= pack('f[9]', @{$model->{'nodes'}{$i}{'Btangentspace'}});
+          $buffer .= pack('f[9]', @{$model->{'nodes'}{$i}{'Btangentspace'}[$j]});
         }
         # if this is a skin mesh node then add in the bone weights
         if ($model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN) {
