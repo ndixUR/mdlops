@@ -1268,9 +1268,9 @@ my $dothis = 0;
       # don't yet know much about these values, but let's record them so we can start using them
       $ref->{$node}{'saber1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
       $ref->{$node}{'saber2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];
-      $ref->{$node}{'saber1num'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset]; # ???
-      $ref->{$node}{'saber2num'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset]; # ???
-      $ref->{$node}{'saber_magic'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset]; # ???
+      $ref->{$node}{'saber3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset];
+      $ref->{$node}{'saber_num1'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset]; # ???
+      $ref->{$node}{'saber_num2'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset]; # ???
     }
   } # if 97 or 33 or 289 or 2081
   
@@ -1511,6 +1511,12 @@ my $dothis = 0;
         $ref->{$node}{'tverts'}[$i][0] = $ref->{$node}{'tverts+'}{'unpacked'}[($i * 2) + 0];
         $ref->{$node}{'tverts'}[$i][1] = $ref->{$node}{'tverts+'}{'unpacked'}[($i * 2) + 1];
       }
+      $ref->{$node}{'verts1'}[$i][0] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 0];
+      $ref->{$node}{'verts1'}[$i][1] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 1];
+      $ref->{$node}{'verts1'}[$i][2] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 2];
+      $ref->{$node}{'tverts1offset'}[$i][0] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 0];
+      $ref->{$node}{'tverts1offset'}[$i][1] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 1];
+      $ref->{$node}{'tverts1offset'}[$i][2] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 2];
     }
   } # if 2081
 
@@ -1877,6 +1883,16 @@ sub writeasciimdl {
         printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
           printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
+        }
+      }
+      if ($nodetype & NODE_HAS_SABER) {
+        printf(MODELOUT "  verts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'verts1'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'verts1'}} ) {
+          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
+        }
+        printf(MODELOUT "  tverts1offset %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1offset'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'tverts1offset'}} ) {
+          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
         }
       }
       if ($nodetype == NODE_SKIN && $convertskin == 0) {
@@ -2504,6 +2520,14 @@ sub readasciimdl {
       #print($task . "|" . $count . "\n");
       $task = "tverts3";
       $count = 0;
+    } elsif ($innode && $line =~ /\s*[^t]verts1\s+(\S*)/i) {  # if in a node look for the start of the saber verts1
+      $model{'nodes'}{$nodenum}{'verts1num'} = $1;
+      $task = "verts1";
+      $count = 0;
+    } elsif ($innode && $line =~ /\s*[^t]tverts1offset\s+(\S*)/i) {  # if in a node look for the start of the saber tverts1offset
+      $model{'nodes'}{$nodenum}{'tverts1offsetnum'} = $1;
+      $task = "tverts1offset";
+      $count = 0;
     } elsif ($innode && $line =~ /\s*weights\s+(\S*)/i) { # if in a node look for the start of the weights
       $model{'nodes'}{$nodenum}{'weightsnum'} = $1;
       #print($task . "|" . $count . "\n");
@@ -2608,6 +2632,14 @@ sub readasciimdl {
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'tverts3'}[$count] = [$1, $2];
         $count++;
+      } elsif ($task eq "verts1" ) { # read in the verts1 saber data
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'verts1'}[$count] = [$1, $2, $3];
+        $count++;
+      } elsif ($task eq "tverts1offset" ) { # read in the tverts1offset saber data
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'tverts1offset'}[$count] = [$1, $2, $3];
+        $count++;
       } elsif ($task eq "weights") { # read in the bone weights
         $line =~ /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
         $model{'nodes'}{$nodenum}{'Abones'}[$count] = "$1 $2";
@@ -2707,6 +2739,8 @@ sub readasciimdl {
         # this is the right time to do any override tests for MDX contents
         if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
             # mesh of type lightsaber does not use MDX data, make sure size is 0 and offsets are -1
+            # also clear the mdx data bitmap so everything is consistent
+            $model{'nodes'}{$i}{'mdxdatabitmap'} = 0;
             next;
         }
         foreach (keys @{$structs{'mdxrows'}}) {
@@ -2838,8 +2872,10 @@ sub readasciimdl {
     for (my $i = 0; $i < $nodenum; $i ++)
     {
         # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
+        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+            ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
             # skip non-mesh nodes
+            # skip saber mesh nodes
             next;
         }
 
@@ -2923,8 +2959,10 @@ sub readasciimdl {
     for (my $i = 0; $i < $nodenum; $i ++)
     {
         # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
+        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+            ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
             # skip non-mesh nodes
+            # skip saber mesh nodes
             next;
         }
 
@@ -3184,8 +3222,10 @@ sub readasciimdl {
     {
 
         # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
+        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+            ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
             # skip non-mesh nodes
+            # skip saber mesh nodes
             next;
         }
 
@@ -4440,7 +4480,8 @@ sub writebinarynode
         $buffer .= pack("l*", -1, -1, 0);
         # the following 8 bytes are not well understood yet and probably wrong
         if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
-          $buffer .= pack("C*", 0, 0, 0, 0, 0, 0, 0, 17);
+          #$buffer .= pack("C*", 0, 0, 0, 0, 0, 0, 0, 17);
+          $buffer .= pack("C*", 171, 91, 237, 62, 120, 144, 188, 1);
           #shortsbr1,6 1st lightsaber mesh plane:
           #$buffer .= pack("C*", 171, 91, 237, 62, 120, 144, 188, 1);
           #$buffer .= pack("C*", -85, 91, -19, 62, 120, -112, -68, 1);
@@ -4625,21 +4666,55 @@ sub writebinarynode
         }
         elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_SABER) # lightsaber mesh sub-sub-header
         {
+            $model->{'nodes'}{$i}{'verts1pointer'} = tell(BMDLOUT);
             $buffer = pack('L', 0); # offset into data
-            $buffer .= pack('L', 0); # offset into data
-            $buffer .= pack('LL', 98, 97); # 87 - 98, 2 values between 1 and 4 apart
-            $buffer .= pack('C[4]', 0, 0, 0, 0); # for lghtsbr and dblsbr
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            $model->{'nodes'}{$i}{'tvertspointer'} = tell(BMDLOUT);
+            $buffer = pack('L', 0); # offset into data
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            $model->{'nodes'}{$i}{'tverts1offsetpointer'} = tell(BMDLOUT);
+            $buffer = pack('L', 0); # offset into data
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+            $buffer = pack('LL', 98, 97); # 87 - 98, 2 values between 1 and 4 apart
+            #$buffer .= pack('C[4]', 0, 0, 0, 0); # for lghtsbr and dblsbr
             #$buffer .= pack('C[4]', 235, 219, 57, 185); # for shrtsbr
             #$buffer .= pack('C[4]', -21, -37, 57, -71); # for shrtsbr (signed)
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
-            # there will be data to write out:
+            # data arrays to write out:
             # vertcoords2 (loc 2)
-            # data2081-3 (loc 4)
-            # tverts1offset (loc 3)
-            # 384 bytes of total mystery
-            # vertcoords (loc 1)
+            $buffer = '';
+            $model->{'nodes'}{$i}{'verts1location'} = tell(BMDLOUT);
+            foreach(@{$model->{'nodes'}{$i}{'verts1'}}) {
+                $buffer .= pack('fff', @{$_});
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+             # data2081-3 (loc 4)
+            $buffer = '';
+            $model->{'nodes'}{$i}{'tverts1offsetlocation'} = tell(BMDLOUT);
+            foreach(@{$model->{'nodes'}{$i}{'tverts1offset'}}) {
+                $buffer .= pack('fff', @{$_});
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
+
+             # tverts1offset (loc 3)
+            $buffer = '';
+            $model->{'nodes'}{$i}{'tvertslocation'} = tell(BMDLOUT);
+            foreach(@{$model->{'nodes'}{$i}{'tverts'}}) {
+                $buffer .= pack('ff', @{$_});
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
         }
         elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH)  # dangly mesh sub-sub-header
         {
@@ -4702,38 +4777,48 @@ sub writebinarynode
 
         # write out the number of vertex indices
         $model->{'nodes'}{$i}{'vertnumlocation'} = tell(BMDLOUT);
-        $totalbytes += 4;
-        print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'facesnum'} * 3));
+        if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
+            $totalbytes += 4;
+            print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'facesnum'} * 3));
+        }
 
         # write out the vert floats
         $buffer = "";
         $model->{'nodes'}{$i}{'vertfloatlocation'} = tell(BMDLOUT);
-        foreach ( @{$model->{'nodes'}{$i}{'verts'}} )
-        {
-            $buffer .= pack("f*", @{$_} );
+        if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
+            foreach ( @{$model->{'nodes'}{$i}{'verts'}} )
+            {
+                $buffer .= pack("f*", @{$_} );
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
         }
-        $totalbytes += length($buffer);
-        print (BMDLOUT $buffer);
 
         # write out the vertex indicies location placeholder
         $model->{'nodes'}{$i}{'vertloclocation'} = tell(BMDLOUT);
-        $totalbytes += 4;
-        print(BMDLOUT pack("l", 0));
+        if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
+            $totalbytes += 4;
+            print(BMDLOUT pack("l", 0));
+        }
 
         # write out unknown array (what is this?)
         $model->{'nodes'}{$i}{'unknownlocation'} = tell(BMDLOUT);
-        $totalbytes += 4;
-        print(BMDLOUT pack("l", 0));
+        if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
+            $totalbytes += 4;
+            print(BMDLOUT pack("l", 0));
+        }
 
         # write out the vert indices
         $buffer = "";
         $model->{'nodes'}{$i}{'vertindicieslocation'} = tell(BMDLOUT);
-        foreach ( @{$model->{'nodes'}{$i}{'Bfaces'}} )
-        {
-            $buffer .= pack("sss", $_->[8], $_->[9], $_->[10] );
+        if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
+            foreach ( @{$model->{'nodes'}{$i}{'Bfaces'}} )
+            {
+                $buffer .= pack("sss", $_->[8], $_->[9], $_->[10] );
+            }
+            $totalbytes += length($buffer);
+            print (BMDLOUT $buffer);
         }
-        $totalbytes += length($buffer);
-        print (BMDLOUT $buffer);
     } # write mesh subheader and data if
 
     #write out place holders for the child node indexes (if any)
@@ -4951,6 +5036,23 @@ sub writebinarynode
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'constraintslocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'danglyvertspointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'danglyvertslocation'} - 12));
+  } elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_SABER) { # saber mesh
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'faceslocpointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'faceslocation'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'vertnumpointer'}, 0);
+    print(BMDLOUT pack("L[3]", $model->{'nodes'}{$i}{'vertnumlocation'} - 12, 0, 0));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'vertlocpointer'}, 0);
+    print(BMDLOUT pack("L[3]", $model->{'nodes'}{$i}{'vertloclocation'} - 12, 0, 0));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'unknownpointer'}, 0);
+    print(BMDLOUT pack("L[3]", $model->{'nodes'}{$i}{'unknownlocation'} - 12, 0, 0));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'vertfloatpointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertfloatlocation'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'verts1pointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'verts1location'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'tverts1offsetpointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'tverts1offsetlocation'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'tvertspointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'tvertslocation'} - 12));
   }
   # fill in the controller blanks
   if ( $model->{'nodes'}{$i}{'controllernum'} != 0) {
