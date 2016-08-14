@@ -1010,7 +1010,7 @@ my $dothis = 0;
         $quatVals[3] = 0;
         $quatVals[4] = 0;
       }
-      $_ = join(' ', map { sprintf('% .7f', $_) } @quatVals);
+      $_ = join(' ', map { sprintf('% .7g', $_) } @quatVals);
     } # foreach (@{$ref->{$node}{'Acontrollers'}{20}}) {
   } # if (defined($ref->{$node}{'Acontrollers'}{20})) {
 
@@ -1031,7 +1031,7 @@ my $dothis = 0;
       for ($temp = 1; $temp <= 3; $temp++) {
         $curPosVals[$temp * $step] += $initialPosVals[$temp];
       }
-      $_ = join(' ', map { sprintf('% .7f', $_) } @curPosVals);
+      $_ = join(' ', map { sprintf('% .7g', $_) } @curPosVals);
     }
   }
 
@@ -1633,24 +1633,24 @@ sub writeasciimdl {
     # position
     (undef, $argh1, $argh2, $argh3) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{8}[0]);
     if ($argh1 ne "") {
-      printf(MODELOUT "  position % .7f % .7f % .7f\n", $argh1, $argh2, $argh3);
+      printf(MODELOUT "  position % .7g % .7g % .7g\n", $argh1, $argh2, $argh3);
     }
     # orientation
     (undef, $argh1, $argh2, $argh3, $argh4) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{20}[0]);
     if ($argh1 ne "") {
-      printf(MODELOUT "  orientation % .7f % .7f % .7f % .7f\n", $argh1, $argh2, $argh3, $argh4);
+      printf(MODELOUT "  orientation % .7g % .7g % .7g % .7g\n", $argh1, $argh2, $argh3, $argh4);
     }
     # scale
     (undef, $argh1) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{36}[0]);
     if ($argh1 ne "") {
-      printf(MODELOUT "  scale % .7f\n", $argh1);
+      printf(MODELOUT "  scale % .7g\n", $argh1);
     }
     
     # alpha i.e. "see through" - controller number overlaps with an emitter controller number.
     if (!($nodetype & NODE_HAS_EMITTER)) {
       (undef, $argh1) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{132}[0]);
       if ($argh1 ne "") {
-        printf(MODELOUT "  alpha % .7f\n", $argh1);
+        printf(MODELOUT "  alpha % .7g\n", $argh1);
       }
     }
     
@@ -1790,10 +1790,10 @@ sub writeasciimdl {
     
     # mesh nodes
     if ( $nodetype == NODE_TRIMESH || $nodetype == NODE_SKIN || $nodetype == NODE_DANGLYMESH || $nodetype == NODE_AABB || $nodetype == NODE_SABER ) {
-      printf(MODELOUT "  bmin % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'bboxmin'}}[0..2]);
-      printf(MODELOUT "  bmax % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'bboxmax'}}[0..2]);
-      printf(MODELOUT "  radius % .7f\n", $model->{'nodes'}{$i}{'radius'});
-      printf(MODELOUT "  average % .7f % .7f % .7f\n", @{$model->{'nodes'}{$i}{'average'}}[0..2]);
+      printf(MODELOUT "  bmin % .7g % .7g % .7g\n", @{$model->{'nodes'}{$i}{'bboxmin'}}[0..2]);
+      printf(MODELOUT "  bmax % .7g % .7g % .7g\n", @{$model->{'nodes'}{$i}{'bboxmax'}}[0..2]);
+      printf(MODELOUT "  radius % .7g\n", $model->{'nodes'}{$i}{'radius'});
+      printf(MODELOUT "  average % .7g % .7g % .7g\n", @{$model->{'nodes'}{$i}{'average'}}[0..2]);
 
       # render, shadow, ambient, and diffuse should all be in here, they are not actually general
       printf(MODELOUT "  lightmapped %u\n", $model->{'nodes'}{$i}{'lightmapped'});
@@ -1814,10 +1814,10 @@ sub writeasciimdl {
       # used, for example, to show the 'current' of a river, or a moving cloud,
       # that is the theory, definitely unconfirmed at this time
       printf(MODELOUT "  animateuv %u\n", $model->{'nodes'}{$i}{'animateuv'});
-      printf(MODELOUT "  uvdirectionx % .7f\n", $model->{'nodes'}{$i}{'uvdirectionx'});
-      printf(MODELOUT "  uvdirectiony % .7f\n", $model->{'nodes'}{$i}{'uvdirectiony'});
-      printf(MODELOUT "  uvjitter % .7f\n", $model->{'nodes'}{$i}{'uvjitter'});
-      printf(MODELOUT "  uvjitterspeed % .7f\n", $model->{'nodes'}{$i}{'uvjitterspeed'});
+      printf(MODELOUT "  uvdirectionx % .7g\n", $model->{'nodes'}{$i}{'uvdirectionx'});
+      printf(MODELOUT "  uvdirectiony % .7g\n", $model->{'nodes'}{$i}{'uvdirectiony'});
+      printf(MODELOUT "  uvjitter % .7g\n", $model->{'nodes'}{$i}{'uvjitter'});
+      printf(MODELOUT "  uvjitterspeed % .7g\n", $model->{'nodes'}{$i}{'uvjitterspeed'});
 
       printf(MODELOUT "  bitmap %s\n", $model->{'nodes'}{$i}{'bitmap'});
       if (length($model->{'nodes'}{$i}{'bitmap2'})) {
@@ -1838,7 +1838,7 @@ sub writeasciimdl {
       } else {
         printf(MODELOUT "  verts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
-          printf(MODELOUT "    % .7f % .7f % .7f\n", @{$_});
+          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
         }
       }
       printf(MODELOUT "  faces %u\n", $model->{'nodes'}{$i}{'facesnum'});
@@ -1854,7 +1854,7 @@ sub writeasciimdl {
         } else {
           printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
           foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
-            printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+            printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
           }
         }
       }
@@ -1862,21 +1862,21 @@ sub writeasciimdl {
           scalar(@{$model->{'nodes'}{$i}{'tverts1'}})) {
         printf(MODELOUT "  tverts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts1'}} ) {
-          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'texture0'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts2'}})) {
         printf(MODELOUT "  tverts2 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts2'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts2'}} ) {
-          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'texture1'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts3'}})) {
         printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
-          printf(MODELOUT "    % .7f % .7f\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
       }
       if ($nodetype == NODE_SKIN && $convertskin == 0) {
@@ -1886,18 +1886,18 @@ sub writeasciimdl {
         }
       }
       if ($nodetype == NODE_DANGLYMESH) {
-        printf(MODELOUT "  displacement % .7f\n", $model->{'nodes'}{$i}{'displacement'});
-        printf(MODELOUT "  tightness % .7f\n", $model->{'nodes'}{$i}{'tightness'});
-        printf(MODELOUT "  period % .7f\n", $model->{'nodes'}{$i}{'period'});
+        printf(MODELOUT "  displacement % .7g\n", $model->{'nodes'}{$i}{'displacement'});
+        printf(MODELOUT "  tightness % .7g\n", $model->{'nodes'}{$i}{'tightness'});
+        printf(MODELOUT "  period % .7g\n", $model->{'nodes'}{$i}{'period'});
         printf(MODELOUT "  constraints %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'constraints'}} ) {
-          printf(MODELOUT "    % .7f\n", $_);
+          printf(MODELOUT "    % .7g\n", $_);
         }
       }
       if ($nodetype == NODE_AABB) {
         print (MODELOUT "  aabb\n");
         foreach ( @{$model->{'nodes'}{$i}{'aabbnodes'}} ) {
-          printf(MODELOUT "      % .7f % .7f % .7f % .7f % .7f % .7f %d\n", @{$_}[0..6]);
+          printf(MODELOUT "      % .7g % .7g % .7g % .7g % .7g % .7g %d\n", @{$_}[0..6]);
         }
       }
     }
@@ -3083,7 +3083,7 @@ sub readasciimdl {
                 if ($r == 0.000000) {
                     # prevent a divide-by-zero, this doesn't usually happen for actually-textured objects
                     printf("Overlapping texture vertices in node: %s\n" .
-                           "x: % .7f, y: % .7f\nx: % .7f, y: % .7f\nx: % .7f, y: % .7f\n",
+                           "x: % .7g, y: % .7g\nx: % .7g, y: % .7g\nx: % .7g, y: % .7g\n",
                            $model{'partnames'}[$i], @{$uv0}, @{$uv1}, @{$uv2});
                     # this is a weird magic factor determined algebraically from analyzing how p_g0t0.mdl copes
                     # with all the overlapping tex vertices
