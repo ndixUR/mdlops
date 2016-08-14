@@ -175,10 +175,10 @@ $structs{'data'}{33} = {loc => 78, num => 64, size => 12, dnum => 3, name => "ve
 $structs{'data'}{97} = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
 $structs{'data'}{289}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
 $structs{'data'}{545}= {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",       tmplt => "f*"};
-$structs{'data'}{2081}[0] = {loc => 77, num => 64, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};
-$structs{'data'}{2081}[1] = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"};
-$structs{'data'}{2081}[2] = {loc => 79, num => 64, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};
-$structs{'data'}{2081}[3] = {loc => 80, num => 64, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};
+$structs{'data'}{2081}[0] = {loc => 78, num => 64, size => 12, dnum => 3, name => "vertcoords",  tmplt => "f*"};
+$structs{'data'}{2081}[1] = {loc => 79, num => 64, size => 12, dnum => 3, name => "vertcoords2", tmplt => "f*"};
+$structs{'data'}{2081}[2] = {loc => 80, num => 64, size =>  8, dnum => 2, name => "tverts+",     tmplt => "f*"};
+$structs{'data'}{2081}[3] = {loc => 81, num => 64, size => 12, dnum => 2, name => "data2081-3",  tmplt => "f*"};
 
 $structs{'mdxdata'}{33} = {loc => 77, num => 64, size => 24, dnum => 1, name => "mdxdata33",  tmplt => "f*"};
 $structs{'mdxdata'}{97} = {loc => 77, num => 64, size => 56, dnum => 1, name => "mdxdata97",  tmplt => "f*"};
@@ -203,7 +203,7 @@ our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
                    'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'saber' => 2081);
 
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
-                       'Door' => 0x08, 'Placeable' => 0x20, 'Other' => 0x00);
+                       'Door' => 0x08, 'Lightsaber' => 0x10, 'Placeable' => 0x20, 'Other' => 0x00);
 
 our %reversenode  = reverse %nodelookup;
 our %reverseclass = reverse %classification;
