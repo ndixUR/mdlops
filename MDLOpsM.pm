@@ -4013,6 +4013,75 @@ sub postprocessnodes {
       }
     }
   }
+  # DISABLED (i thought this might be needed for sabers, but it wasn't, it will work if used)
+  # for orientation keyed controllers in animation,
+  # compress and encode quaternions as 3 10-bit floats
+  # into a single 32-bit float
+  if (0 && $anim && defined($node->{'Bcontrollers'}{20}) &&
+      scalar(@{$node->{'Bcontrollers'}{20}{'values'}[0]}) == 4) {
+      # encode compressed quaternions
+      # decompress algorithm:
+      #   leave first value alone completely
+      #   generate 4 values from 2nd value
+      #   1 = q.x = 1 - ((v1 & 7ff) / 1023)
+      #   2 = q.y = 1 - ((v1 >> 11 & 7ff) / 1023)
+      #   3 = q.z = 1 - ((v1 >> 22) / 511)
+      #   0.5, 0.6, 0.7
+      #   0x3f000000, 0x3f19999a, 0x3f333333
+      #   1 - 0.7 = (v1 >> 22) / 511
+      #   (1 - 0.7) * 511 = v1 >> 22
+      # so, to generate, take v3 * 511
+      #   y = 1 - x
+      #   (1 - v3) * 511 << 11
+      #   (1 - v2) * 1023 << 11
+      #   (1 - v1) * 1023
+      #
+      # this loop is going to take each unit quaternion and compress it into
+      # a single floating point number. so that is 4 floats down to 1.
+      # how does it work? i have *sort of* a clue about that?
+      # this guy def does: http://physicsforgames.blogspot.com/2010/03/quaternion-tricks.html
+      # basically one of the nums, w, is deriveable from the other 3, so it goes away
+      # the trick for x,y,z relies on the fact that they are all in the range of -1,1
+      foreach (@{$node->{'Bcontrollers'}{20}{'values'}}) {
+          # it seems like we already have unit quaternions,
+          # so no normalization necessary
+          #my $f = ($_->[0] ** 2) + ($_->[1] ** 2) + ($_->[2] ** 2);
+          #print Dumper($_);
+          #print "FACTOR: $f\n";
+          #if ($f > 0) {
+          #    $_ = [ map {
+          #      $_ * $f;
+          #    } @{$_} ];
+          #}
+
+          my ($qx, $qy, $qz) = @{$_}[0..2];
+          #print Dumper($_);
+          $_->[0] = ((1.0 - $qz) * 511);
+          #print Dumper($_);
+          $_->[0] = $_->[0] << 11;
+          #print Dumper($_);
+          $_->[0] |= ((1.0 - $qy) * 1023) & 0x7ff;
+          $_->[0] = $_->[0] << 11;
+          #print Dumper($_);
+          $_->[0] |= ((1.0 - $qx) * 1023) & 0x7ff;
+          #print Dumper($_);
+
+          # remove elements 2,3,4 and reduce the total quantity of controller data on the node
+          delete $_->[1];
+          delete $_->[2];
+          delete $_->[3];
+          $node->{'controllerdatanum'} -= 3;
+
+          #print Dumper($_);
+          #my $temp = $_->[0];
+          #print Dumper((
+          #  (1.0 - (($temp & 0x7ff) / 1023.0)),
+          #  (1.0 - ((($temp >> 11) & 0x7ff) / 1023.0)),
+          #  (1.0 - ((($temp >> 22) & 0x7ff) / 511.0))
+          #));
+      }
+  }
+
   # recursify!
   foreach my $child ( 1..$node->{'childcount'} ) {
     postprocessnodes($model->{'nodes'}{$node->{'children'}[($child - 1)]}, $model, $anim);
@@ -4949,6 +5018,10 @@ sub writebinarynode
             }
             elsif ( $controller == 20 && $ga eq "ani" )
             {
+                if ($ccol == 1) {
+                    # this is a compressed quaternion encoded in a single float case
+                    $ccol = 2;
+                }
                 $buffer .= pack("LSSSSCCCC", $controller, 28, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
                 $timestart, $valuestart, $ccol, 0, 0, 0);
             }
@@ -4997,7 +5070,21 @@ sub writebinarynode
     print (BMDLOUT $buffer);
     # write out the controllers data
     $model->{'nodes'}{$i}{'controllerdatalocation'} = tell(BMDLOUT);
-    $buffer = pack("f*", @{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}} );
+    $buffer = '';
+    #$buffer = pack("f*", @{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}} );
+    # using compressed quaternions in animation makes the following hack necessary!!!
+    # basically, the compressed quaternion fits into 4 bytes, but it's not actually a float
+    # number. writing it out as a float _will_ cause it to be wrong.
+    foreach (@{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}}) {
+      #if (unpack('f', pack('f', $_)) == $_) {
+      #XXX hacks around perl's unfortunate numeric type detection
+      # the purpose of this is to not munge the compressed quaternion rotations used in animations
+      if (/\D/ || $_ == 1.0 || $_ == 0.0) {
+        $buffer .= pack('f', $_);
+      } else {
+        $buffer .= pack('L', $_);
+      }
+    }
     $totalbytes += length($buffer);
     print (BMDLOUT $buffer);
   } elsif ($model->{'nodes'}{$i}{'controllerdatanum'} > 0 ) {
