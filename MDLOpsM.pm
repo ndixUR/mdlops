@@ -3643,7 +3643,10 @@ sub readasciimdl {
   postprocessnodes($model{'nodes'}{0}, \%model, 0);
   # post-process the animation nodes
   for (my $i = 0; $i < $model{'numanims'}; $i++) {
-    postprocessnodes($model{'anims'}{$i}{'nodes'}{0}, \%model, 1);
+    # need to pass in model{anims}{i} instead of \%model in order to keep
+    # the post processing happening on animation node entries instead of geometry
+    # when it recurses
+    postprocessnodes($model{'anims'}{$i}{'nodes'}{0}, $model{'anims'}{$i}, 1);
   }
   
   print (" nodenum: " . $nodenum . " true: " . $model{'nodes'}{'truenodenum'} . "\n") if $printall;
