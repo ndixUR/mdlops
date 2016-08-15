@@ -1473,7 +1473,8 @@ my $dothis = 0;
         for my $datum_index (0..$mdx_data_type->{num} - 1) {
           $ref->{$node}{$mdx_data_type->{data}}[$i][$datum_index] = $ref->{$node}{'mdxdata'}{'unpacked'}[$row_index + $row_offset + $datum_index];
         }
-        print "read mdx $mdx_data_type->{offset} vert $i\n" if $printall;
+        # the following is too verbose even for normal verbose
+        #print "read mdx $mdx_data_type->{offset} vert $i\n" if $printall;
       } # for $mdx_data_type
 
       ### MDX DATA POST-PROCESSING
@@ -2771,9 +2772,9 @@ sub readasciimdl {
             $model{'nodes'}{$i}{'mdxdatasize'} += 4 * 4; # 4 4-byte floats
         }
         printf(
-            'mdx bitmap %u size %u: offsets %s',
+            "$i mdx bitmap %u size %u: offsets %s\n",
             $model{'nodes'}{$i}{'mdxdatabitmap'}, $model{'nodes'}{$i}{'mdxdatasize'},
-            join(',', $model{'nodes'}{$i}{'mdxrowoffsets'})
+            join(',', @{$model{'nodes'}{$i}{'mdxrowoffsets'}})
         ) if $printall;
     }
 
