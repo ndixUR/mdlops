@@ -156,7 +156,7 @@ $structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name
 #$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
 #$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
-$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SfL[5]"}; # kotor2
+$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SL[2]fL[3]"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'l[16]S*'};
 $structs{'subhead'}{'161k2'}= {loc => -1, num => 1, size => 396, dnum => 1, name => "animmesh_header", tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'fL[3]f[9]'};
 $structs{'subhead'}{'289k2'}= {loc => -1, num => 1, size => 368, dnum => 1, name => "dangly_header",   tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'l[3]f[3]l'};
@@ -1229,15 +1229,21 @@ my $dothis = 0;
     $ref->{$node}{'render'} = $ref->{$node}{'subhead'}{'unpacked'}[71];
 
     if ($uoffset == 0) {
+        # SLL 72,73,74 = should be CCSSCCCC
+        my $k2_fields = [ unpack('CCSSCCCC', pack('SLL',  @{$ref->{$node}{'subhead'}{'unpacked'}}[72..74])) ];
         # kotor2 specific things: dirt_enabled, dirt_texture, dirt_worldspace, hologram_donotdraw
         # these are not specifically/correctly unpacked by the main template
-        $ref->{$node}{'dirt_enabled'} = unpack('C', pack('C[2]', $ref->{$node}{'subhead'}{'unpacked'}[72]));
+        #$ref->{$node}{'dirt_enabled'} = unpack('C', pack('C[2]', $ref->{$node}{'subhead'}{'unpacked'}[72]));
+        $ref->{$node}{'dirt_enabled'}    = $k2_fields->[0];
+        $ref->{$node}{'dirt_texture'}    = $k2_fields->[2];
+        $ref->{$node}{'dirt_worldspace'} = $k2_fields->[3];
         # prevent tongue & teeth from showing up inside closed mouths in holograms:
-        $ref->{$node}{'hologram_donotdraw'} = $ref->{$node}{'subhead'}{'unpacked'}[74] % 2;
+        $ref->{$node}{'hologram_donotdraw'} = $k2_fields->[4];
+        #$ref->{$node}{'hologram_donotdraw'} = $ref->{$node}{'subhead'}{'unpacked'}[74] % 2;
     }
 
     #XXX not sure this is really a thing ... testing:
-    $ref->{$node}{'totalarea'} = $ref->{$node}{'subhead'}{'unpacked'}[73];
+    $ref->{$node}{'totalarea'} = $ref->{$node}{'subhead'}{'unpacked'}[75 + $uoffset];
 
     $ref->{$node}{'MDXdataloc'} = $ref->{$node}{'subhead'}{'unpacked'}[77 + $uoffset];
     $ref->{$node}{'vertcoordloc'} = $ref->{$node}{'subhead'}{'unpacked'}[78 + $uoffset];
@@ -1820,7 +1826,8 @@ sub writeasciimdl {
       # test for presence of k2 specific flags
       if (defined($model->{'nodes'}{$i}{'dirt_enabled'})) {
           printf(MODELOUT "  dirt_enabled %u\n", $model->{'nodes'}{$i}{'dirt_enabled'});
-          # still no idea where other dirt properties are...
+          printf(MODELOUT "  dirt_texture %u\n", $model->{'nodes'}{$i}{'dirt_texture'});
+          printf(MODELOUT "  dirt_worldspace %u\n", $model->{'nodes'}{$i}{'dirt_worldspace'});
           printf(MODELOUT "  hologram_donotdraw %u\n", $model->{'nodes'}{$i}{'hologram_donotdraw'});
       }
 
@@ -2440,6 +2447,14 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'beaming'} = $1;
     } elsif ($innode && $line =~ /\s*transparencyhint\s+(\S*)/i) { # if in a node look for the transparencyhint property
       $model{'nodes'}{$nodenum}{'transparencyhint'} = $1;
+    } elsif ($innode && $line =~ /\s*dirt_enabled\s+(\S*)/i) { # if in a node look for the k2 dirt_enabled property
+      $model{'nodes'}{$nodenum}{'dirt_enabled'} = $1;
+    } elsif ($innode && $line =~ /\s*dirt_texture\s+(\S*)/i) { # if in a node look for the k2 dirt_texture property
+      $model{'nodes'}{$nodenum}{'dirt_texture'} = $1;
+    } elsif ($innode && $line =~ /\s*dirt_worldspace\s+(\S*)/i) { # if in a node look for the k2 dirt_worldspace property
+      $model{'nodes'}{$nodenum}{'dirt_worldspace'} = $1;
+    } elsif ($innode && $line =~ /\s*hologram_donotdraw\s+(\S*)/i) { # if in a node look for the k2 hologram_donotdraw property
+      $model{'nodes'}{$nodenum}{'hologram_donotdraw'} = $1;
     } elsif ($innode && $line =~ /\s*uvdirectionx\s+(\S*)/i) { # if in a node look for the uvdirectionx property
       $model{'nodes'}{$nodenum}{'uvdirectionx'} = $1;
     } elsif ($innode && $line =~ /\s*uvdirectiony\s+(\S*)/i) { # if in a node look for the uvdirectiony property
@@ -4642,14 +4657,24 @@ sub writebinarynode
                               $model->{'nodes'}{$i}{'beaming'},
                               $model->{'nodes'}{$i}{'render'});
 
+        if ($version eq 'k2')
+        {
+            $buffer .= pack("CCssL", $model->{'nodes'}{$i}{'dirt_enabled'} ? 1 : 0, 0,
+                                     $model->{'nodes'}{$i}{'dirt_texture'} ? $model->{'nodes'}{$i}{'dirt_texture'} : 1,
+                                     $model->{'nodes'}{$i}{'dirt_worldspace'} ? $model->{'nodes'}{$i}{'dirt_worldspace'} : 1,
+                                     $model->{'nodes'}{$i}{'hologram_donotdraw'} ? 1 : 0);
+        } else {
+            $buffer .= pack('s', 0);
+        }
+
         # not sure this surface area hypothesis is actually correct,
         # i have not seen it with a value that makes sense in any models...
-        $buffer .= pack('sfL', 0, $model->{'nodes'}{$i}{'surfacearea'}, 0);
+        $buffer .= pack('fL', $model->{'nodes'}{$i}{'surfacearea'}, 0);
 
         if ($version eq 'k2')
         {
             # this is not placed correctly at all
-            $buffer .= pack("l*", 0, 0);
+            #$buffer .= pack("l*", 0, 0);
         }
 
         $buffer .= pack("l", $model->{'nodes'}{$i}{'mdxstart'});
