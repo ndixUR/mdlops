@@ -5653,7 +5653,7 @@ sub replaceraw {
         $count++;
       }
     }
-    $buffer .= pack("LSSSSCCCC", $work, -1, 1, $timestart, $valuestart, $#{$asciimodel->{'nodes'}{$asciinode}{'Bcontrollers'}{$work}{'values'}[0]}, 0, 0, 0);
+    $buffer .= pack("LSSSSCCCC", $work, -1, 1, $timestart, $valuestart, scalar(@{$asciimodel->{'nodes'}{$asciinode}{'Bcontrollers'}{$work}{'values'}[0]}), 0, 0, 0);
   }
 
   # write out the controllers
