@@ -1438,8 +1438,16 @@ my $dothis = 0;
     print("mdx-$tree-$ref->{$node}{'header'}{'unpacked'}[NODEINDEX]_$structs{'mdxdata'}{$nodetype}{'name'} " . tell(MODELMDX)) if $printall;
     $ref->{$node}{'mdxdata'}{'start'} = tell(MODELMDX);
     $ref->{$node}{'mdxdata'}{'dnum'} = $ref->{$node}{'mdxdatasize'}/4;
-    read(MODELMDX, $buffer, $ref->{$node}{'mdxdatasize'} * ($ref->{$node}{'vertcoordnum'} + 1));
-    print(" " . (tell(MODELMDX)-1) . "\n") if $printall;
+    # the replacer method is actually sensitive to MDX data being fully read,
+    # including all padding. it seems like MDX data is 32-byte aligned, enforce it.
+    # use 32 % size or size % 32 depending on whether size is less than 32
+    # examples: 32 % 24 = 8 (correct) & 64 % 32 = 0 (correct)
+    my $alignment_padding = (
+      ($ref->{$node}{'mdxdatasize'} < 32 ? 32 : $ref->{$node}{'mdxdatasize'}) %
+      ($ref->{$node}{'mdxdatasize'} < 32 ? $ref->{$node}{'mdxdatasize'} : 32)
+    );
+    read(MODELMDX, $buffer, ($ref->{$node}{'mdxdatasize'} * ($ref->{$node}{'vertcoordnum'} + 1)) + $alignment_padding);
+    printf(" %u (%u align pad)\n", (tell(MODELMDX) - 1), $alignment_padding) if $printall;
     $ref->{$node}{'mdxdata'}{'end'} = tell(MODELMDX)-1;
     $ref->{$node}{'mdxdata'}{'raw'} = $buffer;
     #$ref->{$node}{'mdxdata'}{'unpacked'} = [unpack($structs{'mdxdata'}{$nodetype}{'tmplt'}, $buffer)];
@@ -5608,7 +5616,16 @@ sub replaceraw {
     }
   }
   # add on the end padding
-  $buffer .= pack("f*",10000000, 10000000, 10000000, 0, 0, 0, 0, 0);
+  # this should actually be enforcing 32-byte alignment i think, but it isn't.
+  # it gets lucky most of the time though (wouldn't work replacing untextured mesh probably)
+  if ($asciimodel->{'nodes'}{$asciinode}{'nodetype'} == NODE_SKIN) {
+    # padding for skin nodes seems to be different, more like this:
+    $buffer .= pack("f*", 1000000, 1000000, 1000000, 0,
+                          0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0);
+  } else {
+    $buffer .= pack("f*", 10000000, 10000000, 10000000, 0,
+                          0, 0, 0, 0);
+  }
   # write the mdx data to the binary model
   $binarymodel->{'nodes'}{$binarynode}{'mdxdata'}{'raw'} = $buffer;
   
