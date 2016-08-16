@@ -897,18 +897,13 @@ my $dothis = 0;
   }
 
   # cook the controllers
-  my ($controllertype, $datarows, $datacolumns, $timestart, $datastart, $controllerinfo);
-
   $temp2 = $ref->{$node}{'controllerdata'}{'unpacked'};
-  for (my $i = 0; $i < $ref->{$node}{'controllerdatanum'}; $i++) {
+  #for (my $i = 0; $i < $ref->{$node}{'controllerdatanum'}; $i++) {
+  foreach (@{$ref->{$node}{'controllers'}{'cooked'}}) {
 
     #get the controller info
-    $controllertype = $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 0];
-    $controllerinfo = $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 1];
-    $datarows =       $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 2];
-    $timestart =      $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 3];
-    $datastart =      $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 4];
-    $datacolumns =    $ref->{$node}{'controllers'}{'unpacked'}[($i * 9) + 5];
+    my ($controllertype, $controllerinfo, $datarows, $timestart, $datastart, $datacolumns) = @{$_}[0..5];
+
     # check for controller type 20 and column count 2:
     # special compressed quaternion, only read one value here
     if ($controllertype == 20 && $datacolumns == 2) {
@@ -927,13 +922,8 @@ my $dothis = 0;
     # loop through the data rows    
     for (my $j = 0; $j < $datarows; $j++) {
       # add keyframe time value to ascii controllers,
-      if ($controllertype == 20 || $controllertype == 8) {
-        # do not set precision yet on controllers that will do further processing on ascii values
-        $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = $temp2->[$timestart + $j];
-      } else {
-        # this is a good time to set precision on controller values that don't do further processing
-        $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = sprintf('%.7f', $temp2->[$timestart + $j]);
-      }
+      # this is a good time to set precision on controller time values
+      $ref->{$node}{'Acontrollers'}{$controllertype}[$j] = sprintf('%.7g', $temp2->[$timestart + $j]);
       $ref->{$node}{'Bcontrollers'}{$controllertype}{'times'}[$j] = $temp2->[$timestart + $j];
       # loop through the datacolumns
       $ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[$j] = [];
@@ -944,7 +934,7 @@ my $dothis = 0;
           $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= ' ' . $temp2->[$datastart + $k + ($j * $datacolumns)];
         } else {
           # no further processing, set precision now
-          $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= sprintf(" %.7f", $temp2->[$datastart + $k + ($j * $datacolumns)]);
+          $ref->{$node}{'Acontrollers'}{$controllertype}[$j] .= sprintf(" % .7g", $temp2->[$datastart + $k + ($j * $datacolumns)]);
         }
         #$ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[($j * $datacolumns) + $k] = $temp2->[$datastart + $k + ($j * $datacolumns)];
         push @{$ref->{$node}{'Bcontrollers'}{$controllertype}{'values'}[$j]}, $temp2->[$datastart + $k + ($j * $datacolumns)];
