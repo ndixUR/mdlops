@@ -969,7 +969,7 @@ my $dothis = 0;
     foreach (@{$ref->{$node}{'Acontrollers'}{20}}) {
       # check for controller type 20 and column count 2:
       # decode the special compressed quaternion
-      my @quatVals = split / /;
+      my @quatVals = split /\s+/;
       if (@quatVals == 2) {
         ($quatVals[0], $quatVals[1]) = @quatVals;     
         $temp = $quatVals[1];
