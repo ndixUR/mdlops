@@ -2094,7 +2094,7 @@ sub readsinglecontroller {
     $line =~ s/\s*$controllername//i;
     @controllerdata = ($line =~ /\s+(\S+)/g);
     $modelref->{'nodes'}{$nodenum}{'controllernum'}++;
-    $modelref->{'nodes'}{$nodenum}{'controllerdatanum'} += ($#controllerdata + 2); # add 1 for array starting at 0 and 1 for the time value
+    $modelref->{'nodes'}{$nodenum}{'controllerdatanum'} += (scalar(@controllerdata) + 1); # add 1 for the time value
     $modelref->{'nodes'}{$nodenum}{'Acontrollers'}{$controller}[0] = "0 " . join(' ', @controllerdata);
     $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{$controller}{'rows'} = 1;
     $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{$controller}{'times'}[0] = 0;
@@ -2130,7 +2130,7 @@ sub readkeyedcontroller {
     $count = 0;
     while ((!$total || $count < $total) && ($line = <$ASCIIFILE>) && $line !~ /endlist/) {
       my @controllerdata = ($line =~ /\s+(\S+)/g); # "my" here makes sure it's a new array each time; without it, earlier values are clobbered
-      $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllerdatanum'} += ($#controllerdata + 1); # time value included already
+      $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'controllerdatanum'} += scalar(@controllerdata); # time value included already
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'Acontrollers'}{$controller}[$count] = join(' ', @controllerdata);
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'Bcontrollers'}{$controller}{'rows'}++;
       $modelref->{'anims'}{$animnum}{'nodes'}{$nodenum}{'Bcontrollers'}{$controller}{'times'}[$count] = shift (@controllerdata);
@@ -4985,7 +4985,7 @@ sub writebinarynode
                 }
             }
 
-            my $ccol = $#{$model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'values'}[0]} + 1;
+            my $ccol = scalar(@{$model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'values'}[0]});
 
             # Write out controller data, like the chart below:
             #
