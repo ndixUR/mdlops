@@ -2293,7 +2293,7 @@ sub readasciimdl {
       $model{nodes}{$nodenum}{'bboxmin'} = [$1,$2,$3];
     } elsif ($innode && $line =~ /\s*bmax\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the mesh bounding box max
       $model{nodes}{$nodenum}{'bboxmax'} = [$1,$2,$3];
-    } elsif ($innode && $line =~ /^\s*radius\s+(\S+)/i) { #look for the mesh radius
+    } elsif ($innode && ($model{'nodes'}{$nodenum}{'nodetype'} & NODE_HAS_MESH) && $line =~ /^\s*radius\s+(\S+)/i) { #look for the mesh radius
       $model{nodes}{$nodenum}{'radius'} = $1;
     } elsif ($innode && $line =~ /\s*average\s+(\S*)\s+(\S*)\s+(\S*)/i) { #look for the mesh average point
       $model{nodes}{$nodenum}{'average'} = [$1,$2,$3];
