@@ -4977,6 +4977,13 @@ sub writebinarynode
 
             my $ccol = scalar(@{$model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'values'}[0]});
 
+            # bezier keyed conroller support
+            if ($ga eq 'ani' && defined($model->{'nodes'}{$i}{'controllers'}{'bezier'}{$controller}))
+            {
+                # alter number of columns for bezier keyed controllers now
+                $ccol = ($ccol / 3) + 16;
+            }
+
             # Write out controller data, like the chart below:
             #
             # $controller can be one of the following:
