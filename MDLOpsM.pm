@@ -117,15 +117,15 @@ use constant ANIMROOT => 5;
 # for use with $model{'nodes'}{0}{'header'}{'unpacked'}[  ]
 use constant NODETYPE => 0;
 use constant NODEINDEX => 2;
-use constant PARENTNODE => 5;
+#use constant PARENTNODE => 5;
 # for use with $model{'nodes'}{0}{'subhead'}{'unpacked'}[  ]
-use constant DATAEXTLEN => 62;  
-use constant TEXTURENUM => 63;  
-use constant MDXLOC => 70;      
-use constant DATAEXT1LOC => 71; 
-use constant DATAEXT2LOC => 72; 
-use constant DATAEXT3LOC => 73; 
-use constant DATAEXT4LOC => 74; 
+#use constant DATAEXTLEN => 62;
+#use constant TEXTURENUM => 63;
+#use constant MDXLOC => 70;
+#use constant DATAEXT1LOC => 71;
+#use constant DATAEXT2LOC => 72;
+#use constant DATAEXT3LOC => 73;
+#use constant DATAEXT4LOC => 74;
 
 our %structs;
 $structs{'fileheader'} =  {loc =>   0, num =>  3, size =>  4, dnum => 1, name => "file_header",  tmplt => "lll"};
