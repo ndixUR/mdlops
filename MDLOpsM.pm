@@ -96,7 +96,7 @@ use Exporter;
 our @EXPORT = qw( modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
 our @ISA = qw(Exporter);
 use vars qw($VERSION);
-$VERSION = '0.6.1alpha1';
+$VERSION = '0.8.0';
 
 #use Time::HiRes qw(usleep ualarm gettimeofday tv_interval);
 use Time::HiRes qw(gettimeofday tv_interval);
