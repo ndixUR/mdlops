@@ -598,7 +598,7 @@ sub readbinarymdl
                 foreach(0..($temp - 1))
                 {
                     $model{'anims'}{$i}{'animevents'}{'ascii'}[$_] = sprintf(
-                        '%.7f %s',
+                        '% .7g %s',
                         $model{'anims'}{$i}{'animevents'}{'unpacked'}[$_ * 2],
                         $model{'anims'}{$i}{'animevents'}{'unpacked'}[($_ * 2) + 1]
                     );
@@ -2485,11 +2485,11 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'tightness'} = $1;
     } elsif ($innode && $line =~ /\s*period\s+(\S*)/i) { # if in a node look for the period property
       $model{'nodes'}{$nodenum}{'period'} = $1;
-    } elsif ($innode && $line =~ /eventlist/i == 0 && $isanimation) { # if in an animation look for the start of the event list
+    } elsif (!$innode && $line =~ /eventlist/i && $isanimation) { # if in an animation look for the start of the event list
       $task = "events";
       $model{'anims'}{$animnum}{'numevents'} = 0;
       $count = 0;      
-    } elsif ($innode && $line =~ /endlist/i == 0 && $isanimation) { # if in an animation look for the end of the event list
+    } elsif (!$innode && $line =~ /endlist/i && $isanimation) { # if in an animation look for the end of the event list
       $task = "";
       $count = 0;
     } elsif ($innode && $line =~ /\s*[^t]verts\s+(\S*)/i) {  # if in a node look for the start of the verts
@@ -3918,7 +3918,7 @@ sub writebinarymdl {
       }
     
       # write out animation nodes recursively
-      $totalbytes = writebinarynode($model, ${$model->{'anims'}{$i}{'nodelist'}}[0], $totalbytes, $version, $i);
+      $totalbytes = writebinarynode($model, $model->{'anims'}{$i}{'nodelist'}->[0], $totalbytes, $version, $i);
 
     } # for (my $i = 0; $i < $model->{'numanims'}; $i++) {
 
@@ -4938,7 +4938,7 @@ sub writebinarynode
     #recurse on children, if any
     foreach my $child ( 1..$model->{'nodes'}{$i}{'childcount'} )
     {
-        $totalbytes = writebinarynode($ref, ${$model->{'nodes'}{$i}{'children'}}[($child - 1)], $totalbytes, $version, $type);
+        $totalbytes = writebinarynode($ref, $model->{'nodes'}{$i}{'children'}->[($child - 1)], $totalbytes, $version, $type);
     }
 
 
