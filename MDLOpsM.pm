@@ -5109,11 +5109,12 @@ sub writebinarynode
       #if (unpack('f', pack('f', $_)) == $_) {
       #XXX hacks around perl's unfortunate numeric type detection
       # the purpose of this is to not munge the compressed quaternion rotations used in animations
-      if (/\D/ || $_ == 1.0 || $_ == 0.0) {
+      #XXX this still does not work, disabling it for now
+      #if (/\D/ || $_ == 1.0 || $_ == 0.0) {
         $buffer .= pack('f', $_);
-      } else {
-        $buffer .= pack('L', $_);
-      }
+      #} else {
+      #  $buffer .= pack('L', $_);
+      #}
     }
     $totalbytes += length($buffer);
     print (BMDLOUT $buffer);
