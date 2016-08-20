@@ -2718,12 +2718,9 @@ sub readasciimdl {
       }
       if ( defined( $nodeindex{ lc( $supermodel->{'partnames'}[$_] ) } ) ) {
         if ($supermodel->{'nodes'}{$_}{'nodetype'} == NODE_SKIN) {
-          $model{'nodes'}{$nodeindex{ lc($supermodel->{'partnames'}[$_]) }}{'qbones'}{'unpacked'} = [];
-          @{$model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'}} = @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}};
-          $model{'nodes'}{$nodeindex{ lc($supermodel->{'partnames'}[$_]) }}{'tbones'}{'unpacked'} = [];
-          @{$model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'tbones'}{'unpacked'}} = @{$supermodel->{'nodes'}{$_}{'tbones'}{'unpacked'}};
-          $model{'nodes'}{$nodeindex{ lc($supermodel->{'partnames'}[$_]) }}{'array8'}{'unpacked'} = [];
-          @{$model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'array8'}{'unpacked'}} = @{$supermodel->{'nodes'}{$_}{'array8'}{'unpacked'}};
+          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}} ];
+          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'tbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'tbones'}{'unpacked'}} ];
+          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'array8'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'array8'}{'unpacked'}} ];
         }
         $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'supernode'} = $supermodel->{'nodes'}{$_}{'supernode'};
       }
