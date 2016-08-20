@@ -2445,6 +2445,8 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'dirt_worldspace'} = $1;
     } elsif ($innode && $line =~ /\s*hologram_donotdraw\s+(\S*)/i) { # if in a node look for the k2 hologram_donotdraw property
       $model{'nodes'}{$nodenum}{'hologram_donotdraw'} = $1;
+    } elsif ($innode && $line =~ /\s*animateuv\s+(\S*)/i) { # if in a node look for the animateuv property
+      $model{'nodes'}{$nodenum}{'animateuv'} = $1;
     } elsif ($innode && $line =~ /\s*uvdirectionx\s+(\S*)/i) { # if in a node look for the uvdirectionx property
       $model{'nodes'}{$nodenum}{'uvdirectionx'} = $1;
     } elsif ($innode && $line =~ /\s*uvdirectiony\s+(\S*)/i) { # if in a node look for the uvdirectiony property
@@ -4602,7 +4604,7 @@ sub writebinarynode
         } else {
           $buffer .= pack("C*", 3, 0, 0, 0, 0, 0, 0, 0);
         }
-        $buffer .= pack('Lffff', 0, # sparkle? .lmt?
+        $buffer .= pack('Lffff', $model->{'nodes'}{$i}{'animateuv'}, # sparkle? .lmt? might actually be animateuv
                                  $model->{'nodes'}{$i}{'uvdirectionx'},
                                  $model->{'nodes'}{$i}{'uvdirectiony'},
                                  $model->{'nodes'}{$i}{'uvjitter'},
