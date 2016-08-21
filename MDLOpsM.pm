@@ -3766,6 +3766,7 @@ sub writebinarymdl {
   my ($buffer, $mdxsize, $totalbytes, $nodenum, $work, $nodestart, $animstart);
   my ($file, $filepath, $timestart, $valuestart, $count);
   my ($temp1, $temp2, $temp3, $temp4);
+  my $headfix = 0;
 
   if ($version ne 'k1' && $version ne 'k2') {
     return;
@@ -4002,11 +4003,25 @@ sub writebinarymdl {
   
   #$nodestart = tell(BMDLOUT);
   $nodestart = $totalbytes;
+  my $nh_nodestart = $nodestart;
   
   # write out the nodes
     
   # now recursive because doing side-by-side comparisons of binary mdls was a real PITA before
   $totalbytes = writebinarynode($model, 0, $totalbytes, $version, "geometry");
+
+  # VarsityPuppet's headfixer method:
+  if ($headfix) {
+      # head models want the root node pointer in the names header to point at neck_g,
+      # not the actual root node, so adjust the nh_nodestart value here w/
+      # the location of neck_g
+      for my $id (keys @{$model->{partnames}}) {
+          if ($model->{partnames}[$id] eq 'neck_g') {
+              $nh_nodestart = $model->{nodes}{$id}{'header'}{'start'};
+              last;
+          }
+      }
+  }
 
   #fill in some blanks
   #the size of the mdl (minus the file header)
@@ -4022,7 +4037,7 @@ sub writebinarymdl {
   print(BMDLOUT pack("L", $animstart - 12));  
   # fill in the node start location in the names header
   seek(BMDLOUT, $model->{'nameheader'}{'start'}, 0);
-  print(BMDLOUT pack("L", ($nodestart - 12) ));
+  print(BMDLOUT pack("L", ($nh_nodestart - 12) ));
 
   print("done with: $filepath\n");
 
