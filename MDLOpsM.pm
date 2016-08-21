@@ -3861,7 +3861,12 @@ sub writebinarymdl {
   
   #write out the model header
   # seek (BMDLOUT, 92, 0);
-  $buffer =  pack("C[4]L", $classification{$model->{'classification'}},0,0,1,0);
+  $buffer =  pack("C[4]L", $classification{$model->{'classification'}},
+                           # this is always 4 for placeables ...
+                           # it is sometimes 2 for characters, but no idea why yet
+                           # it is 0 for all other classifications of models
+                           $classification{$model->{'classification'}} == 32 ? 4 : 0,
+                           0,1,0);
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
   $model->{'animroot'}{'start'} = tell(BMDLOUT);
