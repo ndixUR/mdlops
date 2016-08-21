@@ -3002,6 +3002,12 @@ sub readasciimdl {
                     # but we will handle/use that
                     @faces = map { [ $_, $vertexlist->[$vnum]{mesh} ] } @faces;
 
+                    # maybe this vertex was not connected to a face?
+                    if (!defined($combomap->{$work})) {
+                        $combomap->{$work} = [];
+                        #printf ("%u %u\n", $i, $work);
+                    }
+
                     # Add faces connected to vertex work2 to combomap (new vertfaces) for vertex work
                     $combomap->{$work} = [ @{$combomap->{$work}}, @faces ];
                 }
@@ -3275,7 +3281,7 @@ sub readasciimdl {
         }
     }
 
-    # Calculate vertex normals
+    # Calculate vertex normals and tangent space basis
     # Loop through all of the model's nodes
     for (my $i = 0; $i < $nodenum; $i ++)
     {
@@ -3301,6 +3307,7 @@ sub readasciimdl {
             # connected vertices (as opposed to separate but overlapping vertices),
             # because of the 1:1 relationship between vertex normals and vertices
             my $best_area = 0;
+            my $meshA = $i;
             my $faceA = -1;
             # step through all faces adjacent to the $work vertex
             foreach ( @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ) {
@@ -3310,6 +3317,12 @@ sub readasciimdl {
                     # do not consider using a face in a different mesh,
                     # or an unconnected adjacent face in the same mesh
                     # as our own connected geometry
+                    # ... unless this vertex isn't connected to any faces!
+                    if ($faceA == -1) {
+                        $best_area = $model{'surfacearea_by_group'}->{$model{'nodes'}{$_->[0]}{'Bfaces'}[$_->[1]]->[4]};
+                        $meshA = $_->[1];
+                        $faceA = $_->[0];
+                    }
                     next;
                 }
                 if (defined($model{'nodes'}{$test_node}{'Bfaces'}[$_]) &&
@@ -3328,12 +3341,12 @@ sub readasciimdl {
             }
 
             # initialize vertex normal with value from chosen face surface normal
-            $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ @{$model{'nodes'}{$i}{'facenormals'}[$faceA]} ];
+            $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]} ];
             # initialize tangent space vectors with value from chosen face vectors
-            if (defined($model{'nodes'}{$i}{'facetangents'}) &&
-                defined($model{'nodes'}{$i}{'facetangents'}[$faceA])) {
-                $model{'nodes'}{$i}{'vertextangents'}[$work] = [ @{$model{'nodes'}{$i}{'facetangents'}[$faceA]} ];
-                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ @{$model{'nodes'}{$i}{'facebitangents'}[$faceA]} ];
+            if (defined($model{'nodes'}{$meshA}{'facetangents'}) &&
+                defined($model{'nodes'}{$meshA}{'facetangents'}[$faceA])) {
+                $model{'nodes'}{$i}{'vertextangents'}[$work] = [ @{$model{'nodes'}{$meshA}{'facetangents'}[$faceA]} ];
+                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ @{$model{'nodes'}{$meshA}{'facebitangents'}[$faceA]} ];
                 # this is where we store the final numbers, store them now in case the calculations get skipped
                 $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
                     @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
@@ -3349,45 +3362,45 @@ sub readasciimdl {
 #            print Dumper($model{'surfacearea_by_group'});
 #            printf(
 #                "using group %u face %u for vert %u in node %u, connected to %u faces: %s\n",
-#                $model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4], $faceA, $work, $i, scalar(@{$model{'nodes'}{$i}{'vertfaces'}{$work}}),
+#                $model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[4], $faceA, $work, $i, scalar(@{$model{'nodes'}{$i}{'vertfaces'}{$work}}),
 #                join(', ', map { ref $_ ? join(',', @{$_}) : $_ } @{$model{'nodes'}{$i}{'vertfaces'}{$work}})
 #            );
 
             # step through all faces adjacent to $work vertex
             foreach ( @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ) {
-                my $mesh = $i;
+                my $meshB = $i;
                 # test for not-actually-connected adjacent geometry
                 if (ref $_ eq 'ARRAY') {
-                    $mesh = $_->[1];
+                    $meshB = $_->[1];
                     $_ = $_->[0];
                 }
                 my $faceB = $_;
                 # skip self (test face index and node index!)
-                if ($faceB == $faceA && $mesh == $i) { next; }
-                # make sure face $faceB exists in node $mesh
-                if (!defined($model{'nodes'}{$mesh}{'Bfaces'}[$faceB])) { next; }
+                if ($faceB == $faceA && $meshB == $meshA) { next; }
+                # make sure face $faceB exists in node $meshB
+                if (!defined($model{'nodes'}{$meshB}{'Bfaces'}[$faceB])) { next; }
                 # don't let influence of geometry from different smooth groups accumulate into the vertex normal
-                if ($model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4] != $model{'nodes'}{$mesh}{'Bfaces'}[$faceB]->[4]) { next; } #print ("$_ skipped\n"); next; }
+                if ($model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[4] != $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4]) { next; } #print ("$_ skipped\n"); next; }
                 # don't let influence of geometry across excessive crease angles accumulate into the vertex normal,
                 # currently only doing this for trimesh,
                 # this calculation is based on angle between normals, not the actual angle between face planes
                 if ($model{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH &&
-                    acos($model{'nodes'}{$i}{'facenormals'}[$faceA]->[0] *
-                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[0] +
-                         $model{'nodes'}{$i}{'facenormals'}[$faceA]->[1] *
-                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[1] +
-                         $model{'nodes'}{$i}{'facenormals'}[$faceA]->[2] *
-                         $model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[2]) > pi / 4.0) { next; }
+                    acos($model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[0] *
+                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] +
+                         $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[1] *
+                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] +
+                         $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[2] *
+                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2]) > pi / 4.0) { next; }
                 #print "$_ not skipped\n";
                 # use already computed area for surface area weight
-                my $area = $faceareas{$mesh}{$faceB};
+                my $area = $faceareas{$meshB}{$faceB};
                 # initialize angle to 1 in case no vertices match somehow
                 my $angle = 1;
                 # store faceB vertices in listrefs $bv1-3
                 my ($bv1, $bv2, $bv3) = (
-                    $model{'nodes'}{$mesh}{'verts'}[$model{'nodes'}{$mesh}{'Bfaces'}[$faceB]->[8]],
-                    $model{'nodes'}{$mesh}{'verts'}[$model{'nodes'}{$mesh}{'Bfaces'}[$faceB]->[9]],
-                    $model{'nodes'}{$mesh}{'verts'}[$model{'nodes'}{$mesh}{'Bfaces'}[$faceB]->[10]]
+                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
+                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
+                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
                 );
                 if ($model{'nodes'}{$i}{'verts'}[$work][0] == $bv1->[0] &&
                     $model{'nodes'}{$i}{'verts'}[$work][1] == $bv1->[1] &&
@@ -3418,17 +3431,17 @@ sub readasciimdl {
                 }
                 # apply angle & area weight to faceB surface normal and
                 # accumulate the x, y, and z components of the vertex normal vector
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[0] * $area * $angle);
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[1] * $area * $angle);
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += ($model{'nodes'}{$mesh}{'facenormals'}[$faceB]->[2] * $area * $angle);
+                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] * $area * $angle);
+                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] * $area * $angle);
+                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2] * $area * $angle);
                 # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
-                if (defined($model{'nodes'}{$mesh}{'facetangents'}[$faceB])) {
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[0] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[0] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[1] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[1] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[2] += ($model{'nodes'}{$mesh}{'facetangents'}[$faceB]->[2] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[0] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[1] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] += ($model{'nodes'}{$mesh}{'facebitangents'}[$faceB]->[2] * $area * $angle);
+                if (defined($model{'nodes'}{$meshB}{'facetangents'}[$faceB])) {
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[0] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[0] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[1] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[1] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[2] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[2] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[0] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[1] * $area * $angle);
+                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[2] * $area * $angle);
                 }
             }
             # normalize the vertex normal
