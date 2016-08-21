@@ -2363,6 +2363,8 @@ sub readasciimdl {
       # number of textures will be added to as they are found in parsing
       $model{'nodes'}{$nodenum}{'texturenum'} = 0;
       $model{'nodes'}{$nodenum}{'mdxdatabitmap'} = 0;
+      # set to 1 if node's smooth group numbers are all powers of 2, otherwise 0
+      $model{'nodes'}{$nodenum}{'sg_base2'} = 1;
       $model{'nodes'}{$nodenum}{'bboxmin'} = [-5, -5, -5];
       $model{'nodes'}{$nodenum}{'bboxmax'} = [5, 5, 5];
       $model{'nodes'}{$nodenum}{'radius'} = 10;
@@ -2630,6 +2632,16 @@ sub readasciimdl {
           $model{'nodes'}{$nodenum}{'tverti'}{$3} = $7;
         }
 
+        # test whether smooth group number is base 2
+        # if ALL smooth group numbers in the node ARE a power of 2,
+        # they will be reduced to log base 2 before being written to binary.
+        # otherwise smooth group numbers will be left as is.
+        if ($4 > 0 && (log($4) / log(2)) =~ /\D/)
+        {
+          # logarithm contained a non-digit (.) so not a clean power of 2
+          $model{'nodes'}{$nodenum}{'sg_base2'} = 0;
+        }
+
         $count++;
 
       } elsif ($task eq "tverts") { # read in the tverts
@@ -2780,6 +2792,40 @@ sub readasciimdl {
             $model{'nodes'}{$i}{'mdxdatabitmap'}, $model{'nodes'}{$i}{'mdxdatasize'},
             join(',', @{$model{'nodes'}{$i}{'mdxrowoffsets'}})
         ) if $printall;
+    }
+
+    # Convert smooth group numbers
+    # Because we convert all smooth groups to 2^(n - 1), we should convert back here
+    # Loop through all of the model's nodes
+    for (my $i = 0; $i < $nodenum; $i++)
+    {
+      # Only look at smooth groups if this is a mesh w/ faces
+      # If non-power-of-2 smooth groups were encountered in this mesh,
+      # leave smooth group numbers alone
+      if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+          !$model{'nodes'}{$i}{'sg_base2'} ||
+          !defined($model{'nodes'}{$i}{'Afaces'}) ||
+          !scalar(@{$model{'nodes'}{$i}{'Afaces'}})) {
+        next;
+      }
+      # Process the smooth groups in the ASCII face data
+      for my $f (@{$model{'nodes'}{$i}{'Afaces'}}) {
+        my $temp = [ split /\s+/, $model{'nodes'}{$i}{'Afaces'}[$f] ];
+        if ($temp->[3] < 1) {
+          next;
+        }
+        $temp->[3] = (log($temp->[3]) / log(2)) + 1;
+        $model{'nodes'}{$i}{'Afaces'}[$f] = join(' ', @{$temp});
+      }
+      # Process the smooth groups in the binary face data
+      foreach (@{$model{'nodes'}{$i}{'Bfaces'}}) {
+        my $sg = $_->[4];
+        if ($sg < 1) {
+          next;
+        }
+        $sg = (log($sg) / log(2)) + 1;
+        $_->[4] = $sg;
+      }
     }
 
     # Create a flat list of all vertices in all meshes
