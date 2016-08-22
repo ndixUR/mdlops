@@ -1488,7 +1488,7 @@ my $dothis = 0;
           my $bone_name = $model->{'partnames'}[
             $ref->{$node}{'index2node'}[$ref->{$node}{'boneindices'}[$i][$weight_num]]
           ];
-          $ref->{$node}{'Abones'}[$i] .= sprintf('%s %.7f ', $bone_name, $ref->{$node}{'boneweights'}[$i][$weight_num]);
+          $ref->{$node}{'Abones'}[$i] .= sprintf('%s %.7g ', $bone_name, $ref->{$node}{'boneweights'}[$i][$weight_num]);
         }
         # clean off the superfluous trailing space character
         $ref->{$node}{'Abones'}[$i] =~ s/\s+$//;
@@ -1670,20 +1670,20 @@ sub writeasciimdl {
       # self illumination i.e. "glow"    
       (undef, $argh1, $argh2, $argh3) = split(/\s+/,$model->{'nodes'}{$i}{'Acontrollers'}{100}[0]);
       if ($argh1 ne "" && $argh2 ne "") {
-        printf(MODELOUT "  selfillumcolor %.7f %.7f %.7f\n", $argh1, $argh2, $argh3);
+        printf(MODELOUT "  selfillumcolor %.7g %.7g %.7g\n", $argh1, $argh2, $argh3);
       }
     }
     
     # diffuse color    
     if ( defined($model->{'nodes'}{$i}{'diffuse'}[0]) ) {
-      printf(MODELOUT "  diffuse %.7f %.7f %.7f\n", @{$model->{'nodes'}{$i}{'diffuse'}});
+      printf(MODELOUT "  diffuse %.7g %.7g %.7g\n", @{$model->{'nodes'}{$i}{'diffuse'}});
     }
     
     # not light node type
     if (!($nodetype & NODE_HAS_LIGHT)) {
       # ambient color    
       if ( defined($model->{'nodes'}{$i}{'ambient'}[0]) ) {
-        printf(MODELOUT "  ambient %.7f %.7f %.7f\n", @{$model->{'nodes'}{$i}{'ambient'}});
+        printf(MODELOUT "  ambient %.7g %.7g %.7g\n", @{$model->{'nodes'}{$i}{'ambient'}});
       }
       # render flag    
       if ( defined($model->{'nodes'}{$i}{'render'}) ) {
@@ -1725,21 +1725,21 @@ sub writeasciimdl {
       if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flarepositions'}})) {
         printf(MODELOUT "  flarepositions %u\n    %s\n",
                scalar(@{$model->{'nodes'}{$i}{'flarepositions'}}),
-               join("\n    ", map { sprintf('%.7f', $_); } @{$model->{'nodes'}{$i}{'flarepositions'}}));
+               join("\n    ", map { sprintf('% .7g', $_); } @{$model->{'nodes'}{$i}{'flarepositions'}}));
       }
       if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flaresizes'}})) {
         printf(MODELOUT "  flaresizes %u\n    %s\n",
                scalar(@{$model->{'nodes'}{$i}{'flaresizes'}}),
-               join("\n    ", map { sprintf('%.7f', $_); } @{$model->{'nodes'}{$i}{'flaresizes'}}));
+               join("\n    ", map { sprintf('%.7g', $_); } @{$model->{'nodes'}{$i}{'flaresizes'}}));
       }
       if ($has_flares && scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}})) {
         printf(MODELOUT "  flarecolorshifts %u\n",
                scalar(@{$model->{'nodes'}{$i}{'flarecolorshifts'}}));
         for my $shift_col (@{$model->{'nodes'}{$i}{'flarecolorshifts'}}) {
-          printf(MODELOUT "    %.7f %.7f %.7f\n", @{$shift_col});
+          printf(MODELOUT "    %.7g %.7g %.7g\n", @{$shift_col});
         }
       }
-      printf(MODELOUT "  flareradius %.7f\n", $model->{'nodes'}{$i}{'flareradius'});
+      printf(MODELOUT "  flareradius %.7g\n", $model->{'nodes'}{$i}{'flareradius'});
 
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_LIGHT}}) {
@@ -1933,8 +1933,8 @@ sub writeasciimdl {
     # loop through the animations
     for (my $i = 0; $i < $model->{'numanims'}; $i++) {
       printf(MODELOUT "\nnewanim %s %s\n", $model->{'anims'}{$i}{'name'}, $model->{'partnames'}[0]);
-      printf(MODELOUT "  length %.7f\n", $model->{'anims'}{$i}{'length'});
-      printf(MODELOUT "  transtime %.7f\n", $model->{'anims'}{$i}{'transtime'});
+      printf(MODELOUT "  length %.7g\n", $model->{'anims'}{$i}{'length'});
+      printf(MODELOUT "  transtime %.7g\n", $model->{'anims'}{$i}{'transtime'});
       printf(MODELOUT "  animroot %s\n", $model->{'anims'}{$i}{'animroot'});
       if ($model->{'anims'}{$i}{'eventsnum'} != 0) {
         print(MODELOUT "  eventlist\n");
