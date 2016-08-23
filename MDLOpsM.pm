@@ -1842,53 +1842,43 @@ sub writeasciimdl {
           printf(MODELOUT "  texture1 %s\n", $model->{'nodes'}{$i}{'texture1'});
       }
       $bitmaps{ lc($model->{'nodes'}{$i}{'bitmap'}) } += 1;
-      if ( $nodetype == NODE_SABER ) {
-        print(MODELOUT "  verts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
-        foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
-          print (MODELOUT "    $_->[0] $_->[1] $_->[2]\n");
-        }
-      } else {
-        printf(MODELOUT "  verts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
-        foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
-          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
-        }
+      printf(MODELOUT "  verts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+      foreach ( @{$model->{'nodes'}{$i}{'verts'}} ) {
+        printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
       }
       printf(MODELOUT "  faces %u\n", $model->{'nodes'}{$i}{'facesnum'});
       foreach ( @{$model->{'nodes'}{$i}{'Afaces'}} ) {
         print (MODELOUT "    $_\n");
       }
       if ($model->{'nodes'}{$i}{'texturenum'} != 0) {
-        if ( $nodetype == NODE_SABER ) {
-          print (MODELOUT "  tverts $model->{'nodes'}{$i}{'vertcoordnum'}\n");
-          foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
-            print (MODELOUT "    $_->[0] $_->[1] 0.0\n");
-          }
-        } else {
-          printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
-          foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
-            printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
-          }
+        # write out tverts, nwmax requires these to be 3 coordinate numbers
+        printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
+          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'bitmap2'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts1'}})) {
+        # write out tverts1, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts1'}} ) {
-          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'texture0'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts2'}})) {
+        # write out tverts2, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts2 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts2'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts2'}} ) {
-          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'texture1'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts3'}})) {
+        # write out tverts3, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
-          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
       }
       if ($nodetype & NODE_HAS_SABER) {
@@ -2942,7 +2932,7 @@ sub readasciimdl {
         my $combomap = { %{$model{'nodes'}{$i}{'vertfaces'}} };
 
         # step through the vertices, storing the index in $work
-        foreach $work (keys $model{'nodes'}{$i}{'verts'})
+        foreach $work (keys @{$model{'nodes'}{$i}{'verts'}})
         {
             # a temporary map for the work vertex, all of its connected faces in node i
             # this hashref map will save us from a costly search later
