@@ -988,18 +988,17 @@ my $dothis = 0;
         }
       } # if (@quatVals == 2) {
       # now convert quaternions (however we got them) to axis-angle.
-      if ($quatVals[4] != 1 && $quatVals[4] != -1) {
-        $temp = acos($quatVals[4]);
-        $quatVals[1] = $quatVals[1] / sin($temp);
-        $quatVals[2] = $quatVals[2] / sin($temp);
-        $quatVals[3] = $quatVals[3] / sin($temp);
-        $quatVals[4] = ($temp * 2);
-      } else {
-        $quatVals[1] = 0;
-        $quatVals[2] = 0;
-        $quatVals[3] = 0;
-        $quatVals[4] = 0;
+      # 2016 replaced w/ better algorithm from:
+      # http://www.opengl-tutorial.org/assets/faq_quaternions/index.html
+      $temp = $quatVals[4]; # cos_a
+      $quatVals[4] = acos($temp) * 2;
+      my $sin_a = sqrt(1.0 - $temp ** 2);
+      if (abs($sin_a) < 0.00005) {
+          $sin_a = 1;
       }
+      $quatVals[1] /= $sin_a;
+      $quatVals[2] /= $sin_a;
+      $quatVals[3] /= $sin_a;
       $_ = join(' ', map { sprintf('% .7g', $_) } @quatVals);
     } # foreach (@{$ref->{$node}{'Acontrollers'}{20}}) {
   } # if (defined($ref->{$node}{'Acontrollers'}{20})) {
@@ -2054,10 +2053,16 @@ sub compute_vertex_angle {
 # 
 sub aatoquaternion {
   my ($aaref) = (@_);
-  
-  $aaref->[0] = $aaref->[0] * sin($aaref->[3] / 2);
-  $aaref->[1] = $aaref->[1] * sin($aaref->[3] / 2);
-  $aaref->[2] = $aaref->[2] * sin($aaref->[3] / 2);
+
+  # 2016 updated method to produce closer matching results
+  my $sin_a = sin($aaref->[3] / 2);
+  if (abs($sin_a) < 0.00005) {
+    $sin_a = 1;
+  }
+
+  $aaref->[0] = $aaref->[0] * $sin_a;
+  $aaref->[1] = $aaref->[1] * $sin_a;
+  $aaref->[2] = $aaref->[2] * $sin_a;
   $aaref->[3] = cos($aaref->[3] / 2);
 }
 
