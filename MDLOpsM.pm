@@ -5033,9 +5033,9 @@ sub writebinarynode
     }
     
     #recurse on children, if any
-    foreach my $child ( 1..$model->{'nodes'}{$i}{'childcount'} )
+    for my $child ( @{$model->{'nodes'}{$i}{'children'}} )
     {
-        $totalbytes = writebinarynode($ref, $model->{'nodes'}{$i}{'children'}->[($child - 1)], $totalbytes, $version, $type);
+        $totalbytes = writebinarynode($ref, $child, $totalbytes, $version, $type);
     }
 
 
