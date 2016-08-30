@@ -1550,6 +1550,30 @@ my $dothis = 0;
 }
 
 #########################################################
+# get a list of the nodes in the order they should be encountered,
+# this means traversing the node tree to produce a flattened list.
+# recursive, called by writeasciimdl
+#
+sub getnodelist {
+  my ($model, $node_num) = (@_);
+  # nodes is the list of node numbers, indexes into model->{nodes},
+  # initialize it with the number of current/starting node
+  my $nodes = [ $node_num ];
+  # hold a convenient reference to the current/starting node
+  my $node = $model->{'nodes'}{$node_num};
+
+  if ($node->{'childcount'} && scalar(@{$node->{'childindexes'}{'nums'}})) {
+    foreach (@{$node->{'childindexes'}{'nums'}}) {
+      # append child node numbers list, recursing
+      $nodes = [ @{$nodes}, @{getnodelist($model, $_)} ];
+    }
+  }
+
+  return $nodes;
+}
+
+
+#########################################################
 # write out a model in ascii format
 # 
 sub writeasciimdl {
@@ -1591,7 +1615,7 @@ sub writeasciimdl {
   print(MODELOUT "  radius $model->{'radius'}\n");
 
   #write out the nodes
-  for (my $i = 0; $i < $model->{'nodes'}{'truenodenum'}; $i++) {
+  for my $i (@{getnodelist($model, 0)}) {
     print("Node: " . $i . "\n") if $printall;
     $nodetype = $model->{'nodes'}{$i}{'nodetype'};
     $temp = $model->{'partnames'}[$i];
