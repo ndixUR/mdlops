@@ -3836,16 +3836,23 @@ sub readasciimdl {
 # Write out a binary model
 # 
 sub writebinarymdl {
-  my ($model, $version) = (@_);
+  my ($model, $version, $options) = (@_);
   my ($buffer, $mdxsize, $totalbytes, $nodenum, $work, $nodestart, $animstart);
   my ($file, $filepath, $timestart, $valuestart, $count);
   my ($temp1, $temp2, $temp3, $temp4);
-  my $headfix = 0;
 
   if ($version ne 'k1' && $version ne 'k2') {
     return;
   }
-  
+
+  # set up option default values
+  if (!defined($options)) {
+    $options = {};
+  }
+  if (!defined($options->{headfix})) {
+    $options->{headfix} = 0;
+  }
+
   $file = $model->{'filename'};
   $filepath = $model->{'filepath+name'};
 
@@ -4089,7 +4096,7 @@ sub writebinarymdl {
   $totalbytes = writebinarynode($model, 0, $totalbytes, $version, "geometry");
 
   # VarsityPuppet's headfixer method:
-  if ($headfix) {
+  if ($options->{headfix}) {
       # head models want the root node pointer in the names header to point at neck_g,
       # not the actual root node, so adjust the nh_nodestart value here w/
       # the location of neck_g
