@@ -3188,7 +3188,8 @@ sub readasciimdl {
                    $_->[0] = $xpx / $norm;
                    $_->[1] = $xpy / $norm;
                    $_->[2] = $xpz / $norm;
-                   $_->[3] = $pd;
+                   # also normalize the plane distance, critical for aabb
+                   $_->[3] = $pd  / $norm;
 
 #                    $_->[0] = $facenorms{$i}{$count}{X};
 #                    $_->[1] = $facenorms{$i}{$count}{Y};
