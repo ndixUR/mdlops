@@ -2273,6 +2273,11 @@ sub readasciimdl {
   $model{'numanims'} = 0;
   $model{'animationscale'} = 0.971;
   
+  # these values are for the trimesh counter sequence,
+  # an odd inverted count the purpose of which is unknown to me
+  $model{'meshsequence'} = 98;
+  $model{'meshsequencebasis'} = { start => 99, end => 0 };
+
   # read in the ascii mdl
   while (<$ASCIIMDL>) {
     my $line = $_;
@@ -2378,6 +2383,28 @@ sub readasciimdl {
       } else {
         $model{'nodes'}{$nodenum}{'mdxdatasize'} = 24; # tri mesh with no texture map
         $model{'nodes'}{$nodenum}{'texturenum'} = 0;
+      }
+      # handle mesh sequence counter
+      if ($model{'nodes'}{$nodenum}{'nodetype'} & NODE_HAS_MESH) {
+        # assign mesh sequence counter
+        $model{'nodes'}{$nodenum}{'array3'} = $model{'meshsequence'};
+        # prepare next mesh sequence counter number
+        # modeling a strange sequence... 98..0, 100,199..101, 200,299..201
+        # if anyone ever reads the following lines of code ... sorry.
+        if ($model{'meshsequence'} > $model{'meshsequencebasis'}->{start}) {
+          # set end of next range to current value + 1
+          $model{'meshsequencebasis'}->{end} = $model{'meshsequence'} + 1;
+          # set current value to start of previous range + 100
+          $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 100;
+          # set start of next range to current range start + 100
+          $model{'meshsequencebasis'}->{start} += 100;
+        }
+        # decrement the counter
+        $model{'meshsequence'} -= 1;
+        if ($model{'meshsequence'} < $model{'meshsequencebasis'}->{end}) {
+          # if we decrement past our range basis, set next value to upper limit + 1
+          $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 1
+        }
       }
       # number of textures will be added to as they are found in parsing
       $model{'nodes'}{$nodenum}{'texturenum'} = 0;
@@ -5004,11 +5031,11 @@ sub writebinarynode
             print(BMDLOUT pack("l", 0));
         }
 
-        # write out unknown array (what is this?)
+        # write out mesh sequence counter number
         $model->{'nodes'}{$i}{'unknownlocation'} = tell(BMDLOUT);
         if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
             $totalbytes += 4;
-            print(BMDLOUT pack("l", 0));
+            print(BMDLOUT pack("L", $model->{'nodes'}{$i}{'array3'}));
         }
 
         # write out the vert indices
@@ -5567,7 +5594,7 @@ sub writerawnodes {
         $totalbytes += length($buffer);
         print ($BMDLOUT $buffer);
 
-        # write out unknown array that always has 1 element (what is this?)
+        # write out mesh sequence counter array that always has 1 element
         $model->{'nodes'}{$node_index}{'array3'}{'start'} = tell($BMDLOUT);
         $buffer = $model->{'nodes'}{$node_index}{'array3'}{'raw'};
         $totalbytes += length($buffer);
