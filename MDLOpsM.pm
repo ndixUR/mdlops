@@ -2842,6 +2842,31 @@ sub readasciimdl {
         ) if $printall;
     }
 
+    # calculate new aabb trees if possible
+    if (eval "use MDLOpsW; 1;")
+    {
+        # advanced walkmesh functions are available, build working aabb trees
+        for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++)
+        {
+            if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_AABB)) {
+                next;
+            }
+            # prepare enough walkmesh structure for the walkmesh aabb tree calculation
+            $model{'nodes'}{$i}{'walkmesh'}{verts} = [
+                @{$model{'nodes'}{$i}{'verts'}}
+            ];
+            $model{'nodes'}{$i}{'walkmesh'}{faces} = [
+                map { [ @{$_}[8,9,10] ] } @{$model{'nodes'}{$i}{'Bfaces'}}
+            ];
+            # this is where the new aabb tree will be:
+            $model{'nodes'}{$i}{'walkmesh'}{aabbs} = [];
+            aabb(
+                $model{'nodes'}{$i}{'walkmesh'},
+                [ (0..(scalar(@{$model{'nodes'}{$i}{'walkmesh'}->{faces}}) - 1)) ]
+            );
+        }
+    }
+
     # Convert smooth group numbers
     # Because we convert all smooth groups to 2^(n - 1), we should convert back here
     # Loop through all of the model's nodes
@@ -4986,14 +5011,39 @@ sub writebinarynode
         }
         elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_AABB)  # walk mesh sub-sub-header
         {
-            $buffer = pack("l", (tell(BMDLOUT) - 8) );
+            # aabb tree location pointer, (tree immediately following so + 4)
+            $buffer = pack("L", ((tell(BMDLOUT) - 12) + 4) );
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
-            $temp1 = tell(BMDLOUT);
-            (undef, $buffer) = writeaabb($model, $i, 0, $temp1 );
-            seek(BMDLOUT, $buffer, 0);
-            $totalbytes += $buffer - $temp1;
+            # write out advanced aabb tree if it exists
+            if (defined($model->{'nodes'}{$i}{'walkmesh'}) &&
+                defined($model->{'nodes'}{$i}{'walkmesh'}{aabbs}) &&
+                scalar(@{$model->{'nodes'}{$i}{'walkmesh'}{aabbs}}))
+            {
+                # aabb_start = $totalbytes - 12;
+                $buffer = '';
+                for my $aabb (@{$model->{'nodes'}{$i}{'walkmesh'}{aabbs}}) {
+                    # convert aabb left/right tree indices to offsets using:
+                    # start location, index, aabb node size (40)
+                    $buffer .= pack(
+                        'f[6]LLll', @{$aabb}[0..5],
+                        ($aabb->[6] != -1 ? 0 : ($totalbytes - 12) + ($aabb->[9] * 40)),
+                        ($aabb->[6] != -1 ? 0 : ($totalbytes - 12) + ($aabb->[10] * 40)),
+                        $aabb->[6], $aabb->[8]
+                    );
+                }
+                $totalbytes += length($buffer);
+                print (BMDLOUT $buffer);
+            }
+            # fall back to legacy aabb tree
+            else
+            {
+                $temp1 = tell(BMDLOUT);
+                (undef, $buffer) = writeaabb($model, $i, 0, $temp1 );
+                seek(BMDLOUT, $buffer, 0);
+                $totalbytes += $buffer - $temp1;
+            }
         } # end of nodetype == NODE_SKIN sub-sub-header
 
         # write out the mesh data
