@@ -1930,7 +1930,9 @@ sub writeasciimdl {
         }
       }
       if ($nodetype == NODE_AABB) {
-        print (MODELOUT "  aabb\n");
+        #print (MODELOUT "  aabb\n");
+        # i read somewhere that nwmax crashes if aabb does not start on same line...
+        print (MODELOUT "  aabb");
         foreach ( @{$model->{'nodes'}{$i}{'aabbnodes'}} ) {
           printf(MODELOUT "      % .7g % .7g % .7g % .7g % .7g % .7g %d\n", @{$_}[0..6]);
         }
