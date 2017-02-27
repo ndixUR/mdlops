@@ -3903,6 +3903,10 @@ sub writebinarymdl {
         $mdxsize += length($buffer);
         print (BMDXOUT $buffer);
       }
+      # skip padding on last node
+      if ($i >= $model->{'nodes'}{'truenodenum'} - 1) {
+        next;
+      }
       # add on the end padding
       $buffer = pack("f*",10000000, 10000000, 10000000, 0, 0, 0, 0, 0);
       $mdxsize += length($buffer);
