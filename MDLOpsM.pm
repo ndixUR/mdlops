@@ -1703,7 +1703,9 @@ sub writeasciimdl {
     }
     
     # not light node type
-    if (!($nodetype & NODE_HAS_LIGHT)) {
+    #if (!($nodetype & NODE_HAS_LIGHT)) {
+    # the parts of the following that actually exist are in mesh header
+    if ($nodetype & NODE_HAS_MESH) {
       # ambient color    
       if ( defined($model->{'nodes'}{$i}{'ambient'}[0]) ) {
         printf(MODELOUT "  ambient %.7g %.7g %.7g\n", @{$model->{'nodes'}{$i}{'ambient'}});
@@ -2330,9 +2332,9 @@ sub readasciimdl {
       $model{'radius'} = $1;
     } elsif ($line =~ /\s*setanimationscale\s+(\S*)/i) {
       $model{'animationscale'} = $1;
-    } elsif ($innode && $line =~ /^\s*($emitter_prop_match)\s+(\S+)\s*$/) {
+    } elsif ($innode && $line =~ /^\s*($emitter_prop_match)\s+(\S+)\s*$/i) {
       $model{'nodes'}{$nodenum}{$1} = $2;
-    } elsif ($innode && $line =~ /^\s*($emitter_flag_match)\s+(\S+)\s*$/) {
+    } elsif ($innode && $line =~ /^\s*($emitter_flag_match)\s+(\S+)\s*$/i) {
       if (!defined($model{'nodes'}{$nodenum}{'emitterflags'})) {
         $model{'nodes'}{$nodenum}{'emitterflags'} = 0;
       }
