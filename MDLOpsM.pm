@@ -2903,6 +2903,74 @@ sub readasciimdl {
       }
     }
 
+    #$model{calculations} = {
+    #  total_verts       => 0,
+    #  total_vert_sum    => [ 0.0, 0.0, 0.0 ]
+    #};
+    #$model{'bmin'} = [ 0.0, 0.0, 0.0 ];
+    #$model{'bmax'} = [ 0.0, 0.0, 0.0 ];
+    for (my $i = 0; $i < $nodenum; $i ++)
+    {
+        # Skip non-mesh nodes
+        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH))
+        {
+            next;
+        }
+        my $vsum = [ 0.0, 0.0, 0.0 ];
+        # override these values w/ anti-default values now,
+        # since we are about to compute the accurate values
+        $model{'nodes'}{$i}{'bboxmin'} = [  5.0,  5.0,  5.0 ];
+        $model{'nodes'}{$i}{'bboxmax'} = [ -5.0, -5.0, -5.0 ];
+        for my $vert (@{$model{'nodes'}{$i}{'verts'}})
+        {
+            foreach (0..2)
+            {
+                if ($vert->[$_] < $model{'nodes'}{$i}{'bboxmin'}->[$_]) {
+                    $model{'nodes'}{$i}{'bboxmin'}->[$_] = $vert->[$_];
+                }
+                if ($vert->[$_] > $model{'nodes'}{$i}{'bboxmax'}->[$_]) {
+                #printf("%g > %g\n", $vert->[$_], $model{'nodes'}{$i}{'bboxmax'}->[$_]);
+                    $model{'nodes'}{$i}{'bboxmax'}->[$_] = $vert->[$_];
+                }
+                $vsum->[$_] += $vert->[$_];
+            }
+        }
+        $model{'nodes'}{$i}{'average'} = [
+            map { $_ / scalar(@{$model{'nodes'}{$i}{'verts'}}) } @{$vsum}
+        ];
+        # yeaaaah ... it's a little tougher to compute the model bbox
+        # we need to walk up the model node tree all the way to the root
+        # in order to get an accurate position translation
+        # compare our node bounding box against the running model bounding box
+        #foreach (0..2)
+        #{
+            # translate node bbox to model coordinates for calculation
+            #if (($model{'nodes'}{$i}{'bboxmin'}->[$_] +
+            #     $model{'nodes'}{$i}{'position'}->[$_]) < $model{'bmin'}->[$_]) {
+            #    $model{'bmin'}->[$_] = ($model{'nodes'}{$i}{'bboxmin'}->[$_] +
+            #                            $model{'nodes'}{$i}{'position'}->[$_]);
+            #}
+            #if (($model{'nodes'}{$i}{'bboxmax'}->[$_] +
+            #     $model{'nodes'}{$i}{'position'}->[$_]) > $model{'bmax'}->[$_]) {
+            #    $model{'bmax'}->[$_] = ($model{'nodes'}{$i}{'bboxmax'}->[$_] +
+            #                            $model{'nodes'}{$i}{'position'}->[$_]);
+            #}
+            #$model{calculations}->{total_vert_sum}[$_] += $vsum ->[$_];
+        #}
+        #$model{calculations}->{total_verts} += scalar(@{$model{'nodes'}{$i}{'verts'}});
+        # compute node radius, it is the longest ray from average point to vertex
+        $model{'nodes'}{$i}{'radius'} = 0.0;
+        for my $vert (@{$model{'nodes'}{$i}{'verts'}}) {
+            my $v_rad = [
+                map { $vert->[$_] - $model{'nodes'}{$i}{'average'}->[$_] } (0..2)
+            ];
+            my $vec_len = sqrt($v_rad->[0]**2 + $v_rad->[1]**2 + $v_rad->[2]**2);
+            if ($vec_len > $model{'nodes'}{$i}{'radius'}) {
+                $model{'nodes'}{$i}{'radius'} = $vec_len;
+            }
+        }
+    }
+
     # Create a flat list of all vertices in all meshes
     # Loop through all of the model's nodes
     for (my $i = 0; $i < $nodenum; $i ++)
