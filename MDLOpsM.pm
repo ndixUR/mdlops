@@ -2922,10 +2922,11 @@ sub readasciimdl {
             next;
         }
         my $vsum = [ 0.0, 0.0, 0.0 ];
-        # override these values w/ anti-default values now,
-        # since we are about to compute the accurate values
-        $model{'nodes'}{$i}{'bboxmin'} = [  5.0,  5.0,  5.0 ];
-        $model{'nodes'}{$i}{'bboxmax'} = [ -5.0, -5.0, -5.0 ];
+        # note: changed these to 0 values on further study of vanilla models
+        # it seems like bmin numbers should never be positive and
+        # bmax numbers should never be negative
+        $model{'nodes'}{$i}{'bboxmin'} = [ 0.0, 0.0, 0.0 ];
+        $model{'nodes'}{$i}{'bboxmax'} = [ 0.0, 0.0, 0.0 ];
         for my $vert (@{$model{'nodes'}{$i}{'verts'}})
         {
             foreach (0..2)
