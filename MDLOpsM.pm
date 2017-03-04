@@ -1875,7 +1875,12 @@ sub writeasciimdl {
       foreach ( @{$model->{'nodes'}{$i}{'Afaces'}} ) {
         print (MODELOUT "    $_\n");
       }
-      if ($model->{'nodes'}{$i}{'texturenum'} != 0) {
+      # properly use the mdx bitmap here
+      # there are nodes that contain only slot 2 textures,
+      # for example: m12aa_01p in K1
+      # TODO: repeat this for texture slots 2-4
+      if ($model->{'nodes'}{$i}{'texturenum'} != 0 &&
+          $model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES) {
         # write out tverts, nwmax requires these to be 3 coordinate numbers
         printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
