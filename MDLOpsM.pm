@@ -2089,7 +2089,9 @@ sub aatoquaternion {
 
   # 2016 updated method to produce closer matching results
   my $sin_a = sin($aaref->[3] / 2);
-  if (abs($sin_a) < 0.00005) {
+  if (abs($sin_a) < 0.00005 && $sin_a != 0.0) {
+    # only use this for tiny non-zero sin values because it is the most
+    # common case: 1 0 0 0
     $sin_a = 1;
   }
 
