@@ -3988,12 +3988,30 @@ sub writebinarymdl {
         $mdxsize += length($buffer);
         print (BMDXOUT $buffer);
       }
-      # skip padding on last node
-      if ($i >= $model->{'nodes'}{'truenodenum'} - 1) {
-        next;
-      }
       # add on the end padding
-      $buffer = pack("f*",10000000, 10000000, 10000000, 0, 0, 0, 0, 0);
+      # 3 1x10^7 floats followed by enough 0's to make one row
+      $buffer = pack(
+        "f*", 10000000, 10000000, 10000000,
+        (0) x ( # using repetition operator to get the correct # of 0's
+          ($model->{'nodes'}{$i}{'mdxdatasize'} / 4) - # floats in a row
+          3 - # subtract the 3 1x10^7s
+          (($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) ? 8 : 0) # subtract 8 skin floats
+        )
+      );
+      # after padding to one row, we may need to pad further to maintain 16-byte alignment,
+      # this is why MDX starting positions always end in 0 in vanilla models
+      if (($mdxsize + length($buffer)) % 16) {
+        # the interior mod operation tells us how many bytes into a 16-byte row we are in
+        # subtracting from 16 gives us the number of bytes we need to add,
+        # divide by 4 to get the number of 4-byte floats we need
+        $buffer .= pack(
+          'f*', (0) x (
+            (16 - (($mdxsize + length($buffer)) % 16)) / 4
+          )
+        );
+      }
+      # this is the old mdlops way based on implicit assumption of 24-byte rows
+      #$buffer = pack("f*",10000000, 10000000, 10000000, 0, 0, 0, 0, 0);
       $mdxsize += length($buffer);
       print (BMDXOUT $buffer);
       if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) {
