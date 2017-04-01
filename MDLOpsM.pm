@@ -2102,6 +2102,33 @@ sub compute_vertex_angle {
   $v2[1] = $pt1[1] - $cpt3[1];
   $v2[2] = $pt1[2] - $cpt3[2];
 
+  @v1 = @{normalize_vector(\@v1)};
+  @v2 = @{normalize_vector(\@v2)};
+
+  # angle = acos(v1 dot v2 / |v1||v2|)
+  my $dot_product = $v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2];
+  # v1 and v2 are normalized, so angle = acos(v1 dot v2)
+  #$angle = acos(
+  #  ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]) /
+  #  (sqrt($v1[0]**2 + $v1[1]**2 + $v1[2]**2) *
+  #   sqrt($v2[0]**2 + $v2[1]**2 + $v2[2]**2))
+  #);
+  $angle = acos($dot_product);
+  if ($dot_product < 0) {
+    # obtuse angle
+    $angle = (2 * pi) - $angle;
+  } elsif ($dot_product == 0) {
+    # same angle, pointing in same direction or opposite?
+    if (vertex_equals(\@v1, \@v2)) {
+      return 0;
+    } else {
+      return pi / 2;
+    }
+  }
+  # acute angle
+  #print Dumper($angle);
+  return $angle;
+
   $v3[0] = -1 * $v1[0] - $v2[0];
   $v3[1] = -1 * $v1[1] - $v2[1];
   $v3[2] = -1 * $v1[2] - $v2[2];
