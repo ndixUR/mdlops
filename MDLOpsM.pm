@@ -1878,9 +1878,11 @@ sub writeasciimdl {
       # properly use the mdx bitmap here
       # there are nodes that contain only slot 2 textures,
       # for example: m12aa_01p in K1
+      # saber mesh does not use MDX, so bypass this check if it claims to be textured
       # TODO: repeat this for texture slots 2-4
       if ($model->{'nodes'}{$i}{'texturenum'} != 0 &&
-          $model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES) {
+          ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES ||
+           $nodetype & NODE_HAS_SABER)) {
         # write out tverts, nwmax requires these to be 3 coordinate numbers
         printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
