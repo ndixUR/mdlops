@@ -2032,6 +2032,52 @@ sub getcontrollername {
 
 #########################################################
 # Used by readasciimdl.
+# Determine if 2 vectors/vertices are equivalent
+# Allows caller to specify precision for matching
+#
+sub vertex_equals {
+  my ($vert1, $vert2, $precision) = @_;
+
+  if (!defined($precision)) {
+    $precision = 6;
+  }
+
+  if ($vert1->[0] == $vert2->[0] &&
+      $vert1->[1] == $vert2->[1] &&
+      $vert1->[2] == $vert2->[2]) {
+    return 1;
+  }
+  if (sprintf(sprintf('%%.%uf', $precision), $vert1->[0]) eq
+      sprintf(sprintf('%%.%uf', $precision), $vert2->[0]) &&
+      sprintf(sprintf('%%.%uf', $precision), $vert1->[1]) eq
+      sprintf(sprintf('%%.%uf', $precision), $vert2->[1]) &&
+      sprintf(sprintf('%%.%uf', $precision), $vert1->[2]) eq
+      sprintf(sprintf('%%.%uf', $precision), $vert2->[2])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+#########################################################
+# Normalize vector passed in as listref, return normalized listref
+#
+sub normalize_vector {
+  my ($vec) = @_;
+
+  my $norm_vec = [ 1, 0, 0 ];
+  my $norm = sqrt($vec->[0]**2 + $vec->[1]**2 + $vec->[2]**2);
+  if ($norm) {
+    $norm_vec = [ map { $_ / $norm } @{$vec} ];
+  }
+
+  return $norm_vec;
+}
+
+
+#########################################################
+# Used by readasciimdl.
 # compute angle as radians between face edges at vertex lp
 # uses edges lp <-> rp1 and lp <-> rp2
 #
@@ -4513,6 +4559,45 @@ sub multiplyquaternions {
   $qtemp[3] = - $q1->[0] * $q2->[0] - $q1->[1] * $q2->[1] - $q1->[2] * $q2->[2] + $q1->[3] * $q2->[3];
   
   @{$q3} = @qtemp;
+}
+
+###########################################################
+# Multiply q1 and q2 and return the result.
+# All quaternions of the form (x, y, z, w). Pass as refs.
+sub quaternion_multiply {
+  my ($quat1, $quat2) = @_;
+  my @q1 = @{$quat1};
+  my @q2 = @{$quat2};
+  # if either is only 3 coordinates, assume this is a point that we are rotating,
+  # which is done by making it into a w = 0 quaternion
+  if (scalar(@q1) == 3) {
+    $q1[3] = 0.0;
+  }
+  if (scalar(@q2) == 3) {
+    $q2[3] = 0.0;
+  }
+  return [
+      $q1[3] * $q2[0] - $q1[2] * $q2[1] + $q1[1] * $q2[2] + $q1[0] * $q2[3],
+      $q1[2] * $q2[0] + $q1[3] * $q2[1] - $q1[0] * $q2[2] + $q1[1] * $q2[3],
+    - $q1[1] * $q2[0] + $q1[0] * $q2[1] + $q1[3] * $q2[2] + $q1[2] * $q2[3],
+    - $q1[0] * $q2[0] - $q1[1] * $q2[1] - $q1[2] * $q2[2] + $q1[3] * $q2[3]
+  ];
+}
+
+###########################################################
+# Apply quaternion rotation to vector/point position
+# This is an application of the 'sandwich product' method of rotating
+# vectors using quaternions: v' = q * v * q^-1
+# The vector is made into a quaternion by adding a 0 scalar (w) value
+sub quaternion_apply {
+  my ($quat, $vertex) = @_;
+  return quaternion_multiply(
+    quaternion_multiply($quat, [ @{$vertex}, 0.0 ]),
+    [ -1.0 * $quat->[0],
+      -1.0 * $quat->[1],
+      -1.0 * $quat->[2],
+      $quat->[3] ]
+  );
 }
 
 #####################################################################
