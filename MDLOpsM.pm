@@ -2871,8 +2871,6 @@ sub readasciimdl {
     # And the flattened vertex list
 
     my %faceareas    = ();
-    our %facenorms   = ();
-    my $vertexlist   = [];
     my $face_by_pos  = {};
 
 
@@ -3084,31 +3082,6 @@ sub readasciimdl {
         }
     }
 
-    # Create a flat list of all vertices in all meshes
-    # Loop through all of the model's nodes
-    for (my $i = 0; $i < $nodenum; $i ++)
-    {
-last;
-        # If  the node has a mesh
-        if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)
-        {
-            # step through the vertices, storing the index in $work
-            foreach $work (keys @{$model{'nodes'}{$i}{'verts'}})
-            {
-                if (!defined($model{'nodes'}{$i}{'verts'}[$work]))
-                {
-                    # this is a sign of something pretty wrong ...
-                    # but it seems to happen
-                    next;
-                }
-                # append (vertex, mesh) hash to list of vertex hashes
-                $vertexlist = [
-                    @{$vertexlist}, { vertex => $work, mesh   => $i }
-                ];
-            }
-        }
-    }
-
     # Create a position-indexed structure containing all vertices in all meshes
     for (my $i = 0; $i < $nodenum; $i++)
     {
@@ -3220,99 +3193,6 @@ last;
         }
     }
 
-    # Create the extended vertfaces map
-    # This map will make it easier to calculate vertex normals and adjacent faces
-    # Loop through all of the model's nodes
-    for (my $i = 0; $i < $nodenum; $i ++)
-    {
-        # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
-            ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
-            # skip non-mesh nodes
-            # skip saber mesh nodes
-            next;
-        }
-last;
-        # start with a copy of vertfaces, a map from vertexes to connected faces
-        my $combomap = { %{$model{'nodes'}{$i}{'vertfaces'}} };
-
-        # step through the vertices, storing the index in $work
-        foreach $work (keys @{$model{'nodes'}{$i}{'verts'}})
-        {
-            # a temporary map for the work vertex, all of its connected faces in node i
-            # this hashref map will save us from a costly search later
-            my $connected_faces = {};
-            # step through all face indexes the work vertex is connected to
-            foreach (@{$model{'nodes'}{$i}{'vertfaces'}{$work}}) {
-                # use preexisting connected face indices as keys here to prevent searching
-                $connected_faces->{$_} = 1;
-            }
-
-            # For each vertex, search through all the other vertices
-            foreach my $vnum (keys @{$vertexlist})
-            {
-                # store comparison vertex index in $work2
-                $work2 = $vertexlist->[$vnum]{vertex};
-                # Don't process yourself!
-                # (match both vertex & mesh numbers, because we are going through _all_ verts)
-                if ($work == $work2 && $vertexlist->[$vnum]{mesh} == $i)
-                {
-                    next;
-                }
-                # If all three coordinates for vertex $work and vertex $work2 match
-                if (abs($model{'nodes'}{$i}{'verts'}[$work]->[0] - $model{'nodes'}{$vertexlist->[$vnum]{mesh}}{'verts'}[$work2]->[0]) < 0.001 &&
-                    abs($model{'nodes'}{$i}{'verts'}[$work]->[1] - $model{'nodes'}{$vertexlist->[$vnum]{mesh}}{'verts'}[$work2]->[1]) < 0.001 &&
-                    abs($model{'nodes'}{$i}{'verts'}[$work]->[2] - $model{'nodes'}{$vertexlist->[$vnum]{mesh}}{'verts'}[$work2]->[2]) < 0.001)
-                {
-                    if (!$model{'nodes'}{$i}{render}) {
-                        # don't use non-rendering mesh for normal calculations
-                        #XXX turn this on sometime
-                        #next;
-                    }
-                    if (!(ref $model{'nodes'}{$vertexlist->[$vnum]{mesh}}{'vertfaces'}{$work2})) {
-                        # this vertex is not in any face? that is INTERESTING
-                        #XXX this was happening because i was using $i instead of $vertexlist->[$vnum]{mesh},
-                        # should now be fixed and this should never really happen
-                        next;
-                    }
-                    # make a copy of the $work2 vertex's vertfaces map
-                    my @faces = @{$model{'nodes'}{$vertexlist->[$vnum]{mesh}}{'vertfaces'}{$work2}};
-                    # test for and prevent duplicates in new vertfaces if work2 and work are in the same mesh
-                    if ($i == $vertexlist->[$vnum]{mesh}) {
-                        # just in case this is overlapping connected geometry,
-                        # let's make sure we don't double any faces
-                        foreach (keys @faces) {
-                            if (defined($connected_faces->{$faces[$_]})) {
-                                # connected faces already contains this face, remove it from @faces
-                                # before it gets duplicated into vertfaces
-                                splice @faces, $_, 1;
-                            }
-                        }
-                    }
-                    # modify each entry in faces before adding to combomap (new vertfaces for this node)
-                    # add mesh as an extra component, signaling non-connectedness:
-                    # remap this list from being a list of face indexes
-                    # into a list of pairs, (face index, node index)
-                    # resulting vertfaces map is going to be a mixture of bare face indexes and pairs,
-                    # but we will handle/use that
-                    @faces = map { [ $_, $vertexlist->[$vnum]{mesh} ] } @faces;
-
-                    # maybe this vertex was not connected to a face?
-                    if (!defined($combomap->{$work})) {
-                        $combomap->{$work} = [];
-                        #printf ("%u %u\n", $i, $work);
-                    }
-
-                    # Add faces connected to vertex work2 to combomap (new vertfaces) for vertex work
-                    $combomap->{$work} = [ @{$combomap->{$work}}, @faces ];
-                }
-            }
-        }
-
-        ##XXX hack for now, copy the combomap back onto vertfaces BECAUSE EASE
-        $model{'nodes'}{$i}{'vertfaces'} = { %{$combomap} };
-    }
-
     # Calculate face surface normals
     # Calculate face tangent and bitangent vectors if bumpmapping
     # Loop through all of the model's nodes
@@ -3338,7 +3218,6 @@ last;
             {
                 my ($p1x, $p1y, $p1z, $p2x, $p2y, $p2z, $p3x, $p3y, $p3z);
                 my ($xpx, $xpy, $xpz, $pd, $norm);
-                my ($Ux, $Uy, $Uz, $Vx, $Vy, $Vz, $Nx, $Ny, $Nz);
 
                 $p1x = $model{'nodes'}{$i}{'verts'}[$_->[8]][0];  # Vertex 1's X
                 $p1y = $model{'nodes'}{$i}{'verts'}[$_->[8]][1];  # Vertex 1's Y
@@ -3352,18 +3231,6 @@ last;
                 $p3y = $model{'nodes'}{$i}{'verts'}[$_->[10]][1]; # Vertex 3's Y
                 $p3z = $model{'nodes'}{$i}{'verts'}[$_->[10]][2]; # Vertex 3's Z
 
-                $Ux = $p2x - $p1x;
-                $Uy = $p2y - $p1y;
-                $Uz = $p2z - $p1z;
-
-                $Vx = $p3x - $p1x;
-                $Vy = $p3y - $p1y;
-                $Vz = $p3z - $p1z;
-
-                $Nx = $Uy * $Vz - $Uz * $Vy;
-                $Ny = $Uz * $Vx - $Ux * $Vz;
-                $Nz = $Ux * $Vy - $Uy * $Vx;
-
                 # Old MDLOps code
                 #calculate the un-normalized cross product and un-normalized plane distance
                 $xpx = $p1y * ($p2z - $p3z) + $p2y * ($p3z - $p1z) + $p3y * ($p1z - $p2z);
@@ -3371,79 +3238,37 @@ last;
                 $xpz = $p1x * ($p2y - $p3y) + $p2x * ($p3y - $p1y) + $p3x * ($p1y - $p2y);
                 $pd  = -$p1x * ($p2y * $p3z - $p3y * $p2z) - $p2x * ($p3y * $p1z - $p1y * $p3z) - $p3x * ($p1y * $p2z - $p2y * $p1z);
 
-                # store the un-normalized values
-                $model{'nodes'}{$i}{'facenormals'}[$count][0] = $xpx;
-                $model{'nodes'}{$i}{'facenormals'}[$count][1] = $xpy;
-                $model{'nodes'}{$i}{'facenormals'}[$count][2] = $xpz;
-
-#                $model{'nodes'}{$i}{'facenormals'}[$count][0] = $Nx;
-#                $model{'nodes'}{$i}{'facenormals'}[$count][1] = $Ny;
-#                $model{'nodes'}{$i}{'facenormals'}[$count][2] = $Nz;
-##                $model{'nodes'}{$i}{'facenormals'}[$count][3] = $_->[4];
 
                 #calculate the normalizing factor
-                my $norm2 = sqrt($xpx**2 + $xpy**2 + $xpz**2);
-                $norm = sqrt(($Nx * $Nx) + ($Ny * $Ny) + ($Nz * $Nz));
+                $norm = sqrt($xpx**2 + $xpy**2 + $xpz**2);
 
 #               print "Normalizing calculated: $norm\n";
 
                 # Check for $norm being 0 to prevent illegal division by 0...
-                if($norm == 0)
+                $model{'nodes'}{$i}{'facenormals'}[$count] = normalize_vector([ $xpx, $xpy, $xpz ]);
+
+                if ($norm != 0)
                 {
-                    #$facenorms{$i}{$count}{X} = 0;
-                    #$facenorms{$i}{$count}{Y} = 0;
-                    #$facenorms{$i}{$count}{Z} = 0;
-
-                    $model{'nodes'}{$i}{'facenormals'}[$count][0] = 0;
-                    $model{'nodes'}{$i}{'facenormals'}[$count][1] = 0;
-                    $model{'nodes'}{$i}{'facenormals'}[$count][2] = 0;
+                    # also normalize the plane distance, critical for aabb
+                    # not really normalization, just pretending to have been constructed from
+                    # normalized vectors
+                    $pd /= $norm;
+                } else {
+                    print("Overlapping vertices in node: $model{'partnames'}[$i]\n");
+                    print("x: $p1x, y: $p1y, z: $p1z\n");
+                    print("x: $p2x, y: $p2y, z: $p2z\n");
+                    print("x: $p3x, y: $p3y, z: $p3z\n");
                 }
-                else
-                {
-#                   print "\$Nx: $Nx\n\$Ny: $Ny\n\$Nz: $Nz\n\n\$Nx^2: " . $Nx * $Nx . "\n\$Ny^2: " . $Ny * $Ny . "\n\$Nz^2: " . $Nz * $Nz . "\n\n";
-
-                   #$facenorms{$i}{$count}{X} = ($Nx / $norm);
-                   #$facenorms{$i}{$count}{Y} = ($Ny / $norm);
-                   #$facenorms{$i}{$count}{Z} = ($Nz / $norm);
-
-                   $model{'nodes'}{$i}{'facenormals'}[$count][0] /= $norm2;
-                   $model{'nodes'}{$i}{'facenormals'}[$count][1] /= $norm2;
-                   $model{'nodes'}{$i}{'facenormals'}[$count][2] /= $norm2;
-                }
-$facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
-
+                # store the normalized values;
+                $_->[0] = $model{'nodes'}{$i}{'facenormals'}[$count][0];
+                $_->[1] = $model{'nodes'}{$i}{'facenormals'}[$count][1];
+                $_->[2] = $model{'nodes'}{$i}{'facenormals'}[$count][2];
+                $_->[3] = $pd;
 #                if($i == 87) { print LOG "Normals for Face $count: " . $Nx/$norm . " " . $Ny/$norm . " " . $Nz/$norm . "\n"; }
 
                 $count++;
 #                print "Count increasing\n";
 
-                if ($norm == 0)
-                {
-                    print("Overlapping vertices in node: $model{'partnames'}[$i]\n");
-                    print("x: $p1x, y: $p1y, z: $p1z\n");
-                    print("x: $p2x, y: $p2y, z: $p2z\n");
-                    print("x: $p3x, y: $p3y, z: $p3z\n");
-                    #return -1;  # this is commented out to ignore overlapping vertices errors
-
-                    $_->[0] = 0;
-                    $_->[1] = 0;
-                    $_->[2] = 0;
-                    $_->[3] = 0;
-                }
-                else
-                {
-                    # store the normalized values;
-                   $_->[0] = $xpx / $norm;
-                   $_->[1] = $xpy / $norm;
-                   $_->[2] = $xpz / $norm;
-                   # also normalize the plane distance, critical for aabb
-                   $_->[3] = $pd  / $norm;
-
-#                    $_->[0] = $facenorms{$i}{$count}{X};
-#                    $_->[1] = $facenorms{$i}{$count}{Y};
-#                    $_->[2] = $facenorms{$i}{$count}{Z};
-#                    $_->[3] = 0;
-                }
                 # print ("$i " . $_->[0] . " " . $_->[1] . " " . $_->[2] . " " . $_->[3] . "\n");
 
                 # determine whether this node uses normal/bump mapping requiring tangent space calculations
@@ -3644,7 +3469,6 @@ $facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
             }
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
                 map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]}
-                #map { $_ * $weight_factor } @{$facenorms{$meshA}[$faceA]}
             ];
             # initialize tangent space vectors with value from chosen face vectors
             if (defined($model{'nodes'}{$meshA}{'facetangents'}) &&
@@ -3663,16 +3487,24 @@ $facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
                 ];
             }
             for my $pos_data (@{$position_data}) {
+                # prevent vertex normal accumulation for AABB nodes
+                #if ($model{'nodes'}{$i}{'nodetype'} & NODE_AABB) {
+                #    last;
+                #}
                 my $meshB = $pos_data->{mesh};
                 for my $faceB (@{$pos_data->{faces}}) {
+                    # skip self (test face index and node index!)
                     if ($meshB == $meshA && $faceB == $faceA) {
                         $printall and print "skip self\n";
                         next;
                     }
+                    # don't let rendering geometry influence non-rendering, and vice versa
                     if ($model{'nodes'}{$meshA}{'render'} != $model{'nodes'}{$meshB}{'render'}) {
                         $printall and print "skip visibility mismatch\n";
                         next;
                     }
+                    # don't let influence of geometry from different smooth groups accumulate into the vertex normal
+                    # TODO resolve smooth group numbers vs. surface IDs...
                     if ($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] != $sgA) {
                         $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
                         next;
@@ -3686,7 +3518,6 @@ $facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
 #                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] +
 #                           $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[2] *
 #                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2]) > pi / 3){
-                        #($face_angle_through_vertex <= pi / 8)) {
                         if ($model{'nodes'}{$meshA}{'render'}) {
                         # it is not at all clear what this should be yet
                             $printall and printf(
@@ -3726,22 +3557,24 @@ $facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
                       printf "skip %u bad %u face: %u\n", $meshA, $meshB, $faceB;
                       next;
                     }
+                    # honor the use_weights boolean to override weights calculations
+                    # to 1 & 1 until they can be verified correct
                     if (!$use_weights) {
                       $area = 1;
                       $angle = 1;
                     }
+                    # apply angle & area weight to faceB surface normal and
+                    # accumulate the x, y, and z components of the vertex normal vector
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] * $area * $angle
-                        #$facenorms{$meshB}[$faceB]->[0] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] * $area * $angle
-                        #$facenorms{$meshB}[$faceB]->[1] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2] * $area * $angle
-                        #$facenorms{$meshB}[$faceB]->[2] * $area * $angle
                     );
+                    # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
                     if (defined($model{'nodes'}{$meshB}{'facetangents'}[$faceB])) {
                         $model{'nodes'}{$i}{'vertextangents'}[$work]->[0] += (
                             $model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[0] * $area * $angle
@@ -3764,220 +3597,16 @@ $facenorms{$i}[$count] = [ $xpx, $xpy, $xpz ];
                     }
                 }
             }
-            $model{'nodes'}{$i}{'vertexnormals'}{$work} = normalize_vector($model{'nodes'}{$i}{'vertexnormals'}{$work});
+            # vertex normals are now computed, normalize the vector and store
+            $model{'nodes'}{$i}{'vertexnormals'}{$work} = normalize_vector(
+                $model{'nodes'}{$i}{'vertexnormals'}{$work}
+            );
             if (defined($model{'nodes'}{$i}{'vertextangents'}) &&
                 defined($model{'nodes'}{$i}{'vertextangents'}[$work])) {
                 # construct the MDX-ready representation of the tangent space data
                 $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
                     @{normalize_vector($model{'nodes'}{$i}{'vertexbitangents'}[$work])},
                     @{normalize_vector($model{'nodes'}{$i}{'vertextangents'}[$work])},
-                    @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
-                ];
-            }
-        }
-next;
-        # step through the vertices in this mesh
-        foreach $work (keys @{$model{'nodes'}{$i}{'verts'}})
-        {
-            # choose a face to calculate from,
-            # give priority to face in smoothgroup with maximum surface area,
-            # i believe this only matters in resolving the impossible situation
-            # of different smooth-groups in faces across an edge defined by
-            # connected vertices (as opposed to separate but overlapping vertices),
-            # because of the 1:1 relationship between vertex normals and vertices
-            my $best_area = 0;
-            my $meshA = $i;
-            my $faceA = -1;
-            # step through all faces adjacent to the $work vertex
-            foreach ( @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ) {
-                my $test_node = $i;
-                # test for not-actually-connected adjacent geometry
-                if (ref $_ eq 'ARRAY') {
-                    # do not consider using a face in a different mesh,
-                    # or an unconnected adjacent face in the same mesh
-                    # as our own connected geometry
-                    # ... unless this vertex isn't connected to any faces!
-                    if ($faceA == -1) {
-                        $best_area = $model{'surfacearea_by_group'}->{$model{'nodes'}{$_->[0]}{'Bfaces'}[$_->[1]]->[4]};
-                        $meshA = $_->[1];
-                        $faceA = $_->[0];
-                    }
-                    next;
-                }
-                if (defined($model{'nodes'}{$test_node}{'Bfaces'}[$_]) &&
-                    $model{'surfacearea_by_group'}->{$model{'nodes'}{$test_node}{'Bfaces'}[$_]->[4]} > $best_area) {
-                    # record current best (greatest) smooth-group surface area
-                    $best_area = $model{'surfacearea_by_group'}->{$model{'nodes'}{$test_node}{'Bfaces'}[$_]->[4]};
-                    # use this face as the main face under consideration
-                    $faceA = $_;
-                }
-            }
-            # make sure a face was found
-            if ($faceA == -1) {
-                # no face matched, weird, just 0 the normals and go to the next vertex
-                $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 0, 0, 0 ];
-                next;
-            }
-
-            # initialize vertex normal with value from chosen face surface normal
-            $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]} ];
-            # initialize tangent space vectors with value from chosen face vectors
-            if (defined($model{'nodes'}{$meshA}{'facetangents'}) &&
-                defined($model{'nodes'}{$meshA}{'facetangents'}[$faceA])) {
-                $model{'nodes'}{$i}{'vertextangents'}[$work] = [ @{$model{'nodes'}{$meshA}{'facetangents'}[$faceA]} ];
-                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ @{$model{'nodes'}{$meshA}{'facebitangents'}[$faceA]} ];
-                # this is where we store the final numbers, store them now in case the calculations get skipped
-                $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
-                    @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
-                    @{$model{'nodes'}{$i}{'vertextangents'}[$work]},
-                    @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
-                ];
-            }
-            # skip better vertex normal calculations for non-rendering geometry
-            if (!$model{'nodes'}{$i}{render}) {
-                next;
-            }
-
-#            print Dumper($model{'surfacearea_by_group'});
-#            printf(
-#                "using group %u face %u for vert %u in node %u, connected to %u faces: %s\n",
-#                $model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[4], $faceA, $work, $i, scalar(@{$model{'nodes'}{$i}{'vertfaces'}{$work}}),
-#                join(', ', map { ref $_ ? join(',', @{$_}) : $_ } @{$model{'nodes'}{$i}{'vertfaces'}{$work}})
-#            );
-
-            # step through all faces adjacent to $work vertex
-            foreach ( @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ) {
-                my $meshB = $i;
-                # test for not-actually-connected adjacent geometry
-                if (ref $_ eq 'ARRAY') {
-                    $meshB = $_->[1];
-                    $_ = $_->[0];
-                }
-                my $faceB = $_;
-                # skip self (test face index and node index!)
-                if ($faceB == $faceA && $meshB == $meshA) { next; }
-                # make sure face $faceB exists in node $meshB
-                if (!defined($model{'nodes'}{$meshB}{'Bfaces'}[$faceB])) { next; }
-                # don't let influence of geometry from different smooth groups accumulate into the vertex normal
-                if ($model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[4] != $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4]) { next; } #print ("$_ skipped\n"); next; }
-                # don't let influence of geometry across excessive crease angles accumulate into the vertex normal,
-                # currently only doing this for trimesh,
-                # this calculation is based on angle between normals, not the actual angle between face planes
-                if ($model{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH &&
-                    acos($model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[0] *
-                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] +
-                         $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[1] *
-                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] +
-                         $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[2] *
-                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2]) > pi / 4.0) { next; }
-                #print "$_ not skipped\n";
-                # use already computed area for surface area weight
-                my $area = $faceareas{$meshB}{$faceB};
-                # initialize angle to 1 in case no vertices match somehow
-                my $angle = 1;
-                # store faceB vertices in listrefs $bv1-3
-                my ($bv1, $bv2, $bv3) = (
-                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
-                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
-                    $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
-                );
-                if ($model{'nodes'}{$i}{'verts'}[$work][0] == $bv1->[0] &&
-                    $model{'nodes'}{$i}{'verts'}[$work][1] == $bv1->[1] &&
-                    $model{'nodes'}{$i}{'verts'}[$work][2] == $bv1->[2])
-                {
-                    $angle = compute_vertex_angle($bv1, $bv2, $bv3);
-                }
-                elsif ($model{'nodes'}{$i}{'verts'}[$work][0] == $bv2->[0] &&
-                       $model{'nodes'}{$i}{'verts'}[$work][1] == $bv2->[1] &&
-                       $model{'nodes'}{$i}{'verts'}[$work][2] == $bv2->[2])
-                {
-                    $angle = compute_vertex_angle($bv2, $bv1, $bv3);
-                }
-                elsif ($model{'nodes'}{$i}{'verts'}[$work][0] == $bv3->[0] &&
-                       $model{'nodes'}{$i}{'verts'}[$work][1] == $bv3->[1] &&
-                       $model{'nodes'}{$i}{'verts'}[$work][2] == $bv3->[2])
-                {
-                    $angle = compute_vertex_angle($bv3, $bv1, $bv2);
-                }
-                #printf("%s %s\n", $area, $angle);
-                #print Dumper($model{'nodes'}{$mesh}{'vertexnormals'}{$work});
-
-                # honor the use_weights boolean to override weights calculations
-                # to 1 & 1 until they can be verified correct
-                if (!$use_weights) {
-                  $area = 1;
-                  $angle = 1;
-                }
-                # apply angle & area weight to faceB surface normal and
-                # accumulate the x, y, and z components of the vertex normal vector
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] * $area * $angle);
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] * $area * $angle);
-                $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += ($model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2] * $area * $angle);
-                # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
-                if (defined($model{'nodes'}{$meshB}{'facetangents'}[$faceB])) {
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[0] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[0] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[1] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[1] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertextangents'}[$work]->[2] += ($model{'nodes'}{$meshB}{'facetangents'}[$faceB]->[2] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[0] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[1] * $area * $angle);
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] += ($model{'nodes'}{$meshB}{'facebitangents'}[$faceB]->[2] * $area * $angle);
-                }
-            }
-            # normalize the vertex normal
-            #print "unnormalized:\n";
-            #print Dumper($model{'nodes'}{$i}{'vertexnormals'}{$work});
-            # compute the normalizing factor
-            my $normalizing_factor = sqrt(
-                ($model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] ** 2) +
-                ($model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] ** 2) +
-                ($model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] ** 2)
-            );
-            # normalize the vertex normal by applying the computed factor
-            if ($normalizing_factor) {
-                # divide each component by normalizing factor
-                $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
-                    map { $_ / $normalizing_factor } @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
-                ];
-            }
-            else
-            {
-                # normalization failed!
-                $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 0, 0, 0 ];
-            }
-            #print "normalized:\n";
-            #print Dumper($model{'nodes'}{$i}{'vertexnormals'}{$work});
-            # normalize the averaged vertex tangent and bitangent vectors, for bump-mapped textures
-            if (defined($model{'nodes'}{$i}{'vertextangents'}) &&
-                defined($model{'nodes'}{$i}{'vertextangents'}[$work])) {
-                my $bnormalizing_factor;
-                $bnormalizing_factor = sqrt(
-                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[0] ** 2) +
-                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[1] ** 2) +
-                    ($model{'nodes'}{$i}{'vertextangents'}[$work]->[2] ** 2)
-                );
-                # normalize the averaged tangent vector by applying the computed factor
-                if ($bnormalizing_factor) {
-                    # divide each component by normalizing factor
-                    $model{'nodes'}{$i}{'vertextangents'}[$work] = [
-                        map { $_ / $bnormalizing_factor } @{$model{'nodes'}{$i}{'vertextangents'}[$work]}
-                    ];
-                }
-                $bnormalizing_factor = sqrt(
-                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[0] ** 2) +
-                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[1] ** 2) +
-                    ($model{'nodes'}{$i}{'vertexbitangents'}[$work]->[2] ** 2)
-                );
-                # normalize the averaged bitangent vector by applying the computed factor
-                if ($bnormalizing_factor) {
-                    # divide each component by normalizing factor
-                    $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [
-                        map { $_ / $bnormalizing_factor } @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]}
-                    ];
-                }
-                # construct the MDX-ready representation of the tangent space data
-                $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
-                    @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
-                    @{$model{'nodes'}{$i}{'vertextangents'}[$work]},
                     @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
                 ];
             }
@@ -3992,200 +3621,6 @@ next;
                        #@{$model{'nodes'}{$i}{'vertexnormals'}{$_}});
             }
         }
-    }
-
-    # Calculate adjacent faces
-    #XXX this is the old way, it is being skipped
-    # Loop through all of the model's nodes
-    for (my $i = 0; $i < $nodenum; $i ++)
-    {
-        # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
-            # skip non-mesh nodes
-            next;
-        }
-        #XXX SKIPPING THIS OLD TECHNIQUE !!! retained for time comparison
-        last;
-
-        my @facecount;
-        #find the adjacent faces
-        if (($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) && !($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER))
-        {
-            print("\nfinding adjacent faces for node $i-$model{'partnames'}[$i]\n") if $printall;
-            #print($model{'nodes'}{$i}{'facesnum'} . " faces");
-            @facecount = ();
-            $work = 0;
-            $t = [gettimeofday];
-
-            #step through the faces
-            for (my $j = 0; $j < $model{'nodes'}{$i}{'facesnum'}; $j++)
-            {
-                #printf("\rworking on face: %6s of %d", $j, $model{'nodes'}{$i}{'facesnum'});
-                if ($facecount[$j] < 3)
-                {
-                    #step through all the faces after the face in loop $j
-                    for (my $k = $j+1; $k < $model{'nodes'}{$i}{'facesnum'}; $k++)
-                    {
-                        #step through the vertices in face $j
-                        for (my $l = 0; $l < 3; $l++)
-                        {
-                            #step through the vertices in face $k
-                            for (my $m = 0; $m < 3; $m++)
-                            {
-                                #see if the x coordinates of the two vertices match
-                                $temp1 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$j][8+$l]][0];
-                                $temp2 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$k][8+$m]][0];
-                                if ( $temp1 == $temp2)
-                                {
-                                    #ok, the x coordinates match, now lets see about y and z
-
-                                    $temp1 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$j][8+$l]][1];
-                                    $temp2 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$k][8+$m]][1];
-                                    $temp3 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$j][8+$l]][2];
-                                    $temp4 = $model{'nodes'}{$i}{'verts'}[$model{'nodes'}{$i}{'Bfaces'}[$k][8+$m]][2];
-
-                                    if ($temp1 == $temp2 && $temp3 == $temp4)
-                                    {
-                                        #ok, all 3 coordinates match
-
-                                        #log for face 1 which vertex matches
-                                        $f1matches += 2**$l;
-
-                                        #log for face 2 which vertex matches
-                                        $f2matches += 2**$m;
-                                    }
-                                }
-                            } #for $m
-                        } #for $l
-
-                        #check to see if we have 2 matching verticies
-                        if ($f1matches == 3)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$j][5] = $k;  #vertices 0 and 1 in face $j match 2 verticies in face $k
-                            $facecount[$j]++;
-                        }
-                        elsif ($f1matches == 6)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$j][6] = $k;  #vertices 1 and 2 in face $j match 2 verticies in face $k
-                            $facecount[$j]++;
-                        }
-                        elsif ($f1matches == 5)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$j][7] = $k;  #vertices 0 and 2 in face $j match 2 verticies in face $k
-                            $facecount[$j]++;
-                        }
-
-                        if ($f2matches == 3)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$k][5] = $j;  #vertices 0 and 1 in face $k match 2 verticies in face $j
-                            $facecount[$k]++;
-                        }
-                        elsif ($f2matches == 6)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$k][6] = $j;  #vertices 1 and 2 in face $k match 2 verticies in face $j
-                            $facecount[$k]++;
-                        }
-                        elsif ($f2matches == 5)
-                        {
-                            $model{'nodes'}{$i}{'Bfaces'}[$k][7] = $j;  #vertices 0 and 2 in face $k match 2 verticies in face $j
-                            $facecount[$k]++;
-                        }
-
-                        $f1matches = 0;
-                        $f2matches = 0;
-
-                        # this is probably bad form, but it works and I am lazy
-                        if($facecount[$j] > 2)
-                        {
-                            $k = $model{'nodes'}{$i}{'facesnum'};
-                        }
-                    } #for $k
-                } # test abort if 
-            } #for $j
-        #print("\ncompleted in: " . tv_interval ($t) . " seconds\n") if $printall;
-        print("\nold completed in: " . tv_interval ($t) . " seconds\n");
-        } #if nodetype
-    }
-
-    # Calculate adjacent faces using the vertfaces map
-    # Loop through all of the model's nodes
-    for (my $i = 0; $i < $nodenum; $i ++)
-    {
-        # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
-            # skip non-mesh nodes
-            next;
-        }
-last;
-        $t = [gettimeofday];
-        my $results = {};
-
-        # step through all faces for this node, store face index in $j
-        for my $j (keys @{$model{'nodes'}{$i}{'Bfaces'}})
-        {
-            # place vertface maps for each of face $j's 3 vertices into $vfs listref
-            my $vfs = [
-                $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][8]},
-                $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][9]},
-                $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][10]}
-            ];
-            # we know that vfs[0] has all faces adjacent to 1,
-            # vfs[1] all adjacent to 2, vfs[2] all adjacent to 3
-            # initialize matches hash with one hash per face vertex
-            my $matches = {
-                0 => {},
-                1 => {},
-                2 => {}
-            };
-            # translate vertfaces from vfs and place results into matches
-            # step through 0,1,2 for 3 vertices of face $j
-            for (my $l = 0; $l < 3; $l++) {
-                # matches should be left only with indices of faces in the same node
-                # and we want the face indices to be keys in their respective matches hash
-                # for ease of comparison in the next step
-                $matches->{$l} = {
-                    # this map command takes the results of the grep (a list of indices)
-                    # and uses the listed values as hash keys
-                    map { if (ref $_ ne '') { $_->[0] => 1 } else { $_ => 1 } }
-                    # this grep command only returns either:
-                    #   connected face index numbers that are not $j
-                    #   OR
-                    #   unconnected face index numbers from mesh $i that are not $j
-                    grep { (ref $_ eq '' && $_ != $j) ||
-                           (ref $_ ne '' && ($_->[0] != $j && $_->[1] == $i)) } @{$vfs->[$l]}
-                };
-            }
-            # step through 0,1,2 for 3 vertices of face $j
-            for (my $l = 0; $l < 3; $l++) {
-                # step through all faces adjacent to vertex $l
-                foreach(keys %{$matches->{$l}}) {
-                    # testing for 2 vertex match (aka, an edge match)
-                    # so use $l and $l + 1, unless we are on 2,
-                    # when we use $l and $l - 2.
-                    my $next = $l == 2 ? -2 : 1;
-                    # if $l + $next entry is set, we have found an edge,
-                    # and this is an adjacent face, record it in results
-                    if ($matches->{$l + $next}{$_}) {
-                        $results->{$j}[$l] = $_;
-                    }
-                }
-                if ((defined($results->{$j}[$l]) &&
-                     $results->{$j}[$l] != $model{'nodes'}{$i}{'Bfaces'}[$j][5 + $l]) ||
-                    (!defined($results->{$j}[$l]) &&
-                     $model{'nodes'}{$i}{'Bfaces'}[$j][5 + $l] != -1)) {
-                    # this block was for testing against the old method's results
-                    # testing showed that the new method works better, because
-                    # it has a better understanding of overlapping geometry
-                    # (the old method required exact matches, the new uses a set tolerance)
-                }
-                # record the adjacent face result in Bfaces entry
-                if (defined($results->{$j}[$l])) {
-                    $model{'nodes'}{$i}{'Bfaces'}[$j][5 + $l] = $results->{$j}[$l];
-                }
-            }
-            delete $results->{$j};
-        }
-        print("\ncompleted in: " . tv_interval ($t) . " seconds\n") if $printall;
     }
 
     # Calculate adjacent faces using the face-by-position map
@@ -4222,11 +3657,6 @@ last;
 #);
 #print Dumper($position_data);
             # place vertface maps for each of face $j's 3 vertices into $vfs listref
-            #my $vfs = [
-            #    $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][8]},
-            #    $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][9]},
-            #    $model{'nodes'}{$i}{'vertfaces'}{$model{'nodes'}{$i}{'Bfaces'}[$j][10]}
-            #];
             my $vfs = [ [], [], [] ];
             for my $facevert (0..2) {
                 for my $pos_data (@{$position_data->[$facevert]}) {
@@ -4250,11 +3680,6 @@ last;
             # we know that vfs[0] has all faces adjacent to 1,
             # vfs[1] all adjacent to 2, vfs[2] all adjacent to 3
             # initialize matches hash with one hash per face vertex
-            #my $matches = {
-            #    0 => {},
-            #    1 => {},
-            #    2 => {}
-            #};
             my $matches = {
                 0 => { map { $_ => 1 } grep { $_ != $j } @{$vfs->[0]} },
                 1 => { map { $_ => 1 } grep { $_ != $j } @{$vfs->[1]} },
