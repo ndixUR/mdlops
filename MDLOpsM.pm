@@ -1402,7 +1402,13 @@ my $dothis = 0;
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10];
-      $ref->{$node}{'Afaces'}[$i] .=" 1";
+      if ($nodetype & NODE_HAS_AABB) {
+        # surface/material ID is important/meaningful for AABB nodes
+        $ref->{$node}{'Afaces'}[$i] .= sprintf(' %u', $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4]);
+      } else {
+        # otherwise, use material "1", which will get the selected texture(s)
+        $ref->{$node}{'Afaces'}[$i] .=" 1";
+      }
       #$ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4];
       $ref->{$node}{'Bfaces'}[$i] = [@{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}}[$temp..$temp+10]];
     }
