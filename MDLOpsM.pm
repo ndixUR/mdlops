@@ -1616,6 +1616,10 @@ sub writeasciimdl {
     # once the UI is updated, remove legacy params
     $options->{extract_anims} = $extractanims;
   }
+  # convert bezier animation controllers to linear
+  if (!defined($options->{convert_bezier})) {
+    $options->{convert_bezier} = 0;
+  }
 
   $file = $model->{'filename'};
   $filepath = $model->{'filepath+name'};
@@ -2023,9 +2027,22 @@ sub writeasciimdl {
               if ($temp != 0) {
                 print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
               }
-              printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
+              printf(MODELOUT "    controller%u%skey\n", $temp, !$options->{convert_bezier} ? $keytype : '');
             }
             foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
+              # convert bezier controller data to linear, not a true conversion,
+              # we are just dropping the control points, as has been done historically
+              if ($options->{convert_bezier} && $keytype eq 'bezier') {
+                # split into an array
+                $_ = [ split(/\s+/, $_) ];
+                if (scalar(@{$_}) > 8) {
+                  # remove last 6 items from array, which are the bezier control points
+                  $_ = join(' ', @{$_}[0..scalar(@{$_}) - 7]);
+                } else {
+                  # malformed data, should have had 1 time, 1+ data, and 6 control point
+                  $_ = join(' ', @{$_});
+                }
+              }
               printf(MODELOUT "      %s\n", $_);
             }
             print(MODELOUT "    endlist\n");
