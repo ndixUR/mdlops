@@ -2355,6 +2355,17 @@ sub readasciimdl {
   if(!defined($options->{use_weights})) {
     $options->{use_weights} = 1;
   }
+  # use crease angle test for vertex normal averaging
+  if (!defined($options->{use_crease_angle})) {
+    $options->{use_crease_angle} = 1;
+  }
+  # specific crease angle to test for in vertex normal averaging
+  if (!defined($options->{crease_angle}) ||
+      $options->{crease_angle} < 0 ||
+      $options->{crease_angle} > 2 * pi) {
+    $options->{crease_angle} = pi / 2;
+  }
+
 
   #extract just the name
   $buffer =~ /(.*\\)*(.*)\.mdl/;
@@ -3567,8 +3578,9 @@ sub readasciimdl {
                         next;
                     }
                     if ($model{'nodes'}{$i}{'nodetype'} & NODE_TRIMESH &&
+                        $options->{use_crease_angle} &&
                         compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
-                                             $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0) > pi / 2) {
+                                             $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0) > $options->{crease_angle}) {
 #                      acos($model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[0] *
 #                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] +
 #                           $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[1] *
