@@ -3529,6 +3529,11 @@ sub readasciimdl {
             if (!$options->{use_weights}) {
                 $weight_factor = 1;
             }
+            if ($options->{use_weights} &&
+                $model{'nodes'}{$i}{'nodetype'} & NODE_HAS_AABB) {
+              # not using angle weight for aabb vertex normals
+              $weight_factor = $faceareas{$meshA}{$faceA};
+            }
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
                 map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]}
             ];
@@ -3549,10 +3554,6 @@ sub readasciimdl {
                 ];
             }
             for my $pos_data (@{$position_data}) {
-                # prevent vertex normal accumulation for AABB nodes
-                #if ($model{'nodes'}{$i}{'nodetype'} & NODE_AABB) {
-                #    last;
-                #}
                 my $meshB = $pos_data->{mesh};
                 for my $faceB (@{$pos_data->{faces}}) {
                     # skip self (test face index and node index!)
@@ -3565,13 +3566,22 @@ sub readasciimdl {
                         $printall and print "skip visibility mismatch\n";
                         next;
                     }
+                    if (($model{'nodes'}{$meshA}{'nodetype'} & NODE_HAS_AABB) &&
+                        $meshA != $meshB) {
+                        # prevent cross-mesh vertex normal accumulation for AABB nodes
+                        $printall and printf(
+                            "skip non-AABB for vertex normals in AABB %s %s\n",
+                            $model{partnames}[$meshA], $model{partnames}[$meshB]
+                        );
+                        next;
+                    }
                     # don't let influence of geometry from different smooth groups accumulate into the vertex normal
                     # TODO resolve smooth group numbers vs. surface IDs...
                     if ($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] != $sgA) {
                         $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
                         next;
                     }
-                    if ($model{'nodes'}{$i}{'nodetype'} & NODE_TRIMESH &&
+                    if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH &&
                         $options->{use_crease_angle} &&
                         compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
                                              $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0) > $options->{crease_angle}) {
@@ -3613,18 +3623,22 @@ sub readasciimdl {
                     {
                         $angle = compute_vertex_angle($bv3, $bv1, $bv2);
                     }
-                    if ($angle == -1) {
-                      # if angle does not get computed, this is usually a miss
-                      # due to vertex comparison precision. in a perfect world
-                      # we would lower precision and retry.
-                      printf "skip %u bad %u face: %u\n", $meshA, $meshB, $faceB;
-                      next;
+                    if ($options->{use_weights} && $angle == -1) {
+                        # if angle does not get computed, this is usually a miss
+                        # due to vertex comparison precision. in a perfect world
+                        # we would lower precision and retry.
+                        printf "skip %u bad %u face: %u\n", $meshA, $meshB, $faceB;
+                        next;
                     }
                     # honor the use_weights boolean to override weights calculations
                     # to 1 & 1 until they can be verified correct
                     if (!$options->{use_weights}) {
-                      $area = 1;
-                      $angle = 1;
+                        $area = 1;
+                        $angle = 1;
+                    }
+                    if ($model{'nodes'}{$meshA}{'nodetype'} & NODE_HAS_AABB) {
+                        # never use angle weighted calculation for aabb...
+                        $angle = 1;
                     }
                     # apply angle & area weight to faceB surface normal and
                     # accumulate the x, y, and z components of the vertex normal vector
