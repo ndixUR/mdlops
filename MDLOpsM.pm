@@ -428,9 +428,20 @@ sub modelversion
 #
 sub readbinarymdl
 {
-    my ($buffer, $extractanims, $version) = (@_);
+    my ($buffer, $extractanims, $version, $options) = (@_);
     my %model;
     my ($temp, $file, $filepath, %bitmaps);
+
+    # handle options, fill in default values
+    if (!defined($options)) {
+      $options = {};
+    }
+    # write animations in ascii model
+    if (!defined($options->{extract_anims})) {
+      #$options->{extract_anims} = 1;
+      # once the UI is updated, remove legacy params
+      $options->{extract_anims} = $extractanims;
+    }
 
     #extract just the name of the model
     $buffer =~ /(.*\\)*(.*)\.mdl/;
@@ -535,7 +546,7 @@ sub readbinarymdl
     $temp = getnodes('nodes', 'NULL', $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
 
     #read in the animation indexes
-    if ($model{'numanims'} != 0 && $extractanims == 1)
+    if ($model{'numanims'} != 0 && $options->{extract_anims})
     {
         $temp = $model{'animstart'} + 12;
         seek(MODELMDL, $temp, 0);
@@ -1583,11 +1594,28 @@ sub getnodelist {
 # write out a model in ascii format
 # 
 sub writeasciimdl {
-  my ($model, $convertskin, $extractanims) = (@_);
+  my ($model, $convertskin, $extractanims, $options) = (@_);
   my ($file, $filepath, $node);
   my ($argh1, $argh2, $argh3, $argh4);
   my ($nodetype, $temp, $temp2, %bitmaps);
   my ($controller, $controllername, @args);
+
+  # handle options, fill in default values
+  if (!defined($options)) {
+    $options = {};
+  }
+  # convert skin nodes to trimesh
+  if (!defined($options->{convert_skin})) {
+    #$options->{convert_skin} = 0;
+    # once the UI is updated, remove legacy params
+    $options->{convert_skin} = $convertskin;
+  }
+  # write animations in ascii model
+  if (!defined($options->{extract_anims})) {
+    #$options->{extract_anims} = 1;
+    # once the UI is updated, remove legacy params
+    $options->{extract_anims} = $extractanims;
+  }
 
   $file = $model->{'filename'};
   $filepath = $model->{'filepath+name'};
@@ -1633,9 +1661,9 @@ sub writeasciimdl {
       $temp2 = "emitter";
     } elsif ($nodetype == NODE_DANGLYMESH) {
       $temp2 = "danglymesh";
-    } elsif ($nodetype == NODE_SKIN && $convertskin == 0) {
+    } elsif ($nodetype == NODE_SKIN && !$options->{convert_skin}) {
       $temp2 = "skin";
-    } elsif ($nodetype == NODE_SKIN && $convertskin == 1) {
+    } elsif ($nodetype == NODE_SKIN && $options->{convert_skin}) {
       $temp2 = "trimesh";
     } elsif ($nodetype == NODE_TRIMESH) {
       $temp2 = "trimesh";
@@ -1929,7 +1957,7 @@ sub writeasciimdl {
           printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
         }
       }
-      if ($nodetype == NODE_SKIN && $convertskin == 0) {
+      if ($nodetype == NODE_SKIN && !$options->{convert_skin}) {
         printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         foreach ( @{$model->{'nodes'}{$i}{'Abones'}} ) {
           printf(MODELOUT "    %s\n", $_);
@@ -1959,7 +1987,7 @@ sub writeasciimdl {
 
     
   # write out the animations if there are any and we are told to do so
-  if ($model->{'numanims'} != 0 && $extractanims == 1) {
+  if ($model->{'numanims'} != 0 && $options->{extract_anims}) {
     # loop through the animations
     for (my $i = 0; $i < $model->{'numanims'}; $i++) {
       printf(MODELOUT "\nnewanim %s %s\n", $model->{'anims'}{$i}{'name'}, $model->{'partnames'}[0]);
@@ -2288,7 +2316,7 @@ sub readasciicontroller {
 # Read in an ascii model
 # 
 sub readasciimdl {
-  my ($buffer, $supercheck, $use_weights) = (@_);
+  my ($buffer, $supercheck, $options) = (@_);
   my ($file, $filepath);
   my %model={};
   my $supermodel;
@@ -2303,7 +2331,14 @@ sub readasciimdl {
   my $t;
   my $ASCIIMDL;
 
-  if(defined($use_weights) == 0) { $use_weights = 0; }
+  # set up default options for functionality
+  if (!defined($options)) {
+    $options = {};
+  }
+  # use area and angle weighted vertex normal averaging
+  if(!defined($options->{use_weights})) {
+    $options->{use_weights} = 1;
+  }
 
   #extract just the name
   $buffer =~ /(.*\\)*(.*)\.mdl/;
@@ -3470,7 +3505,7 @@ sub readasciimdl {
             {
                 $weight_factor *= compute_vertex_angle($av3, $av1, $av2);
             }
-            if (!$use_weights) {
+            if (!$options->{use_weights}) {
                 $weight_factor = 1;
             }
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
@@ -3565,7 +3600,7 @@ sub readasciimdl {
                     }
                     # honor the use_weights boolean to override weights calculations
                     # to 1 & 1 until they can be verified correct
-                    if (!$use_weights) {
+                    if (!$options->{use_weights}) {
                       $area = 1;
                       $angle = 1;
                     }
