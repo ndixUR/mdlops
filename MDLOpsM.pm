@@ -2021,12 +2021,12 @@ sub writeasciimdl {
             }
 
             if ($controllername ne "") {
-              printf(MODELOUT "    %s%skey\n", $controllername, $keytype);
+              printf(MODELOUT "    %s%skey\n", $controllername, !$options->{convert_bezier} ? $keytype : '');
             } else {
               if ($temp != 0) {
                 print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
               }
-              printf(MODELOUT "    controller%u%skey\n", $temp, !$options->{convert_bezier} ? $keytype : '');
+              printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
             }
             foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
               # convert bezier controller data to linear, not a true conversion,
@@ -2273,12 +2273,6 @@ sub readkeyedcontroller {
       if ($controller == 20) {
       # orientation: convert to quaternions
         aatoquaternion(\@controllerdata);
-      } elsif ($controller == 8 && $bezier && scalar(@controllerdata) == 9) {
-      # bezier position: take delta from geometry node
-        # data is every 3rd element in bezier position controller data
-        $controllerdata[2] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][0];
-        $controllerdata[5] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][1];
-        $controllerdata[8] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][2];
       } elsif ($controller == 8) {
       # position: take delta from geometry node
         $controllerdata[0] -= $modelref->{'nodes'}{$nodenum}{'Bcontrollers'}{8}{'values'}[0][0];
