@@ -1021,15 +1021,14 @@ my $dothis = 0;
     # 0, 1, 2, 3
     # bezier list is like
     # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-    # best guess is we want 3, 6, 9
-    my $step = 1;
-    if (defined($ref->{$node}{'controllers'}{'bezier'}{8})) {
-      $step = 3;
-    }
+    # 1, 2, 3 are main data,
+    # 4, 5, 6 are left control point, 7, 8, 9 are right control handle
+    # control handle values are relative to main data values,
+    # and located at 1/3 time between keyframes
     foreach (@{$ref->{$node}{'Acontrollers'}{8}}) {
       my @curPosVals = split /\s+/;
       for ($temp = 1; $temp <= 3; $temp++) {
-        $curPosVals[$temp * $step] += $initialPosVals[$temp];
+        $curPosVals[$temp] += $initialPosVals[$temp];
       }
       $_ = join(' ', map { sprintf('% .7g', $_) } @curPosVals);
     }
