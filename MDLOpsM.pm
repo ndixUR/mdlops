@@ -2110,6 +2110,7 @@ sub getcontrollername {
 # Used by readasciimdl.
 # Determine if 2 vectors/vertices are equivalent
 # Allows caller to specify precision for matching
+# Now safe for comparing any two same-sized numeric lists
 #
 sub vertex_equals {
   my ($vert1, $vert2, $precision) = @_;
@@ -2117,18 +2118,18 @@ sub vertex_equals {
   if (!defined($precision)) {
     $precision = 6;
   }
+  my $max_diff = 10 ** (0 - $precision);
 
-  if ($vert1->[0] == $vert2->[0] &&
-      $vert1->[1] == $vert2->[1] &&
-      $vert1->[2] == $vert2->[2]) {
-    return 1;
+  my $size = scalar(@{$vert1});
+
+  my $matches = 0;
+  for my $index (0..$size - 1) {
+    if ($vert1->[$index] == $vert2->[$index] ||
+        abs($vert1->[$index] - $vert2->[$index]) < $max_diff) {
+      $matches += 1;
+    }
   }
-  if (sprintf(sprintf('%%.%uf', $precision), $vert1->[0]) eq
-      sprintf(sprintf('%%.%uf', $precision), $vert2->[0]) &&
-      sprintf(sprintf('%%.%uf', $precision), $vert1->[1]) eq
-      sprintf(sprintf('%%.%uf', $precision), $vert2->[1]) &&
-      sprintf(sprintf('%%.%uf', $precision), $vert1->[2]) eq
-      sprintf(sprintf('%%.%uf', $precision), $vert2->[2])) {
+  if ($matches == $size) {
     return 1;
   }
 
