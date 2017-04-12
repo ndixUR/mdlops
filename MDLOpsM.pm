@@ -967,6 +967,7 @@ my $dothis = 0;
   # the order of quaternions in controllers is: x y z w
 
   if (defined($ref->{$node}{'Acontrollers'}{20})) {
+    my $quat_prev;
     foreach (@{$ref->{$node}{'Acontrollers'}{20}}) {
       # check for controller type 20 and column count 2:
       # decode the special compressed quaternion
@@ -998,11 +999,35 @@ my $dothis = 0;
           $quatVals[4] = 0.0;
         }
       } # if (@quatVals == 2) {
+      # make axis angle animations come out consistently for 3DS
+      # quaternions are sign-invariant,
+      # but you interpolate between them via shortest angle,
+      # certain software can't understand this without a controller 'reset',
+      # which this code hopefully makes unnecessary
+      my $invert_angle = 0;
+      if (defined($quat_prev)) {
+        # multiply this quaternion w/ previous inverted
+        my $quat_diff = quaternion_multiply(
+          \@quatVals,
+          [ map { -1 * $_ } @{$quat_prev}[1..3], $quat_prev->[4] ]
+        );
+        my $qdiff_angle = acos($quat_diff->[3]) * 2;
+        if (abs($qdiff_angle) - pi > 0.0001) {
+          $invert_angle = 1;
+        }
+      }
+      $quat_prev = [ @quatVals ];
       # now convert quaternions (however we got them) to axis-angle.
       # 2016 replaced w/ better algorithm from:
       # http://www.opengl-tutorial.org/assets/faq_quaternions/index.html
       $temp = $quatVals[4]; # cos_a
       $quatVals[4] = acos($temp) * 2;
+      # finish adjustment for 3DS by inverting the angle here
+      if ($invert_angle && $quatVals[4] == 0.0) {
+        $quatVals[4] = 2.0 * pi;
+      } elsif ($invert_angle) {
+        $quatVals[4] = ($quatVals[4] / abs($quatVals[4])) * -2.0 * pi + $quatVals[4];
+      }
       my $sin_a = sqrt(1.0 - $temp ** 2);
       if (abs($sin_a) < 0.00005) {
           $sin_a = 1;
