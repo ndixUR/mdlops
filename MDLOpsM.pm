@@ -2699,6 +2699,13 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'tightness'} = $1;
     } elsif ($innode && $line =~ /\s*period\s+(\S*)/i) { # if in a node look for the period property
       $model{'nodes'}{$nodenum}{'period'} = $1;
+    } elsif (!$innode && $line =~ /^\s*event\s+(\S+)\s+(\S+)/i && $isanimation) { # if in an animation look for the events
+      if (!defined($model{'anims'}{$animnum}{'numevents'})) {
+        $model{'anims'}{$animnum}{'numevents'} = 0;
+      }
+      $model{'anims'}{$animnum}{'eventtimes'}[$count] = $1;
+      $model{'anims'}{$animnum}{'eventnames'}[$count] = $2;
+      $model{'anims'}{$animnum}{'numevents'}++;
     } elsif (!$innode && $line =~ /eventlist/i && $isanimation) { # if in an animation look for the start of the event list
       $task = "events";
       $model{'anims'}{$animnum}{'numevents'} = 0;
