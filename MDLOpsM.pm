@@ -2023,11 +2023,12 @@ sub writeasciimdl {
       printf(MODELOUT "  transtime %.7g\n", $model->{'anims'}{$i}{'transtime'});
       printf(MODELOUT "  animroot %s\n", $model->{'anims'}{$i}{'animroot'});
       if ($model->{'anims'}{$i}{'eventsnum'} != 0) {
-        print(MODELOUT "  eventlist\n");
+        #print(MODELOUT "  eventlist\n");
         foreach ( @{$model->{'anims'}{$i}{'animevents'}{'ascii'}} ) {
-          printf(MODELOUT "    %s\n", $_);
+          #printf(MODELOUT "    %s\n", $_);
+          printf(MODELOUT "  event %s\n", $_);
         }
-        print(MODELOUT "  endlist\n");
+        #print(MODELOUT "  endlist\n");
       }
       # loop through this animations nodes
       foreach $node (sort {$a <=> $b} keys(%{$model->{'anims'}{$i}{'nodes'}}) ) {
