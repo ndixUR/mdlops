@@ -2386,6 +2386,13 @@ sub readasciimdl {
       $options->{crease_angle} > 2 * pi) {
     $options->{crease_angle} = pi / 2;
   }
+  # produce vertex data required by the engine based on the faces layout,
+  # undo unnecessary doubling of vertices, add required doubling of vertices,
+  # force all vertex data to be 1:1 as required by MDX format
+  # this option is a 50%+ performance hit, but fixes most model geometry issues
+  if (!defined($options->{validate_vertex_data})) {
+    $options->{validate_vertex_data} = 1;
+  }
 
 
   #extract just the name
@@ -2807,6 +2814,11 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
         $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $4, -1, -1, -1, $1, $2, $3 ];
 
+        # temporary list of uvs associated with each face, deleted after vertex validation
+        if (!defined($model{'nodes'}{$nodenum}{'faceuvs'})) {
+          $model{'nodes'}{$nodenum}{'faceuvs'} = [];
+        }
+        $model{'nodes'}{$nodenum}{'faceuvs'}->[$count] = [ int($5), int($6), int($7) ];
         if ( defined($model{'nodes'}{$nodenum}{'vertfaces'}{$1}[0]) )
         {
           push @{$model{'nodes'}{$nodenum}{'vertfaces'}{$1}}, $count;
@@ -2962,6 +2974,226 @@ sub readasciimdl {
 
   # make sure we have the right node number - we weren't processing a bunch of the nodes at the end!
   $nodenum = $model{'nodes'}{'truenodenum'};
+
+  # rework node geometry according to the requirements of the MDX data format,
+  # making all of the per-vertex data correlated, as if we had vertex objects
+  if ($options->{validate_vertex_data}) {
+    for (my $i = 0; $i < $nodenum; $i++)
+    {
+      if (!($model{nodes}{$i}{nodetype} & NODE_HAS_MESH) ||
+          $model{nodes}{$i}{nodetype} & NODE_HAS_SABER ||
+          $model{nodes}{$i}{nodetype} & NODE_HAS_AABB) {
+        next;
+      }
+      # temporary data structures for this node's new data
+      my $verts       = [];
+      my $Afaces      = [];
+      my $Bfaces      = [];
+      my $vertfaces   = {};
+      my $sgroups     = [];
+      my $tverts      = [];
+      my $tverts1     = [];
+      my $tverts2     = [];
+      my $tverts3     = [];
+      my $tvertsi     = {};
+      my $Abones      = [];
+      my $bones       = [];
+      my $weights     = [];
+      # precompute the types of optional vertex data in use by this node
+      my $use_skin    = ($model{nodes}{$i}{nodetype} & NODE_HAS_SKIN);
+      my $use_tverts  = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES);
+      my $use_tverts1 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX1_VERTICES);
+      my $use_tverts2 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX2_VERTICES);
+      my $use_tverts3 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX3_VERTICES);
+      # go through all faces, by face index
+      for my $face_index (keys @{$model{'nodes'}{$i}{'Afaces'}}) {
+        # construct a face structure that contains all the original ascii data,
+        # this construction saves a half second on my 7.3s reference character compile
+        # versus splitting the ascii face:
+        #my $face = [ split(/\s+/, $model{'nodes'}{$i}{'Afaces'}[$face_index]) ];
+        my $face = [
+          @{$model{'nodes'}{$i}{'Bfaces'}[$face_index]}[8..10],
+          $model{'nodes'}{$i}{'Bfaces'}[$face_index][4],
+          0, 0, 0, 0
+        ];
+        if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
+          # doesn't work because tverti is only accurate when geometry is already correct
+          #$face->[4] = $model{'nodes'}{$i}{'tverti'}{$face->[0]};
+          #$face->[5] = $model{'nodes'}{$i}{'tverti'}{$face->[1]};
+          #$face->[6] = $model{'nodes'}{$i}{'tverti'}{$face->[2]};
+          # instead, we made a new structure to track these, it will be deleted!
+          $face->[4] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][0];
+          $face->[5] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][1];
+          $face->[6] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][2];
+        }
+        # empty templates for this face's data
+        my $new_Aface = '';
+        my $new_Bface = [ 0, 0, 0, 0, int($face->[3]), -1, -1, -1, 0, 0, 0 ];
+        # retain the face's vertex positions in easier to use structure
+        my $face_verts = [
+          @{$model{'nodes'}{$i}{verts}}[@{$face}[0..2]]
+        ];
+        # retain the face's texture vertex positions (if used) in convenient structure
+        my $face_tverts = [];
+        my $face_tverts1 = [];
+        my $face_tverts2 = [];
+        my $face_tverts3 = [];
+        if ($use_tverts) {
+          $face_tverts = [
+            @{$model{'nodes'}{$i}{tverts}}[@{$face}[4..6]]
+          ];
+        }
+        if ($use_tverts1) {
+          $face_tverts1 = [
+            @{$model{'nodes'}{$i}{tverts1}}[@{$face}[4..6]]
+          ];
+        }
+        if ($use_tverts2) {
+          $face_tverts2 = [
+            @{$model{'nodes'}{$i}{tverts2}}[@{$face}[4..6]]
+          ];
+        }
+        if ($use_tverts3) {
+          $face_tverts3 = [
+            @{$model{'nodes'}{$i}{tverts3}}[@{$face}[4..6]]
+          ];
+        }
+        # go through the 3 vertices of this face, by face vertex index
+        for my $fv_index (0..2) {
+          my $match_found = 0;
+          # attempt to find matching existing vertex we can use,
+          # starting from list end here yields ~50% performance gain
+          for my $index (reverse keys @{$verts}) {
+            if ((!$use_tverts  || vertex_equals($tverts->[$index],  $face_tverts->[$fv_index],  4)) &&
+                (!$use_tverts1 || vertex_equals($tverts1->[$index], $face_tverts1->[$fv_index], 4)) &&
+                (!$use_tverts2 || vertex_equals($tverts2->[$index], $face_tverts2->[$fv_index], 4)) &&
+                (!$use_tverts3 || vertex_equals($tverts3->[$index], $face_tverts3->[$fv_index], 4)) &&
+                ($sgroups->[$index] & int($face->[3])) &&
+                vertex_equals($verts->[$index], $face_verts->[$fv_index], 4)) {
+              # existing vertex matches on all criteria, use it
+              $new_Aface .= $index . ' ';
+              $new_Bface->[8 + $fv_index] = $index;
+              if (!defined($vertfaces->{$index})) {
+                $vertfaces->{$index} = [];
+              }
+              $vertfaces->{$index} = [ @{$vertfaces->{$index}}, $face_index ];
+              if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
+                $tvertsi->{$index} = $index;
+              }
+              $match_found = 1;
+              last;
+            }
+          }
+          if ($match_found) {
+            # match was found, proceed to next face vertex
+            next;
+          }
+          # no match, use a new vertex
+          my $new_index = scalar(@{$verts});
+          # vertex position
+          $verts->[$new_index] = [ @{$face_verts->[$fv_index]} ];
+          # vertex texture UVs
+          if ($use_tverts) {
+            $tverts->[$new_index] = [ @{$face_tverts->[$fv_index]} ];
+          }
+          if ($use_tverts1) {
+            $tverts1->[$new_index] = [ @{$face_tverts1->[$fv_index]} ];
+          }
+          if ($use_tverts2) {
+            $tverts2->[$new_index] = [ @{$face_tverts2->[$fv_index]} ];
+          }
+          if ($use_tverts3) {
+            $tverts3->[$new_index] = [ @{$face_tverts3->[$fv_index]} ];
+          }
+          if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
+            $tvertsi->{$new_index} = $new_index;
+          }
+          # vertex smooth group (used for comparison only, not in MDX)
+          $sgroups->[$new_index] = int($face->[3]);
+          # vertex index in new face structure
+          $new_Aface .= $new_index . ' ';
+          $new_Bface->[8 + $fv_index] = $new_index;
+          # update new map of vertex to connected face indices
+          if (!defined($vertfaces->{$new_index})) {
+            $vertfaces->{$new_index} = [];
+          }
+          $vertfaces->{$new_index} = [ @{$vertfaces->{$new_index}}, $face_index ];
+          # vertex skin deformation data
+          if ($use_skin) {
+            $Abones->[$new_index] = $model{'nodes'}{$i}{Abones}[$face->[$fv_index]];
+            $bones->[$new_index] = [ @{$model{'nodes'}{$i}{bones}[$face->[$fv_index]]} ];
+            $weights->[$new_index] = [ @{$model{'nodes'}{$i}{weights}[$face->[$fv_index]]} ];
+          }
+        }
+        # all vertices are now set for this face,
+        # add the smoothgroup, tvert indices, and material ID
+        $new_Aface = sprintf(
+          '%s%s %s%s',
+          $new_Aface,
+          $face->[3],
+          ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3)
+            ? $new_Aface : '0 0 0 ',
+          $face->[7]
+        );
+        # add the temporary face data to node's new faces structures
+        $Afaces = [ @{$Afaces}, $new_Aface ];
+        $Bfaces = [ @{$Bfaces}, $new_Bface ];
+      }
+      #print Dumper($verts);
+      #print Dumper(@{$Bfaces});
+      #print scalar(@{$verts}) . ' ' . scalar(@{$tverts}) . ' '. scalar(keys %{$tvertsi})."\n";
+      # assign the new face and per-vertex data into original node.
+      # we can assign because the loop will 'my' new references on the next iteration,
+      # rather than reusing these references.
+      # make sure all of the updated totals are stored!
+      #XXX kill all use of precomputed totals eventually
+      #$model{'nodes'}{$i}{Afaces} = [ @{$Afaces} ];
+      #$model{'nodes'}{$i}{Bfaces} = [ @{$Bfaces} ];
+      $model{'nodes'}{$i}{Afaces} = $Afaces;
+      $model{'nodes'}{$i}{Bfaces} = $Bfaces;
+      #$model{'nodes'}{$i}{verts} = [ @{$verts} ];
+      $model{'nodes'}{$i}{verts} = $verts;
+      $model{'nodes'}{$i}{vertnum} = scalar(@{$verts});
+      #$model{'nodes'}{$i}{vertfaces} = { %{$vertfaces} };
+      $model{'nodes'}{$i}{vertfaces} = $vertfaces;
+      if ($use_tverts) {
+        #$model{'nodes'}{$i}{tverts} = [ @{$tverts} ];
+        $model{'nodes'}{$i}{tverts} = $tverts;
+        $model{'nodes'}{$i}{tvertsnum} = scalar(@{$tverts});
+      }
+      if ($use_tverts1) {
+        #$model{'nodes'}{$i}{tverts1} = [ @{$tverts1} ];
+        $model{'nodes'}{$i}{tverts1} = $tverts1;
+        $model{'nodes'}{$i}{tverts1num} = scalar(@{$tverts1});
+      }
+      if ($use_tverts2) {
+        #$model{'nodes'}{$i}{tverts2} = [ @{$tverts2} ];
+        $model{'nodes'}{$i}{tverts2} = $tverts2;
+        $model{'nodes'}{$i}{tverts2num} = scalar(@{$tverts2});
+      }
+      if ($use_tverts3) {
+        #$model{'nodes'}{$i}{tverts3} = [ @{$tverts3} ];
+        $model{'nodes'}{$i}{tverts3} = $tverts3;
+        $model{'nodes'}{$i}{tverts3num} = scalar(@{$tverts3});
+      }
+      if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
+        #$model{'nodes'}{$i}{tverti} = { %{$tvertsi} };
+        $model{'nodes'}{$i}{tverti} = $tvertsi;
+        # remove the now-inaccurate list of uv indices per face
+        delete $model{'nodes'}{$i}{'faceuvs'};
+      }
+      if ($use_skin) {
+        #$model{'nodes'}{$i}{Abones} = [ @{$Abones} ];
+        $model{'nodes'}{$i}{Abones} = $Abones;
+        $model{'nodes'}{$i}{bones} = $bones;
+        #$model{'nodes'}{$i}{weights} = [ @{$weights} ];
+        $model{'nodes'}{$i}{weights} = $weights;
+        $model{'nodes'}{$i}{weightsnum} = scalar(@{$weights});
+      }
+    }
+  }
+
+
     # Define the hash (C Array?) to hold the normals,
     # As well as the hash for the surface areas
     # And the flattened vertex list
