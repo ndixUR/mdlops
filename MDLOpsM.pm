@@ -3843,7 +3843,7 @@ sub readasciimdl {
                     }
                     # don't let influence of geometry from different smooth groups accumulate into the vertex normal
                     # TODO resolve smooth group numbers vs. surface IDs...
-                    if ($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] != $sgA) {
+                    if (!($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] & $sgA)) {
                         $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
                         next;
                     }
