@@ -2512,7 +2512,12 @@ sub readasciimdl {
       next;
     } elsif (!$innode && $line =~ /\s*node\s+(\S*)\s+(\S*)/i && $isanimation) { # look for the start of an animation node
       $innode = 1;
-      $nodenum = $nodeindex{lc($2)};
+      my $nname = lc($2);
+      # handle saber, currently tracked as a name prefix rather than a type
+      if ($nname =~ /^2081__/) {
+        $nname =~ s/^2081__//;
+      }
+      $nodenum = $nodeindex{$nname};
       push @{$model{'anims'}{$animnum}{'nodelist'}}, $nodenum;
       $model{'anims'}{$animnum}{'nodes'}{'numnodes'}++;
       $model{'anims'}{$animnum}{'nodes'}{$nodenum}{'nodenum'} = $nodenum;
