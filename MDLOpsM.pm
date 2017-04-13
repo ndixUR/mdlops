@@ -200,7 +200,7 @@ $structs{'darray'}[9] = {loc => 79, num => 80, size => 16, dnum =>   1, name => 
 $structs{'darray'}[10]= {loc => 79, num => -1, size => 40, dnum =>   6, name => "aabb",         tmplt => "ffffffllll"};
 
 our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
-                   'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'saber' => 2081);
+                   'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'lightsaber' => 2081);
 
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
                        'Door' => 0x08, 'Lightsaber' => 0x10, 'Placeable' => 0x20, 'Other' => 0x00);
@@ -2533,7 +2533,7 @@ sub readasciimdl {
       # handle saber, currently tracked as a name prefix rather than a type
       if ($nname =~ /^2081__/) {
         # type should have been 'trimesh', make it 'saber'
-        $ntype = 'saber';
+        $ntype = 'lightsaber';
         $nname =~ s/^2081__//;
       }
       my $nname_key = lc($nname);
