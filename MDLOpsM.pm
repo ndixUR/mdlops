@@ -3319,6 +3319,8 @@ sub readasciimdl {
         {
             next;
         }
+        my $used_vpos  = [ {}, {}, {} ];
+        my $used_verts = [ 0, 0, 0 ];
         my $vsum = [ 0.0, 0.0, 0.0 ];
         # note: changed these to 0 values on further study of vanilla models
         # it seems like bmin numbers should never be positive and
@@ -3336,11 +3338,15 @@ sub readasciimdl {
                 #printf("%g > %g\n", $vert->[$_], $model{'nodes'}{$i}{'bboxmax'}->[$_]);
                     $model{'nodes'}{$i}{'bboxmax'}->[$_] = $vert->[$_];
                 }
-                $vsum->[$_] += $vert->[$_];
+                if (!defined($used_vpos->[$_]{sprintf('%.5g', $vert->[$_])})) {
+                    $used_vpos->[$_]{sprintf('%.5g', $vert->[$_])} = 1;
+                    $used_verts->[$_] += 1;
+                    $vsum->[$_] += $vert->[$_];
+                }
             }
         }
         $model{'nodes'}{$i}{'average'} = [
-            map { $_ / scalar(@{$model{'nodes'}{$i}{'verts'}}) } @{$vsum}
+            map { $vsum->[$_] / $used_verts->[$_] } (0..2)
         ];
         # yeaaaah ... it's a little tougher to compute the model bbox
         # we need to walk up the model node tree all the way to the root
