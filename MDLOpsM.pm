@@ -1615,6 +1615,467 @@ sub getnodelist {
 
 
 #########################################################
+# this function will remap all the needed data from a saber mesh node
+# into a trimesh node, suitable for ASCII output
+sub convert_saber_to_trimesh {
+  my ($model, $nodenumber) = @_;
+  my $sabernode = $model->{nodes}{$nodenumber};
+
+  # start with a copy of the saber mesh node
+  my $meshnode = { %{$sabernode} };
+
+  # set node type
+#printf("%d\n", $meshnode->{nodetype} );
+  $meshnode->{nodetype} = NODE_TRIMESH;
+  #
+  # change node name
+  my $orig_name = $model->{'partnames'}[$nodenumber];
+  $model->{'partnames'}[$nodenumber] = '2081__' . $model->{'partnames'}[$nodenumber];
+
+  # find blade width as vertex position difference
+  my $blade_width = [ map {
+    $sabernode->{verts}[4][$_] - $sabernode->{verts}[0][$_]
+  } (0..2) ];
+#  print Dumper($blade_width);
+#  print Dumper([@{$sabernode->{verts}}[0..3]]);
+#  print Dumper([@{$sabernode->{verts}}[88..91]]);
+
+  # convert vertex positions list
+  $meshnode->{verts} = [
+    @{$sabernode->{verts}}[0..3],
+    map { my $vert = $_; [ map {
+      $vert->[$_] + $blade_width->[$_]
+    } (0..2) ] } @{$sabernode->{verts}}[0..3]
+  ];
+  # for some inexplicable reason, this breaks when you do it in one statement,
+  # so i broke up blade1 & blade2 vert translation into two statements. wtf?
+  $meshnode->{verts} = [
+    @{$meshnode->{verts}},
+    @{$sabernode->{verts}}[88..91],
+    map { my $vert = $_; [ map {
+      $vert->[$_] - $blade_width->[$_]
+    } (0..2) ] } @{$sabernode->{verts}}[88..91]
+  ];
+  # update vertex coordinates total
+  $meshnode->{vertcoordnum} = scalar(@{$meshnode->{verts}});
+#  printf("%d\n", $meshnode->{vertcoordnum});
+#  print Dumper([@{$meshnode->{verts}}[4..7]]);
+#  print Dumper([@{$meshnode->{verts}}[12..15]]);
+#  print Dumper($meshnode->{verts});
+#print Dumper($meshnode->{verts});
+#die;
+#print Dumper($sabernode->{tverts});
+#printf("tverts: %u\n", scalar(@{$sabernode->{tverts}}));
+#print Dumper($sabernode->{tverts}[0]);
+#printf("tverts+: %u\n", scalar(@{$sabernode->{'tverts+'}}));
+
+  # convert tverts
+  $meshnode->{tverts} = [
+    @{$sabernode->{tverts}}[0..7,88..95]
+  ];
+#print Dumper($meshnode->{tverts});
+  # faces is good?
+#print Dumper($meshnode->{Afaces});
+
+  # use known/pre-canned face structure
+  $meshnode->{Afaces} = [
+    '5 4 0 1 5 4 0 0',
+    '0 1 5 1 0 1 5 0',
+    '13 8 12 1 13 8 12 0',
+    '8 13 9 1 8 13 9 0',
+    '6 5 1 1 6 5 1 0',
+    #'2 6 5 1 2 6 5 0',
+    '1 2 6 1 1 2 6 0',
+    #'1 2 5 1 1 2 5 0',
+    '10 9 13 1 10 9 13 0',
+    '13 14 10 1 13 14 10 0',
+    '3 6 2 1 3 6 2 0',
+    '6 3 7 1 6 3 7 0',
+    '15 11 14 1 15 11 14 0',
+    '10 14 11 1 10 14 11 0',
+  ];
+#print Dumper($meshnode->{Afaces});
+
+  # synthesize MDXbitmap
+  $meshnode->{mdxdatabitmap} = MDX_VERTICES | MDX_VERTEX_NORMALS | MDX_TEX0_VERTICES;
+
+  return $meshnode;
+}
+
+
+#########################################################
+# this function will remap all the needed data from a plane trimesh node
+# into a lightsaber mesh node, suitable for binary output
+sub convert_trimesh_to_saber {
+  my ($model, $nodenumber) = @_;
+  my $meshnode = $model->{nodes}{$nodenumber};
+
+  # start with a copy of the trimesh node
+  my $sabernode = { %{$meshnode} };
+
+  # find our key points by face
+  print Dumper($meshnode->{Afaces});
+  print Dumper($meshnode->{Bfaces});
+
+  # original, symmetrical planes had a nice feature,
+  # each vertex could be identified by the number of faces it touched
+  # outside corners             = 1 x 4
+  # inner edge (rows 0,1,3)     = 2 x 6
+  # row 2                       = 3 x 4
+  # row one outer edge          = 4 x 2
+  # unfortunately for us, bioware messed up interpreting this structure,
+  # inverting the geometry of the first blade,
+  # we export it as it will be seen in the game,
+  # so we need to convert from more difficult, wrong geometry
+  # blade1 - bioware/wrong edition:
+  # outside corners             = 1
+  # inner edge (rows 0,2,3)     = 2
+  # row 1                       = 3
+  # row 2 outer edge            = 4
+
+  my $facecounts = {};
+  for my $face (@{$meshnode->{Bfaces}}) {
+    for my $vert_index (@{$face}[8..10]) {
+      if (!defined($facecounts->{$vert_index})) {
+        $facecounts->{$vert_index} = 0;
+      }
+      $facecounts->{$vert_index} += 1;
+    }
+  }
+  print Dumper($facecounts);
+  my $corners = [
+    grep { $facecounts->{$_} == 1 } keys %{$facecounts}
+  ];
+  print "corners\n";
+  print Dumper($corners);
+  my $row_two = [
+    grep { $facecounts->{$_} == 3 } keys %{$facecounts}
+  ];
+  print "row two\n";
+  print Dumper($row_two);
+  my $inner_edge = [
+    grep { $facecounts->{$_} == 2 } keys %{$facecounts}
+  ];
+  print "inner edge\n";
+  print Dumper($inner_edge);
+  my $row_one_outer = [
+    grep { $facecounts->{$_} == 4 } keys %{$facecounts}
+  ];
+  print "row one outer edge\n";
+  print Dumper($row_one_outer);
+
+  # two blades, 8 verts per blade,
+  # blade 1 inner edge bottom: [0][0][0]
+  # blade 1 outer edge top:    [0][3][1]
+  # blade 2 inner edge bottom: [1][0][0]
+  # blade 2 outer edge top:    [1][3][1]
+  my $blades = [
+    # blade1
+    [ [-1,-1], [-1, $row_one_outer->[0]], [-1,-1], [-1,-1] ],
+    # blade2
+    [ [-1,-1], [-1, $row_one_outer->[1]], [-1,-1], [-1,-1] ],
+  ];
+
+  my $verts_by_blade = {
+    blade1 => {},
+    blade2 => {},
+  };
+  my $faces_by_blade = {
+    blade1 => {},
+    blade2 => {},
+  };
+
+  my $vertices_crawled = 0;
+  my ($b1vert, $b2vert);
+  my @b1search = ($row_one_outer->[0]);
+  my @b2search = ($row_one_outer->[1]);
+  my $searched = {};
+  while (scalar(@b1search) || scalar(@b2search)) {
+    if (scalar(@b1search)) {
+      $b1vert = shift @b1search;
+    } else {
+      $b1vert = undef;
+    }
+    if (scalar(@b2search)) {
+      $b2vert = shift @b2search;
+    } else {
+      $b2vert = undef;
+    }
+    for my $index (keys @{$meshnode->{Bfaces}}) {
+      my $face = $meshnode->{Bfaces}[$index];
+      if (defined($b1vert) && $face->[8] == $b1vert) {
+        $verts_by_blade->{blade1}{$b1vert} = 1;
+        $faces_by_blade->{blade1}{$index} = 1;
+        if (!defined($searched->{$face->[9]})) {
+          $searched->{$face->[9]} = 1;
+          push @b1search, $face->[9];
+        }
+        if (!defined($searched->{$face->[10]})) {
+          $searched->{$face->[10]} = 1;
+          push @b1search, $face->[10];
+        }
+      }
+      if (defined($b1vert) && $face->[9] == $b1vert) {
+        $verts_by_blade->{blade1}{$b1vert} = 1;
+        $faces_by_blade->{blade1}{$index} = 1;
+        if (!defined($searched->{$face->[8]})) {
+          $searched->{$face->[8]} = 1;
+          push @b1search, $face->[8];
+        }
+        if (!defined($searched->{$face->[10]})) {
+          $searched->{$face->[10]} = 1;
+          push @b1search, $face->[10];
+        }
+      }
+      if (defined($b1vert) && $face->[10] == $b1vert) {
+        $verts_by_blade->{blade1}{$b1vert} = 1;
+        $faces_by_blade->{blade1}{$index} = 1;
+        if (!defined($searched->{$face->[8]})) {
+          $searched->{$face->[8]} = 1;
+          push @b1search, $face->[8];
+        }
+        if (!defined($searched->{$face->[9]})) {
+          $searched->{$face->[9]} = 1;
+          push @b1search, $face->[9];
+        }
+      }
+      if (defined($b2vert) && $face->[8] == $b2vert) {
+        $verts_by_blade->{blade2}{$b2vert} = 1;
+        $faces_by_blade->{blade2}{$index} = 1;
+        if (!defined($searched->{$face->[9]})) {
+          $searched->{$face->[9]} = 1;
+          push @b2search, $face->[9];
+        }
+        if (!defined($searched->{$face->[10]})) {
+          $searched->{$face->[10]} = 1;
+          push @b2search, $face->[10];
+        }
+      }
+      if (defined($b2vert) && $face->[9] == $b2vert) {
+        $verts_by_blade->{blade2}{$b2vert} = 1;
+        $faces_by_blade->{blade2}{$index} = 1;
+        if (!defined($searched->{$face->[8]})) {
+          $searched->{$face->[8]} = 1;
+          push @b2search, $face->[8];
+        }
+        if (!defined($searched->{$face->[10]})) {
+          $searched->{$face->[10]} = 1;
+          push @b2search, $face->[10];
+        }
+      }
+      if (defined($b2vert) && $face->[10] == $b2vert) {
+        $verts_by_blade->{blade2}{$b2vert} = 1;
+        $faces_by_blade->{blade2}{$index} = 1;
+        if (!defined($searched->{$face->[8]})) {
+          $searched->{$face->[8]} = 1;
+          push @b2search, $face->[8];
+        }
+        if (!defined($searched->{$face->[9]})) {
+          $searched->{$face->[9]} = 1;
+          push @b2search, $face->[9];
+        }
+      }
+    }
+  }
+  print Dumper($faces_by_blade);
+  print Dumper($verts_by_blade);
+
+  # we now have the faces separated into two blades,
+  # but we need to determine which is blade1 and which is blade2
+  # with borked bioware layout,
+  # test whether the 4 point Z coord > 3 point Z coords, if so, blade1
+  # $row_one_outer has 4 points, $row_two has 3 points
+  my $b1_test = {};
+  my $b1_4point;
+print Dumper($meshnode->{verts});
+  for my $test (@{$row_one_outer}) {
+    if (defined($verts_by_blade->{blade1}{$test})) {
+      $b1_4point = $test;
+      $b1_test->{$test} = $meshnode->{verts}[$test];
+      last;
+    }
+  }
+  for my $test (@{$row_two}) {
+    if (defined($verts_by_blade->{blade1}{$test})) {
+      $b1_test->{$test} = $meshnode->{verts}[$test];
+    }
+  }
+  my $b1_sort = [ sort { $b1_test->{$a}[2] <=> $b1_test->{$b}[2] } keys %{$b1_test} ];
+  print Dumper($b1_4point);
+  print Dumper($b1_sort);
+  print Dumper($b1_test);
+print "tested\n";
+  if ($b1_sort->[0] == $b1_4point) {
+    print "BLADE2 FOUND, SWITCH\n";
+    print Dumper($verts_by_blade);
+    $verts_by_blade->{blade3} = { %{$verts_by_blade->{blade1}} };
+    $verts_by_blade->{blade1} = { %{$verts_by_blade->{blade2}} };
+    $verts_by_blade->{blade2} = $verts_by_blade->{blade3};
+    delete $verts_by_blade->{blade3};
+    print Dumper($verts_by_blade);
+    print Dumper($faces_by_blade);
+    $faces_by_blade->{blade3} = { %{$faces_by_blade->{blade1}} };
+    $faces_by_blade->{blade1} = { %{$faces_by_blade->{blade2}} };
+    $faces_by_blade->{blade2} = $faces_by_blade->{blade3};
+    delete $faces_by_blade->{blade3};
+    print Dumper($faces_by_blade);
+    print Dumper($blades);
+    $blades->[2] = [ @{$blades->[0]} ];
+    $blades->[0] = $blades->[1];
+    $blades->[1] = [ @{$blades->[2]} ];
+    delete $blades->[2];
+    $blades->[0][2][1] = $blades->[0][1][1];
+    $blades->[0][1][1] = -1;
+    print Dumper($blades);
+  }
+
+  # finish filling in the blades structure now that we know which blade is which
+  # we're doing row selection based on z comparisons
+  # start with the corners
+  my $blade_keys = { blade1 => 0, blade2 => 1 };
+  for my $blade_key (keys %{$blade_keys}) {
+    my $blade_index = $blade_keys->{$blade_key};
+    my $b1_corners = {};
+    for my $corner (@{$corners}) {
+      if (defined($verts_by_blade->{$blade_key}{$corner})) {
+        $b1_corners->{$corner} = $meshnode->{verts}[$corner];
+      }
+    }
+    my $corner_sort = [ sort { $b1_corners->{$a}[2] <=> $b1_corners->{$b}[2] } keys %{$b1_corners} ];
+    $blades->[$blade_index][0][1] = $corner_sort->[0];
+    $blades->[$blade_index][3][1] = $corner_sort->[1];
+    my $b1_inner_edge = {};
+    for my $ie (@{$inner_edge}) {
+      if (defined($verts_by_blade->{$blade_key}{$ie})) {
+        $b1_inner_edge->{$ie} = $meshnode->{verts}[$ie];
+      }
+    }
+    my $ie_sort = [ sort { $b1_inner_edge->{$a}[2] <=> $b1_inner_edge->{$b}[2] } keys %{$b1_inner_edge} ];
+    if ($blade_key eq 'blade2') {
+      $blades->[$blade_index][0][0] = $ie_sort->[0];
+      $blades->[$blade_index][1][0] = $ie_sort->[1];
+      $blades->[$blade_index][3][0] = $ie_sort->[2];
+    } else {
+      $blades->[$blade_index][0][0] = $ie_sort->[0];
+      $blades->[$blade_index][2][0] = $ie_sort->[1];
+      $blades->[$blade_index][3][0] = $ie_sort->[2];
+    }
+    my $b1_row_two = {};
+    for my $row2 (@{$row_two}) {
+      if (defined($verts_by_blade->{$blade_key}{$row2})) {
+        $b1_row_two->{$row2} = $meshnode->{verts}[$row2];
+      }
+    }
+    my $r2_sort = [ sort { $b1_row_two->{$a}[0] <=> $b1_row_two->{$b}[0] } keys %{$b1_row_two} ];
+    if ($meshnode->{verts}[$blades->[$blade_index][0][0]]->[0] > $meshnode->{verts}[$blades->[$blade_index][0][1]]->[0]) {
+      $r2_sort = [ reverse @{$r2_sort} ];
+    }
+    if ($blade_key eq 'blade2') {
+      $blades->[$blade_index][2][0] = $r2_sort->[0];
+      $blades->[$blade_index][2][1] = $r2_sort->[1];
+    } else {
+      $blades->[$blade_index][1][0] = $r2_sort->[0];
+      $blades->[$blade_index][1][1] = $r2_sort->[1];
+    }
+    print Dumper($b1_corners);
+    print Dumper($b1_inner_edge);
+    print Dumper($b1_row_two);
+  }
+  print Dumper($blades);
+
+  my $index_pattern = [ 0, 1, (0) x 20, 2, 3, (2) x 20 ];
+  # vertices:
+  # blade1 0,0 1,0 2,0 3,0, blade1 0,1 1,1 2,1 3,1
+  # blade1 0,0 1,0 2,0 3,0 x 20
+  # blade2 0,0 1,0 2,0 3,0, blade2 0,1 1,1 2,1 3,1
+  # blade2 0,0 1,0 2,0 3,0 x 20
+  my $vert_indices = [
+    [ $blades->[0][0][0], $blades->[0][1][0], $blades->[0][2][0], $blades->[0][3][0] ],
+    [ $blades->[0][0][1], $blades->[0][1][1], $blades->[0][2][1], $blades->[0][3][1] ],
+    [ $blades->[1][0][0], $blades->[1][1][0], $blades->[1][2][0], $blades->[1][3][0] ],
+    [ $blades->[1][0][1], $blades->[1][1][1], $blades->[1][2][1], $blades->[1][3][1] ],
+  ];
+  my $verts = [];
+  foreach (@{$vert_indices}) {
+    $verts = [ @{$verts}, [ map {$meshnode->{verts}[$_]} @{$_} ] ];
+  }
+  print Dumper($verts);
+  #print Dumper($index_pattern);
+  #my $verts_final = [ map { @{$verts->[$_]} } @{$index_pattern} ];
+  #print Dumper($verts_final);
+  #die;
+
+  # tverts:
+  # blade1 0,0 1,0 2,0 3,0, blade1 0,1 1,1 2,1 3,1
+  # blade1 0,0 1,0 2,0 3,0 x 20
+  # blade2 0,0 1,0 2,0 3,0, blade2 0,1 1,1 2,1 3,1
+  # blade2 0,0 1,0 2,0 3,0 x 20
+  my $tvert_indices = [
+    [ $meshnode->{tverti}{$blades->[0][0][0]}, $meshnode->{tverti}{$blades->[0][1][0]}, $meshnode->{tverti}{$blades->[0][2][0]}, $meshnode->{tverti}{$blades->[0][3][0]} ],
+    [ $meshnode->{tverti}{$blades->[0][0][1]}, $meshnode->{tverti}{$blades->[0][1][1]}, $meshnode->{tverti}{$blades->[0][2][1]}, $meshnode->{tverti}{$blades->[0][3][1]} ],
+    [ $meshnode->{tverti}{$blades->[1][0][0]}, $meshnode->{tverti}{$blades->[1][1][0]}, $meshnode->{tverti}{$blades->[1][2][0]}, $meshnode->{tverti}{$blades->[1][3][0]} ],
+    [ $meshnode->{tverti}{$blades->[1][0][1]}, $meshnode->{tverti}{$blades->[1][1][1]}, $meshnode->{tverti}{$blades->[1][2][1]}, $meshnode->{tverti}{$blades->[1][3][1]} ],
+  ];
+  my $tverts = [];
+  foreach (@{$tvert_indices}) {
+    $tverts = [ @{$tverts}, [ map {$meshnode->{tverts}[$_]} @{$_} ] ];
+  }
+  print Dumper($tverts);
+
+  # normals:
+  # blade 2, bottom outside corner (1,1),(0,1),(0,0)
+  # blade 2, bottom inside (0,0),(1,0),(1,1)
+  # blade 1, bottom outside corner (0,1),(1,1),(0,0)
+  # blade 1, bottom inside (0,0),(1,1),(1,0)
+  # repeat 44 times
+  my $normal_face_indices = [
+    [ $blades->[1][1][1], $blades->[1][0][1], $blades->[1][0][0] ],
+    [ $blades->[1][0][0], $blades->[1][1][0], $blades->[1][1][1] ],
+    [ $blades->[0][0][1], $blades->[0][1][1], $blades->[0][0][0] ],
+    [ $blades->[0][0][0], $blades->[0][1][1], $blades->[0][1][0] ],
+  ];
+  my $face_normals = [];
+  foreach (@{$normal_face_indices}) {
+    my ($v1, $v2, $v3) = map {@{$meshnode->{verts}}[$_]} @{$_};
+    my $normal_vector =
+    [
+      $v1->[1] * ($v2->[2] - $v3->[2]) +
+      $v2->[1] * ($v3->[2] - $v1->[2]) +
+      $v3->[1] * ($v1->[2] - $v2->[2]),
+      $v1->[2] * ($v2->[0] - $v3->[0]) +
+      $v2->[2] * ($v3->[0] - $v1->[0]) +
+      $v3->[2] * ($v1->[0] - $v2->[0]),
+      $v1->[0] * ($v2->[1] - $v3->[1]) +
+      $v2->[0] * ($v3->[1] - $v1->[1]) +
+      $v3->[0] * ($v1->[1] - $v2->[1]),
+    ];
+    $face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
+  }
+  print Dumper($face_normals);
+
+
+  # populate sabernode verts, set vertsnum
+  $sabernode->{verts} = [ map { @{$verts->[$_]} } @{$index_pattern} ];
+  $sabernode->{verts1} = $sabernode->{verts};
+  $sabernode->{vertnum} = scalar(@{$sabernode->{verts}});
+  $sabernode->{verts1num} = scalar(@{$sabernode->{verts}});
+  # populate sabernode tverts, set tvertsnum
+  $sabernode->{tverts} = [ map { @{$tverts->[$_]} } @{$index_pattern} ];
+  $sabernode->{tvertsnum} = scalar(@{$sabernode->{tverts}});
+  # populate sabernode normals
+  $sabernode->{tverts1offset} = [ map { @{$face_normals} } (0..scalar(@{$index_pattern}) - 1) ];
+  $sabernode->{tverts1offsetnum} = scalar(@{$sabernode->{tverts1offset}});
+  # zero sabernode MDX bitmap
+  $sabernode->{mdxdatabitmap} = 0;
+  $sabernode->{texturenum} = 1;
+  # set node mesh type
+  $sabernode->{nodetype} = NODE_SABER;
+
+  return $sabernode;
+}
+
+
+#########################################################
 # write out a model in ascii format
 # 
 sub writeasciimdl {
@@ -1679,6 +2140,11 @@ sub writeasciimdl {
   #write out the nodes
   for my $i (@{getnodelist($model, 0)}) {
     print("Node: " . $i . "\n") if $printall;
+
+    if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
+      $model->{'nodes'}{$i} = convert_saber_to_trimesh($model, $i);
+    }
+
     $nodetype = $model->{'nodes'}{$i}{'nodetype'};
     $temp = $model->{'partnames'}[$i];
     if ($nodetype == NODE_DUMMY) {
@@ -2979,6 +3445,14 @@ sub readasciimdl {
 
   # make sure we have the right node number - we weren't processing a bunch of the nodes at the end!
   $nodenum = $model{'nodes'}{'truenodenum'};
+
+  for (my $i = 0; $i < $nodenum; $i++)
+  {
+    if ($model{nodes}{$i}{nodetype} & NODE_HAS_SABER) {
+      $model{nodes}{$i} = convert_trimesh_to_saber(\%model, $i);
+    }
+  }
+
 
   # rework node geometry according to the requirements of the MDX data format,
   # making all of the per-vertex data correlated, as if we had vertex objects
