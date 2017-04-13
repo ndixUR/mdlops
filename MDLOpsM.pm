@@ -2374,11 +2374,11 @@ sub readasciimdl {
   }
   # use area and angle weighted vertex normal averaging
   if(!defined($options->{use_weights})) {
-    $options->{use_weights} = 1;
+    $options->{use_weights} = 0;
   }
   # use crease angle test for vertex normal averaging
   if (!defined($options->{use_crease_angle})) {
-    $options->{use_crease_angle} = 1;
+    $options->{use_crease_angle} = 0;
   }
   # specific crease angle to test for in vertex normal averaging
   if (!defined($options->{crease_angle}) ||
