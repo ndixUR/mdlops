@@ -3309,6 +3309,11 @@ sub readasciimdl {
       #print($task . "|" . $count . "\n");
       $task = "tverts3";
       $count = 0;
+    } elsif ($innode && $line =~ /\s*texindices([123])\s+(\S*)/i) { # if in a node look for start of the extra texture vert indices
+      $model{'nodes'}{$nodenum}{"texindices$1num"} = $2;
+      $model{'nodes'}{$nodenum}{"texindices$1"} = {};
+      $task = "texindices$1";
+      $count = 0;
     } elsif ($innode && $line =~ /\s*[^t]verts1\s+(\S*)/i) {  # if in a node look for the start of the saber verts1
       $model{'nodes'}{$nodenum}{'verts1num'} = $1;
       $task = "verts1";
@@ -3435,6 +3440,24 @@ sub readasciimdl {
       } elsif ($task eq "tverts3") { # read in the tverts for 4th texture
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'tverts3'}[$count] = [$1, $2];
+        $count++;
+      } elsif ($task eq "texindices1") { # read in the tvert indices for 2nd texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'texindices1'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][8]}  = $1;
+        $model{'nodes'}{$nodenum}{'texindices1'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][9]}  = $2;
+        $model{'nodes'}{$nodenum}{'texindices1'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][10]} = $3;
+        $count++;
+      } elsif ($task eq "texindices2") { # read in the tvert indices for 3rd texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'texindices2'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][8]}  = $1;
+        $model{'nodes'}{$nodenum}{'texindices2'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][9]}  = $2;
+        $model{'nodes'}{$nodenum}{'texindices2'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][10]} = $3;
+        $count++;
+      } elsif ($task eq "texindices3") { # read in the tvert indices for 4th texture
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'texindices3'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][8]}  = $1;
+        $model{'nodes'}{$nodenum}{'texindices3'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][9]}  = $2;
+        $model{'nodes'}{$nodenum}{'texindices3'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][10]} = $3;
         $count++;
       } elsif ($task eq "verts1" ) { # read in the verts1 saber data
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
@@ -3585,7 +3608,10 @@ sub readasciimdl {
         my $face = [
           @{$model{'nodes'}{$i}{'Bfaces'}[$face_index]}[8..10],
           $model{'nodes'}{$i}{'Bfaces'}[$face_index][4],
-          0, 0, 0, 0
+          0, 0, 0, 0, # texture 1
+          0, 0, 0, 0, # texture 2
+          0, 0, 0, 0, # texture 3
+          0, 0, 0, 0, # texture 4
         ];
         if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
           # doesn't work because tverti is only accurate when geometry is already correct
@@ -3596,6 +3622,30 @@ sub readasciimdl {
           $face->[4] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][0];
           $face->[5] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][1];
           $face->[6] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][2];
+          $face->[8] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][0];
+          $face->[9] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][1];
+          $face->[10] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][2];
+          $face->[12] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][0];
+          $face->[13] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][1];
+          $face->[14] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][2];
+          $face->[16] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][0];
+          $face->[17] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][1];
+          $face->[18] = $model{'nodes'}{$i}{'faceuvs'}->[$face_index][2];
+          if ($use_tverts1 && defined($model{'nodes'}{$i}{'texindices1'})) {
+            $face->[8] = $model{'nodes'}{$i}{'texindices1'}{$face->[0]};
+            $face->[9] = $model{'nodes'}{$i}{'texindices1'}{$face->[1]};
+            $face->[10] = $model{'nodes'}{$i}{'texindices1'}{$face->[2]};
+          }
+          if ($use_tverts2 && defined($model{'nodes'}{$i}{'texindices2'})) {
+            $face->[12] = $model{'nodes'}{$i}{'texindices2'}{$face->[0]};
+            $face->[13] = $model{'nodes'}{$i}{'texindices2'}{$face->[1]};
+            $face->[14] = $model{'nodes'}{$i}{'texindices2'}{$face->[2]};
+          }
+          if ($use_tverts3 && defined($model{'nodes'}{$i}{'texindices3'})) {
+            $face->[16] = $model{'nodes'}{$i}{'texindices3'}{$face->[0]};
+            $face->[17] = $model{'nodes'}{$i}{'texindices3'}{$face->[1]};
+            $face->[18] = $model{'nodes'}{$i}{'texindices3'}{$face->[2]};
+          }
         }
         # empty templates for this face's data
         my $new_Aface = '';
@@ -4747,16 +4797,25 @@ sub writebinarymdl {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
         }
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX1_VERTICES) {
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+          my $tv_ind = defined($model->{'nodes'}{$i}{'texindices1'})
+                         ? $model->{'nodes'}{$i}{'texindices1'}[$j]
+                         : $model->{'nodes'}{$i}{'tverti'}{$j};
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$tv_ind][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts1'}[$tv_ind][1]);
         }
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX2_VERTICES) {
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+          my $tv_ind = defined($model->{'nodes'}{$i}{'texindices2'})
+                         ? $model->{'nodes'}{$i}{'texindices2'}[$j]
+                         : $model->{'nodes'}{$i}{'tverti'}{$j};
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$tv_ind][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts2'}[$tv_ind][1]);
         }
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX3_VERTICES) {
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$model->{'nodes'}{$i}{'tverti'}{$j}][0]);
-          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$model->{'nodes'}{$i}{'tverti'}{$j}][1]);
+          my $tv_ind = defined($model->{'nodes'}{$i}{'texindices3'})
+                         ? $model->{'nodes'}{$i}{'texindices3'}[$j]
+                         : $model->{'nodes'}{$i}{'tverti'}{$j};
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$tv_ind][0]);
+          $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$tv_ind][1]);
         }
         # if this mesh has normal mapping, include the tangent space data
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
