@@ -2815,6 +2815,82 @@ sub readasciicontroller {
   return 0;
 }
 
+
+###########################################################
+# For use by readasciimodel.
+# Assign supernode numbers to all nodes, bead-v's algorithm.
+# Returns the maximum node number, since it is not passed by ref, but must be updated
+sub get_super_nodes {
+  my ($model, $supermodel, $max, $supertotal, $currentpart, $superpart) = @_;
+
+  # initialize recursion tracking numbers, set initial model node total
+  if (!defined($max)) {
+    # compute initial values
+    $model->{totalnumnodes} = $model->{truenodenum};
+    $supertotal = $supermodel->{totalnumnodes};
+    if ($supertotal) {
+      $model->{totalnumnodes} += $supertotal + 1;
+    }
+    my $supermax = 0;
+    foreach (values %{$supermodel->{nodes}}) {
+      if (ref $_ eq 'HASH' && defined($_->{supernode}) &&
+          $_->{supernode} > $supermax) {
+        $supermax = $_->{supernode};
+      }
+    }
+    $max = $supermax + 1;
+  }
+
+  if ($currentpart < 0 || !defined($model->{nodes}{$currentpart})) {
+    return $max;
+  }
+
+  # get the node under consideration
+  my $node = $model->{nodes}{$currentpart};
+
+  if ($superpart < 0) {
+    # parent or node does not match a supernode
+    $node->{supernode} = (
+      $superpart == -1
+        # parent matched, child missed
+        ? $max++
+        # parent missed, child cannot match
+        : $node->{nodenum} + $supertotal + 1
+    );
+    for my $child (@{$node->{'children'}}) {
+      # this node misses, children will miss
+      $max = get_super_nodes($model, $supermodel, $max, $supertotal, $child, -2);
+    }
+  } else {
+    # node matched a supernode
+    my $supernode = $supermodel->{nodes}{$superpart};
+
+    $node->{supernode} = $supernode->{supernode};
+
+    # test children for matches
+    for my $child (@{$node->{'children'}}) {
+      my $name = lc $model->{partnames}[$child];
+      # make sure supernode's child list exists, otherwise use empty
+      my $superchildren = (
+        defined($supernode->{'childindexes'})
+          ? $supernode->{'childindexes'}{'nums'} : []
+      );
+      # search by name for a matching supernode
+      my $supermatch = -1;
+      for my $superchild (@{$superchildren}) {
+        if ($name eq lc $supermodel->{partnames}[$superchild]) {
+          # matching supernode is found
+          $supermatch = $superchild;
+          last;
+        }
+      }
+      $max = get_super_nodes($model, $supermodel, $max, $supertotal, $child, $supermatch);
+    }
+  }
+  return $max;
+}
+
+
 ###########################################################
 # Read in an ascii model
 # 
@@ -3421,7 +3497,23 @@ sub readasciimdl {
   # and set the supernodes on the working model
   $model{'largestsupernode'} = 0;
   print ( lc($model{'supermodel'}) . "|" . $supercheck . "\n") if $printall;
-  if (lc($model{'supermodel'}) ne "null" && $supercheck == 1) {
+  if (lc($model{'supermodel'}) ne "null" && $supercheck == 1 && -f $pathonly . $model{'supermodel'} . '.mdl') {
+    print("Loading binary supermodel: " . $pathonly . $model{'supermodel'} . ".mdl\n");
+    $supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0, modelversion($pathonly . $model{'supermodel'} . ".mdl"));
+    &get_super_nodes(\%model, $supermodel, undef, undef, 0, 0);
+    $model{totalnumnodes} += $model{'nodes'}{'truenodenum'};
+    if ($printall) {
+      print "\nmaximum parts:$model{totalnumnodes} this model parts:$model{'nodes'}{'truenodenum'}\n";
+      for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++)
+      {
+        printf(
+          "super: %s %d %d\n",
+          $model{'partnames'}[$i], $model{nodes}{$i}{nodenum}, $model{nodes}{$i}{supernode}
+        );
+      }
+    }
+  }
+  elsif (lc($model{'supermodel'}) ne "null" && $supercheck == 1) {
     print("Loading original binary model: " . $pathonly . $model{'name'} . ".mdl\n");
     #$supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0);
     $supermodel = &readbinarymdl($pathonly . $model{'name'} . ".mdl", 0, modelversion($pathonly . $model{'name'} . ".mdl"));
@@ -4738,7 +4830,7 @@ sub writebinarymdl {
   $buffer = pack("L", 0);
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
-  $buffer = pack("L", $nodenum);
+  $buffer = pack("L", defined($model->{totalnumnodes}) ? $model->{totalnumnodes} : $nodenum);
   $buffer .= pack("L[7]C[4]", 0,0,0,0,0,0,0,2,49,150,189);
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
