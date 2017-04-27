@@ -2105,6 +2105,10 @@ sub writeasciimdl {
   if (!defined($options->{convert_bezier})) {
     $options->{convert_bezier} = 0;
   }
+  # convert lightsaber mesh to trimesh
+  if (!defined($options->{convert_saber})) {
+    $options->{convert_saber} = 1;
+  }
 
   $file = $model->{'filename'};
   $filepath = $model->{'filepath+name'};
@@ -2141,7 +2145,8 @@ sub writeasciimdl {
   for my $i (@{getnodelist($model, 0)}) {
     print("Node: " . $i . "\n") if $printall;
 
-    if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
+    if ($options->{convert_saber} &&
+        $model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) {
       $model->{'nodes'}{$i} = convert_saber_to_trimesh($model, $i);
     }
 
