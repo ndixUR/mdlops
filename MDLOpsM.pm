@@ -1716,8 +1716,8 @@ sub convert_trimesh_to_saber {
   my $sabernode = { %{$meshnode} };
 
   # find our key points by face
-  print Dumper($meshnode->{Afaces});
-  print Dumper($meshnode->{Bfaces});
+  #print Dumper($meshnode->{Afaces});
+  #print Dumper($meshnode->{Bfaces});
 
   # original, symmetrical planes had a nice feature,
   # each vertex could be identified by the number of faces it touched
@@ -1735,6 +1735,11 @@ sub convert_trimesh_to_saber {
   # row 1                       = 3
   # row 2 outer edge            = 4
 
+  # it would be possible to do *some* welding before reaching here,
+  # but you'd probably weld the center line, or whatever parts of it
+  # might be overlapping, which isn't great
+
+  # count adjacent faces of each vertex for each face
   my $facecounts = {};
   for my $face (@{$meshnode->{Bfaces}}) {
     for my $vert_index (@{$face}[8..10]) {
@@ -1744,33 +1749,40 @@ sub convert_trimesh_to_saber {
       $facecounts->{$vert_index} += 1;
     }
   }
-  print Dumper($facecounts);
+  #print Dumper($facecounts);
+
+  # now classify the vertex indices by 'role' or 'type'
   my $corners = [
     grep { $facecounts->{$_} == 1 } keys %{$facecounts}
   ];
-  print "corners\n";
-  print Dumper($corners);
+  #print "corners\n";
+  #print Dumper($corners);
   my $row_two = [
     grep { $facecounts->{$_} == 3 } keys %{$facecounts}
   ];
-  print "row two\n";
-  print Dumper($row_two);
+  #print "row two\n";
+  #print Dumper($row_two);
   my $inner_edge = [
     grep { $facecounts->{$_} == 2 } keys %{$facecounts}
   ];
-  print "inner edge\n";
-  print Dumper($inner_edge);
+  #print "inner edge\n";
+  #print Dumper($inner_edge);
   my $row_one_outer = [
     grep { $facecounts->{$_} == 4 } keys %{$facecounts}
   ];
-  print "row one outer edge\n";
-  print Dumper($row_one_outer);
+  #print "row one outer edge\n";
+  #print Dumper($row_one_outer);
 
-  # two blades, 8 verts per blade,
+  # two blades, 8 verts per blade, examples:
   # blade 1 inner edge bottom: [0][0][0]
   # blade 1 outer edge top:    [0][3][1]
   # blade 2 inner edge bottom: [1][0][0]
   # blade 2 outer edge top:    [1][3][1]
+
+  # start off by just assigning blade1 and blade2,
+  # using the 2 vertices we know cannot be in the same blade,
+  # the ones touching 4 faces,
+  # we will swap them later if we got it wrong
   my $blades = [
     # blade1
     [ [-1,-1], [-1, $row_one_outer->[0]], [-1,-1], [-1,-1] ],
@@ -1778,36 +1790,47 @@ sub convert_trimesh_to_saber {
     [ [-1,-1], [-1, $row_one_outer->[1]], [-1,-1], [-1,-1] ],
   ];
 
+  # hash of vertex indices, classified by blade, vert index => true
   my $verts_by_blade = {
     blade1 => {},
     blade2 => {},
   };
+  # lists of face indices, classified by blade, face index => true
   my $faces_by_blade = {
     blade1 => {},
     blade2 => {},
   };
 
+  # the following is a search through the geometry, by index,
   my $vertices_crawled = 0;
   my ($b1vert, $b2vert);
+  # starting from each of our two known points in the 2 blades
   my @b1search = ($row_one_outer->[0]);
   my @b2search = ($row_one_outer->[1]);
   my $searched = {};
+  # while we have indices remaining to search
   while (scalar(@b1search) || scalar(@b2search)) {
+    # grab a vertex index for blade1 if any remain
     if (scalar(@b1search)) {
       $b1vert = shift @b1search;
     } else {
       $b1vert = undef;
     }
+    # grab a vertex index for blade2 if any remain
     if (scalar(@b2search)) {
       $b2vert = shift @b2search;
     } else {
       $b2vert = undef;
     }
+    # test each face in the mesh node
     for my $index (keys @{$meshnode->{Bfaces}}) {
       my $face = $meshnode->{Bfaces}[$index];
+      # v0 of this face is the blade1 search vertex
       if (defined($b1vert) && $face->[8] == $b1vert) {
         $verts_by_blade->{blade1}{$b1vert} = 1;
         $faces_by_blade->{blade1}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[9]})) {
           $searched->{$face->[9]} = 1;
           push @b1search, $face->[9];
@@ -1817,9 +1840,12 @@ sub convert_trimesh_to_saber {
           push @b1search, $face->[10];
         }
       }
+      # v1 of this face is the blade1 search vertex
       if (defined($b1vert) && $face->[9] == $b1vert) {
         $verts_by_blade->{blade1}{$b1vert} = 1;
         $faces_by_blade->{blade1}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[8]})) {
           $searched->{$face->[8]} = 1;
           push @b1search, $face->[8];
@@ -1829,9 +1855,12 @@ sub convert_trimesh_to_saber {
           push @b1search, $face->[10];
         }
       }
+      # v2 of this face is the blade1 search vertex
       if (defined($b1vert) && $face->[10] == $b1vert) {
         $verts_by_blade->{blade1}{$b1vert} = 1;
         $faces_by_blade->{blade1}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[8]})) {
           $searched->{$face->[8]} = 1;
           push @b1search, $face->[8];
@@ -1841,9 +1870,12 @@ sub convert_trimesh_to_saber {
           push @b1search, $face->[9];
         }
       }
+      # v0 of this face is the blade2 search vertex
       if (defined($b2vert) && $face->[8] == $b2vert) {
         $verts_by_blade->{blade2}{$b2vert} = 1;
         $faces_by_blade->{blade2}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[9]})) {
           $searched->{$face->[9]} = 1;
           push @b2search, $face->[9];
@@ -1853,9 +1885,12 @@ sub convert_trimesh_to_saber {
           push @b2search, $face->[10];
         }
       }
+      # v1 of this face is the blade2 search vertex
       if (defined($b2vert) && $face->[9] == $b2vert) {
         $verts_by_blade->{blade2}{$b2vert} = 1;
         $faces_by_blade->{blade2}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[8]})) {
           $searched->{$face->[8]} = 1;
           push @b2search, $face->[8];
@@ -1865,9 +1900,12 @@ sub convert_trimesh_to_saber {
           push @b2search, $face->[10];
         }
       }
+      # v2 of this face is the blade2 search vertex
       if (defined($b2vert) && $face->[10] == $b2vert) {
         $verts_by_blade->{blade2}{$b2vert} = 1;
         $faces_by_blade->{blade2}{$index} = 1;
+        # first time this face has matched a search,
+        # add its other two vertices to the search list
         if (!defined($searched->{$face->[8]})) {
           $searched->{$face->[8]} = 1;
           push @b2search, $face->[8];
@@ -1879,18 +1917,20 @@ sub convert_trimesh_to_saber {
       }
     }
   }
-  print Dumper($faces_by_blade);
-  print Dumper($verts_by_blade);
+  #print Dumper($faces_by_blade);
+  #print Dumper($verts_by_blade);
 
-  # we now have the faces separated into two blades,
-  # but we need to determine which is blade1 and which is blade2
+  # we now have the faces and vertices separated into two blades,
+  # but we need to determine which is blade1 and which is blade2,
   # with borked bioware layout,
   # test whether the 4 point Z coord > 3 point Z coords, if so, blade1
   # $row_one_outer has 4 points, $row_two has 3 points
   my $b1_test = {};
   my $b1_4point;
-print Dumper($meshnode->{verts});
+  #print Dumper($meshnode->{verts});
+  # go through list of row one outer points
   for my $test (@{$row_one_outer}) {
+    # only testing blade1 vertices though
     if (defined($verts_by_blade->{blade1}{$test})) {
       $b1_4point = $test;
       $b1_test->{$test} = $meshnode->{verts}[$test];
@@ -1902,41 +1942,46 @@ print Dumper($meshnode->{verts});
       $b1_test->{$test} = $meshnode->{verts}[$test];
     }
   }
+  # b1_test hash now contains blade1 row_one_outer and all blade1 row_two,
+  # sort the list by z coordinate (not testing inside/outside, but top/bottom)
   my $b1_sort = [ sort { $b1_test->{$a}[2] <=> $b1_test->{$b}[2] } keys %{$b1_test} ];
-  print Dumper($b1_4point);
-  print Dumper($b1_sort);
-  print Dumper($b1_test);
-print "tested\n";
+  #print Dumper($b1_4point);
+  #print Dumper($b1_sort);
+  #print Dumper($b1_test);
+  #print "tested\n";
+  # if the first element in the sorted list is b1 row_one_outer,
+  # then the 4-point is closer to the hilt and this is actually blade2
   if ($b1_sort->[0] == $b1_4point) {
-    print "BLADE2 FOUND, SWITCH\n";
-    print Dumper($verts_by_blade);
+    # swap the blade data via temporary items
+    #print "BLADE2 FOUND, SWITCH\n";
+    #print Dumper($verts_by_blade);
     $verts_by_blade->{blade3} = { %{$verts_by_blade->{blade1}} };
     $verts_by_blade->{blade1} = { %{$verts_by_blade->{blade2}} };
     $verts_by_blade->{blade2} = $verts_by_blade->{blade3};
     delete $verts_by_blade->{blade3};
-    print Dumper($verts_by_blade);
-    print Dumper($faces_by_blade);
+    #print Dumper($verts_by_blade);
+    #print Dumper($faces_by_blade);
     $faces_by_blade->{blade3} = { %{$faces_by_blade->{blade1}} };
     $faces_by_blade->{blade1} = { %{$faces_by_blade->{blade2}} };
     $faces_by_blade->{blade2} = $faces_by_blade->{blade3};
     delete $faces_by_blade->{blade3};
-    print Dumper($faces_by_blade);
-    print Dumper($blades);
+    #print Dumper($faces_by_blade);
+    #print Dumper($blades);
     $blades->[2] = [ @{$blades->[0]} ];
     $blades->[0] = $blades->[1];
     $blades->[1] = [ @{$blades->[2]} ];
     delete $blades->[2];
     $blades->[0][2][1] = $blades->[0][1][1];
     $blades->[0][1][1] = -1;
-    print Dumper($blades);
+    #print Dumper($blades);
   }
 
   # finish filling in the blades structure now that we know which blade is which
-  # we're doing row selection based on z comparisons
-  # start with the corners
+  # we're doing row selection based on mostly z comparisons
   my $blade_keys = { blade1 => 0, blade2 => 1 };
   for my $blade_key (keys %{$blade_keys}) {
     my $blade_index = $blade_keys->{$blade_key};
+    # start with the corners
     my $b1_corners = {};
     for my $corner (@{$corners}) {
       if (defined($verts_by_blade->{$blade_key}{$corner})) {
@@ -1946,6 +1991,8 @@ print "tested\n";
     my $corner_sort = [ sort { $b1_corners->{$a}[2] <=> $b1_corners->{$b}[2] } keys %{$b1_corners} ];
     $blades->[$blade_index][0][1] = $corner_sort->[0];
     $blades->[$blade_index][3][1] = $corner_sort->[1];
+
+    # then the inner edge
     my $b1_inner_edge = {};
     for my $ie (@{$inner_edge}) {
       if (defined($verts_by_blade->{$blade_key}{$ie})) {
@@ -1962,6 +2009,8 @@ print "tested\n";
       $blades->[$blade_index][2][0] = $ie_sort->[1];
       $blades->[$blade_index][3][0] = $ie_sort->[2];
     }
+
+    # then row two
     my $b1_row_two = {};
     for my $row2 (@{$row_two}) {
       if (defined($verts_by_blade->{$blade_key}{$row2})) {
@@ -1983,14 +2032,14 @@ print "tested\n";
     #print Dumper($b1_inner_edge);
     #print Dumper($b1_row_two);
   }
-  print Dumper($blades);
+  #print Dumper($blades);
 
   my $index_pattern = [ 0, 1, (0) x 20, 2, 3, (2) x 20 ];
   # vertices:
-  # blade1 0,0 1,0 2,0 3,0, blade1 0,1 1,1 2,1 3,1
-  # blade1 0,0 1,0 2,0 3,0 x 20
-  # blade2 0,0 1,0 2,0 3,0, blade2 0,1 1,1 2,1 3,1
-  # blade2 0,0 1,0 2,0 3,0 x 20
+  # blade1 0,0 1,0 2,0 3,0; blade1 0,1 1,1 2,1 3,1;
+  # blade1 0,0 1,0 2,0 3,0 x 20;
+  # blade2 0,0 1,0 2,0 3,0; blade2 0,1 1,1 2,1 3,1;
+  # blade2 0,0 1,0 2,0 3,0 x 20;
   my $vert_indices = [
     [ $blades->[0][0][0], $blades->[0][1][0], $blades->[0][2][0], $blades->[0][3][0] ],
     [ $blades->[0][0][1], $blades->[0][1][1], $blades->[0][2][1], $blades->[0][3][1] ],
