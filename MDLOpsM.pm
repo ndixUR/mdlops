@@ -1556,12 +1556,14 @@ my $dothis = 0;
         $ref->{$node}{'tverts'}[$i][0] = $ref->{$node}{'tverts+'}{'unpacked'}[($i * 2) + 0];
         $ref->{$node}{'tverts'}[$i][1] = $ref->{$node}{'tverts+'}{'unpacked'}[($i * 2) + 1];
       }
-      $ref->{$node}{'verts1'}[$i][0] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 0];
-      $ref->{$node}{'verts1'}[$i][1] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 1];
-      $ref->{$node}{'verts1'}[$i][2] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 2];
-      $ref->{$node}{'tverts1offset'}[$i][0] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 0];
-      $ref->{$node}{'tverts1offset'}[$i][1] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 1];
-      $ref->{$node}{'tverts1offset'}[$i][2] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 2];
+      # these are the vertices that saber mesh uses
+      $ref->{$node}{'saber_verts'}[$i][0] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 0];
+      $ref->{$node}{'saber_verts'}[$i][1] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 1];
+      $ref->{$node}{'saber_verts'}[$i][2] = $ref->{$node}{'vertcoords2'}{'unpacked'}[($i * 3) + 2];
+      # the face/vertex normals for the saber mesh plane
+      $ref->{$node}{'saber_norms'}[$i][0] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 0];
+      $ref->{$node}{'saber_norms'}[$i][1] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 1];
+      $ref->{$node}{'saber_norms'}[$i][2] = $ref->{$node}{'data2081-3'}{'unpacked'}[($i * 3) + 2];
     }
   } # if 2081
 
@@ -1977,9 +1979,9 @@ print "tested\n";
       $blades->[$blade_index][1][0] = $r2_sort->[0];
       $blades->[$blade_index][1][1] = $r2_sort->[1];
     }
-    print Dumper($b1_corners);
-    print Dumper($b1_inner_edge);
-    print Dumper($b1_row_two);
+    #print Dumper($b1_corners);
+    #print Dumper($b1_inner_edge);
+    #print Dumper($b1_row_two);
   }
   print Dumper($blades);
 
@@ -1999,7 +2001,8 @@ print "tested\n";
   foreach (@{$vert_indices}) {
     $verts = [ @{$verts}, [ map {$meshnode->{verts}[$_]} @{$_} ] ];
   }
-  print Dumper($verts);
+  #print Dumper($verts);
+
   #print Dumper($index_pattern);
   #my $verts_final = [ map { @{$verts->[$_]} } @{$index_pattern} ];
   #print Dumper($verts_final);
@@ -2020,7 +2023,7 @@ print "tested\n";
   foreach (@{$tvert_indices}) {
     $tverts = [ @{$tverts}, [ map {$meshnode->{tverts}[$_]} @{$_} ] ];
   }
-  print Dumper($tverts);
+  #print Dumper($tverts);
 
   # normals:
   # blade 2, bottom outside corner (1,1),(0,1),(0,0)
@@ -2028,43 +2031,47 @@ print "tested\n";
   # blade 1, bottom outside corner (0,1),(1,1),(0,0)
   # blade 1, bottom inside (0,0),(1,1),(1,0)
   # repeat 44 times
-  my $normal_face_indices = [
-    [ $blades->[1][1][1], $blades->[1][0][1], $blades->[1][0][0] ],
-    [ $blades->[1][0][0], $blades->[1][1][0], $blades->[1][1][1] ],
-    [ $blades->[0][0][1], $blades->[0][1][1], $blades->[0][0][0] ],
-    [ $blades->[0][0][0], $blades->[0][1][1], $blades->[0][1][0] ],
-  ];
-  my $face_normals = [];
-  foreach (@{$normal_face_indices}) {
-    my ($v1, $v2, $v3) = map {@{$meshnode->{verts}}[$_]} @{$_};
-    my $normal_vector =
-    [
-      $v1->[1] * ($v2->[2] - $v3->[2]) +
-      $v2->[1] * ($v3->[2] - $v1->[2]) +
-      $v3->[1] * ($v1->[2] - $v2->[2]),
-      $v1->[2] * ($v2->[0] - $v3->[0]) +
-      $v2->[2] * ($v3->[0] - $v1->[0]) +
-      $v3->[2] * ($v1->[0] - $v2->[0]),
-      $v1->[0] * ($v2->[1] - $v3->[1]) +
-      $v2->[0] * ($v3->[1] - $v1->[1]) +
-      $v3->[0] * ($v1->[1] - $v2->[1]),
-    ];
-    $face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
-  }
-  print Dumper($face_normals);
+
+  # we have to calculate these for all lightsaber mesh, including unconverted,
+  # so now this calculation resides directly in readasciimdl,
+  # at the call site of this function
+#  my $normal_face_indices = [
+#    [ $blades->[1][1][1], $blades->[1][0][1], $blades->[1][0][0] ],
+#    [ $blades->[1][0][0], $blades->[1][1][0], $blades->[1][1][1] ],
+#    [ $blades->[0][0][1], $blades->[0][1][1], $blades->[0][0][0] ],
+#    [ $blades->[0][0][0], $blades->[0][1][1], $blades->[0][1][0] ],
+#  ];
+#  my $face_normals = [];
+#  foreach (@{$normal_face_indices}) {
+#    my ($v1, $v2, $v3) = map {@{$meshnode->{verts}}[$_]} @{$_};
+#    my $normal_vector =
+#    [
+#      $v1->[1] * ($v2->[2] - $v3->[2]) +
+#      $v2->[1] * ($v3->[2] - $v1->[2]) +
+#      $v3->[1] * ($v1->[2] - $v2->[2]),
+#      $v1->[2] * ($v2->[0] - $v3->[0]) +
+#      $v2->[2] * ($v3->[0] - $v1->[0]) +
+#      $v3->[2] * ($v1->[0] - $v2->[0]),
+#      $v1->[0] * ($v2->[1] - $v3->[1]) +
+#      $v2->[0] * ($v3->[1] - $v1->[1]) +
+#      $v3->[0] * ($v1->[1] - $v2->[1]),
+#    ];
+#    $face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
+#  }
+#  print Dumper($face_normals);
 
 
   # populate sabernode verts, set vertsnum
   $sabernode->{verts} = [ map { @{$verts->[$_]} } @{$index_pattern} ];
-  $sabernode->{verts1} = $sabernode->{verts};
+  $sabernode->{saber_verts} = $sabernode->{verts};
   $sabernode->{vertnum} = scalar(@{$sabernode->{verts}});
-  $sabernode->{verts1num} = scalar(@{$sabernode->{verts}});
+  $sabernode->{saber_vertsnum} = scalar(@{$sabernode->{verts}});
   # populate sabernode tverts, set tvertsnum
   $sabernode->{tverts} = [ map { @{$tverts->[$_]} } @{$index_pattern} ];
   $sabernode->{tvertsnum} = scalar(@{$sabernode->{tverts}});
   # populate sabernode normals
-  $sabernode->{tverts1offset} = [ map { @{$face_normals} } (0..scalar(@{$index_pattern}) - 1) ];
-  $sabernode->{tverts1offsetnum} = scalar(@{$sabernode->{tverts1offset}});
+#  $sabernode->{saber_norms} = [ map { @{$face_normals} } (0..scalar(@{$index_pattern}) - 1) ];
+#  $sabernode->{saber_normsnum} = scalar(@{$sabernode->{saber_norms}});
   # zero sabernode MDX bitmap
   $sabernode->{mdxdatabitmap} = 0;
   $sabernode->{texturenum} = 1;
@@ -2170,16 +2177,18 @@ sub writeasciimdl {
       $temp2 = "aabb";
     } elsif ($nodetype == NODE_SABER) {
 #      $temp2 = "dummy";
-      $temp2 = "trimesh";
+#      $temp2 = "trimesh";
+      $temp2 = 'lightsaber';
     } else {
       $temp2 = "dummy";
     }
 
-    if ( $nodetype == NODE_SABER ) {
-      print(MODELOUT "node " . $temp2 . " 2081__" . $temp . "\n");
-    } else {
+    # name translation happens during conversion now
+    #if ( $nodetype == NODE_SABER ) {
+    #  print(MODELOUT "node " . $temp2 . " 2081__" . $temp . "\n");
+    #} else {
       print(MODELOUT "node " . $temp2 . " " . $temp . "\n");
-    }
+    #}
     print(MODELOUT "  parent " . $model->{'nodes'}{$i}{'parent'} . "\n");
 
     print(MODELHINT "$temp,$model->{'nodes'}{$i}{'supernode'}\n");
@@ -2447,14 +2456,17 @@ sub writeasciimdl {
         }
       }
       if ($nodetype & NODE_HAS_SABER) {
-        printf(MODELOUT "  verts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'verts1'}}));
-        foreach ( @{$model->{'nodes'}{$i}{'verts1'}} ) {
-          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
-        }
-        printf(MODELOUT "  tverts1offset %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1offset'}}));
-        foreach ( @{$model->{'nodes'}{$i}{'tverts1offset'}} ) {
-          printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
-        }
+        # copy of vertices and the weird face normals, we don't need to export these
+        # leaving the code here though, in case someone wants to see them,
+        # as I do, during verifications.
+        #printf(MODELOUT "  saber_verts %u\n", scalar(@{$model->{'nodes'}{$i}{'saber_verts'}}));
+        #foreach ( @{$model->{'nodes'}{$i}{'saber_verts'}} ) {
+        #  printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
+        #}
+        #printf(MODELOUT "  saber_norms %u\n", scalar(@{$model->{'nodes'}{$i}{'saber_norms'}}));
+        #foreach ( @{$model->{'nodes'}{$i}{'saber_norms'}} ) {
+        #  printf(MODELOUT "    % .7g % .7g % .7g\n", @{$_});
+        #}
       }
       if ($nodetype == NODE_SKIN && !$options->{convert_skin}) {
         printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
@@ -3087,6 +3099,7 @@ sub readasciimdl {
         # type should have been 'trimesh', make it 'saber'
         $ntype = 'lightsaber';
         $nname =~ s/^2081__//;
+        $model{'nodes'}{$nodenum}{convert_saber} = 1;
       }
       my $nname_key = lc($nname);
       $model{'nodes'}{'truenodenum'}++;
@@ -3319,13 +3332,13 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{"texindices$1"} = {};
       $task = "texindices$1";
       $count = 0;
-    } elsif ($innode && $line =~ /\s*[^t]verts1\s+(\S*)/i) {  # if in a node look for the start of the saber verts1
-      $model{'nodes'}{$nodenum}{'verts1num'} = $1;
-      $task = "verts1";
+    } elsif ($innode && $line =~ /\s*[^t]saber_verts\s+(\S*)/i) {  # if in a node look for the start of the saber verts
+      $model{'nodes'}{$nodenum}{'saber_vertsnum'} = $1;
+      $task = "saber_verts";
       $count = 0;
-    } elsif ($innode && $line =~ /\s*[^t]tverts1offset\s+(\S*)/i) {  # if in a node look for the start of the saber tverts1offset
-      $model{'nodes'}{$nodenum}{'tverts1offsetnum'} = $1;
-      $task = "tverts1offset";
+    } elsif ($innode && $line =~ /\s*[^t]saber_norms\s+(\S*)/i) {  # if in a node look for the start of the saber normals
+      $model{'nodes'}{$nodenum}{'saber_normsnum'} = $1;
+      $task = "saber_norms";
       $count = 0;
     } elsif ($innode && $line =~ /\s*weights\s+(\S*)/i) { # if in a node look for the start of the weights
       $model{'nodes'}{$nodenum}{'weightsnum'} = $1;
@@ -3464,13 +3477,13 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'texindices3'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][9]}  = $2;
         $model{'nodes'}{$nodenum}{'texindices3'}{$model{'nodes'}{$nodenum}{Bfaces}[$count][10]} = $3;
         $count++;
-      } elsif ($task eq "verts1" ) { # read in the verts1 saber data
+      } elsif ($task eq "saber_verts" ) { # read in the verts1 saber data
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
-        $model{'nodes'}{$nodenum}{'verts1'}[$count] = [$1, $2, $3];
+        $model{'nodes'}{$nodenum}{'saber_verts'}[$count] = [$1, $2, $3];
         $count++;
-      } elsif ($task eq "tverts1offset" ) { # read in the tverts1offset saber data
+      } elsif ($task eq "saber_norms" ) { # read in the saber_norms saber data
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
-        $model{'nodes'}{$nodenum}{'tverts1offset'}[$count] = [$1, $2, $3];
+        $model{'nodes'}{$nodenum}{'saber_norms'}[$count] = [$1, $2, $3];
         $count++;
       } elsif ($task eq "weights") { # read in the bone weights
         $line =~ /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
@@ -3568,11 +3581,46 @@ sub readasciimdl {
 
   for (my $i = 0; $i < $nodenum; $i++)
   {
-    if ($model{nodes}{$i}{nodetype} & NODE_HAS_SABER) {
-      $model{nodes}{$i} = convert_trimesh_to_saber(\%model, $i);
+    if (!($model{nodes}{$i}{nodetype} & NODE_HAS_SABER)) {
+      next;
     }
+    if ($model{nodes}{$i}{convert_saber}) {
+      $model{nodes}{$i} = convert_trimesh_to_saber(\%model, $i);
+      print "converted\n";
+    }
+    # these are mesh node indices
+    #my $normal_face_indices = [ [ 13, 12,  8 ],
+    #                            [  8,  9, 13 ],
+    #                            [  4,  5,  0 ],
+    #                            [  0,  5,  1 ] ];
+    my $normal_face_indices = [ [ 93, 92, 88 ],
+                                [ 88, 89, 93 ],
+                                [  4,  5,  0 ],
+                                [  0,  5,  1 ] ];
+    my $face_normals = [];
+    foreach (@{$normal_face_indices}) {
+      my ($v1, $v2, $v3) = @{$model{nodes}{$i}{verts}}[@{$_}];
+      my $normal_vector =
+      [
+        $v1->[1] * ($v2->[2] - $v3->[2]) +
+        $v2->[1] * ($v3->[2] - $v1->[2]) +
+        $v3->[1] * ($v1->[2] - $v2->[2]),
+        $v1->[2] * ($v2->[0] - $v3->[0]) +
+        $v2->[2] * ($v3->[0] - $v1->[0]) +
+        $v3->[2] * ($v1->[0] - $v2->[0]),
+        $v1->[0] * ($v2->[1] - $v3->[1]) +
+        $v2->[0] * ($v3->[1] - $v1->[1]) +
+        $v3->[0] * ($v1->[1] - $v2->[1]),
+      ];
+      $face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
+    }
+    my $index_pattern = [ 0, 1, (0) x 20, 2, 3, (2) x 20 ];
+    #print Dumper($face_normals);
+    #print Dumper($model{nodes}{$i}{saber_norms});
+    $model{nodes}{$i}->{saber_norms} = [ map { @{$face_normals} } (0..scalar(@{$index_pattern}) - 1) ];
+    $model{nodes}{$i}->{saber_normsnum} = scalar(@{$model{nodes}{$i}->{saber_norms}});
+    #print Dumper($model{nodes}{$i}{saber_norms});
   }
-
 
   # rework node geometry according to the requirements of the MDX data format,
   # making all of the per-vertex data correlated, as if we had vertex objects
@@ -5915,7 +5963,7 @@ sub writebinarynode
         }
         elsif ($model->{'nodes'}{$i}{'nodetype'} == NODE_SABER) # lightsaber mesh sub-sub-header
         {
-            $model->{'nodes'}{$i}{'verts1pointer'} = tell(BMDLOUT);
+            $model->{'nodes'}{$i}{'saber_vertspointer'} = tell(BMDLOUT);
             $buffer = pack('L', 0); # offset into data
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
@@ -5925,7 +5973,7 @@ sub writebinarynode
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
-            $model->{'nodes'}{$i}{'tverts1offsetpointer'} = tell(BMDLOUT);
+            $model->{'nodes'}{$i}{'saber_normspointer'} = tell(BMDLOUT);
             $buffer = pack('L', 0); # offset into data
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
@@ -5940,23 +5988,24 @@ sub writebinarynode
             # data arrays to write out:
             # vertcoords2 (loc 2)
             $buffer = '';
-            $model->{'nodes'}{$i}{'verts1location'} = tell(BMDLOUT);
-            foreach(@{$model->{'nodes'}{$i}{'verts1'}}) {
+            $model->{'nodes'}{$i}{'saber_vertslocation'} = tell(BMDLOUT);
+            foreach(@{$model->{'nodes'}{$i}{'verts'}}) {
                 $buffer .= pack('fff', @{$_});
             }
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
              # data2081-3 (loc 4)
+             # face/vertex normals
             $buffer = '';
-            $model->{'nodes'}{$i}{'tverts1offsetlocation'} = tell(BMDLOUT);
-            foreach(@{$model->{'nodes'}{$i}{'tverts1offset'}}) {
+            $model->{'nodes'}{$i}{'saber_normslocation'} = tell(BMDLOUT);
+            foreach(@{$model->{'nodes'}{$i}{'saber_norms'}}) {
                 $buffer .= pack('fff', @{$_});
             }
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
-             # tverts1offset (loc 3)
+             # tverts (loc 3)
             $buffer = '';
             $model->{'nodes'}{$i}{'tvertslocation'} = tell(BMDLOUT);
             foreach(@{$model->{'nodes'}{$i}{'tverts'}}) {
@@ -6347,10 +6396,10 @@ sub writebinarynode
     print(BMDLOUT pack("L[3]", $model->{'nodes'}{$i}{'unknownlocation'} - 12, 0, 0));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'vertfloatpointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'vertfloatlocation'} - 12));
-    seek(BMDLOUT, $model->{'nodes'}{$i}{'verts1pointer'}, 0);
-    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'verts1location'} - 12));
-    seek(BMDLOUT, $model->{'nodes'}{$i}{'tverts1offsetpointer'}, 0);
-    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'tverts1offsetlocation'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'saber_vertspointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'saber_vertslocation'} - 12));
+    seek(BMDLOUT, $model->{'nodes'}{$i}{'saber_normspointer'}, 0);
+    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'saber_normslocation'} - 12));
     seek(BMDLOUT, $model->{'nodes'}{$i}{'tvertspointer'}, 0);
     print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'tvertslocation'} - 12));
   }
