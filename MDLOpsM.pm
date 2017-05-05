@@ -2543,6 +2543,26 @@ sub writeasciimdl {
     }
     print (MODELOUT "endnode\n");
   }
+
+  # test for unused part names, usually refering to parts of walkmesh file
+  # add dummies for them unless the user does not want them
+  if (!$options->{skip_extra_partnames}) {
+    foreach (@{$model->{partnames}}) {
+      if (!defined($model->{nodes}{$model->{nodeindex}{lc $_}})) {
+        # no node by this name, print a dummy
+        # parent name will be model root unless better candidate exists
+        my $parent_name = $model->{partnames}[0];
+        if (/_DWK_/ && defined($model->{nodeindex}{lc ($parent_name . '_DWK')})) {
+          $parent_name = $parent_name . '_DWK';
+        }
+        if (/_pwk_/ && defined($model->{nodeindex}{lc ($parent_name . '_pwk')})) {
+          $parent_name = $parent_name . '_pwk';
+        }
+        printf(MODELOUT "node dummy %s\n  parent %s\nendnode\n", $_, $parent_name);
+      }
+    }
+  }
+
   printf(MODELOUT "endmodelgeom %s\n", $model->{'partnames'}[0]);
 
     
@@ -4806,6 +4826,29 @@ sub readasciimdl {
     postprocessnodes($model{'anims'}{$i}{'nodes'}{0}, $model{'anims'}{$i}, 1);
   }
   
+  # pwk and dwk nodes can reside in the model, and even be animated therein,
+  # however, we don't want to write them out in geometry,
+  # remove them now, letting the pwk/dwk files handle their positions etc.
+  if ($model{classification} eq 'Placeable' ||
+      $model{classification} eq 'Door') {
+    # remove any walkmesh nodes now (preserving them in our names list)
+    foreach (keys %nodeindex) {
+      if (/_dwk$/i || /_pwk$/i) {
+        my $walkmesh_nodes = [ @{$model{nodes}{$nodeindex{$_}}{children}}, $nodeindex{$_} ];
+        for my $wkm_index (@{$walkmesh_nodes}) {
+          delete $model{nodes}{$wkm_index};
+          # decrease the total
+          $model{nodes}{truenodenum} -= 1;
+          # decrease the total that includes any supermodel nodes
+          if (defined($model{totalnumnodes})) {
+            $model{totalnumnodes} -= 1;
+          }
+        }
+        last;
+      }
+    }
+  }
+
   print (" nodenum: " . $nodenum . " true: " . $model{'nodes'}{'truenodenum'} . "\n") if $printall;
   $nodenum = $model{'nodes'}{'truenodenum'};
   #cook the bone weights and prepare the bone map
@@ -4966,7 +5009,9 @@ sub writebinarymdl {
   }
   close BMDXOUT;
   #build the part names array
-  for (my $i = 0; $i < $nodenum; $i++) {
+  #for (my $i = 0; $i < $nodenum; $i++) {
+  # ignore nodenum here because we may have names without nodes
+  for my $i (keys @{$model->{partnames}}) {
     $model->{'names'}{'raw'} .= pack("Z*", $model->{'partnames'}[$i]);
   }  
 
