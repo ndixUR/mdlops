@@ -2645,7 +2645,8 @@ sub writeasciimdl {
 # 
 sub getcontrollername {
   my ($model, $controllernum, $node) = (@_);
-  my $nodetype = $model->{'nodes'}{$node}{'nodetype'};
+  my $nodetype = (defined($model->{'nodes'}{$node}) && $model->{'nodes'}{$node}{'nodetype'}
+                    ? $model->{'nodes'}{$node}{'nodetype'} : NODE_DUMMY);
   my @nodeheaders = (NODE_HAS_MESH, NODE_HAS_EMITTER, NODE_HAS_LIGHT, NODE_HAS_HEADER);
   
   foreach (@nodeheaders) {
