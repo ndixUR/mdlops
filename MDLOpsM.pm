@@ -631,7 +631,7 @@ sub readbinarymdl
 
     #write out the bitmaps file
     open(BITMAPSOUT, ">", $filepath."-textures.txt") or die "can't open bitmaps out file\n";
-    foreach (0..$model{'nodes'}{'truenodenum'})
+    foreach (0..$model{'nodes'}{'truenodenum'} - 1)
     {
         if (defined($model{'nodes'}{$_}{'bitmap'}) && lc($model{'nodes'}{$_}{'bitmap'}) ne "null")
         {
