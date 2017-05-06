@@ -3002,8 +3002,18 @@ sub readasciimdl {
     $options = {};
   }
   # use area and angle weighted vertex normal averaging
-  if(!defined($options->{use_weights})) {
-    $options->{use_weights} = 0;
+  if (!defined($options->{weight_by_angle})) {
+    $options->{weight_by_angle} = 0;
+  }
+  if (!defined($options->{weight_by_area})) {
+    $options->{weight_by_area} = 1;
+  }
+  if (!defined($options->{use_weights})) {
+    $options->{use_weights} = $options->{weight_by_angle} || $options->{weight_by_area};
+  }
+  if (!$options->{use_weights}) {
+    $options->{weight_by_angle} = 0;
+    $options->{weight_by_area} = 0;
   }
   # use crease angle test for vertex normal averaging
   if (!defined($options->{use_crease_angle})) {
@@ -4524,21 +4534,24 @@ sub readasciimdl {
                 next;
             }
             $sgA = $model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4];
-            my $weight_factor = $faceareas{$meshA}{$faceA};
+            my $weight_factor = $options->{weight_by_area} ? $faceareas{$meshA}{$faceA} : 1;
             my ($av1, $av2, $av3) = (
                 $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[8]],
                 $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[9]],
                 $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[10]]
             );
-            if (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av1))
+            if ($options->{weight_by_angle} &&
+                vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av1))
             {
                 $weight_factor *= compute_vertex_angle($av1, $av2, $av3);
             }
-            elsif (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av2))
+            elsif ($options->{weight_by_angle} &&
+                   vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av2))
             {
                 $weight_factor *= compute_vertex_angle($av2, $av1, $av3);
             }
-            elsif (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av3))
+            elsif ($options->{weight_by_angle} &&
+                   vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av3))
             {
                 $weight_factor *= compute_vertex_angle($av3, $av1, $av2);
             }
@@ -4548,7 +4561,7 @@ sub readasciimdl {
             if ($options->{use_weights} &&
                 $model{'nodes'}{$i}{'nodetype'} & NODE_HAS_AABB) {
               # not using angle weight for aabb vertex normals
-              $weight_factor = $faceareas{$meshA}{$faceA};
+              $weight_factor = $options->{weight_by_area} ? $faceareas{$meshA}{$faceA} : 1;
             }
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
                 map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]}
@@ -4618,7 +4631,7 @@ sub readasciimdl {
                         }
                         #next;
                     }
-                    my $area = $faceareas{$meshB}{$faceB};
+                    my $area = $options->{weight_by_area} ? $faceareas{$meshB}{$faceB} : 1;
                     # initialize angle to 1 in case no vertices match somehow
                     my $angle = -1;
                     # store faceB vertices in listrefs $bv1-3
@@ -4627,19 +4640,22 @@ sub readasciimdl {
                         $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
                         $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
                     );
-                    if (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv1, 4))
+                    if ($options->{weight_by_angle} &&
+                        vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv1, 4))
                     {
                         $angle = compute_vertex_angle($bv1, $bv2, $bv3);
                     }
-                    elsif (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv2, 4))
+                    elsif ($options->{weight_by_angle} &&
+                           vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv2, 4))
                     {
                         $angle = compute_vertex_angle($bv2, $bv1, $bv3);
                     }
-                    elsif (vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv3, 4))
+                    elsif ($options->{weight_by_angle} &&
+                           vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv3, 4))
                     {
                         $angle = compute_vertex_angle($bv3, $bv1, $bv2);
                     }
-                    if ($options->{use_weights} && $angle == -1) {
+                    if ($options->{weight_by_angle} && $angle == -1) {
                         # if angle does not get computed, this is usually a miss
                         # due to vertex comparison precision. in a perfect world
                         # we would lower precision and retry.
