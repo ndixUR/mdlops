@@ -3034,6 +3034,10 @@ sub readasciimdl {
   if (!defined($options->{validate_vertex_data})) {
     $options->{validate_vertex_data} = 1;
   }
+  # recalculate the aabb tree or use the one provided?
+  if (!defined($options->{recalculate_aabb_tree})) {
+    $options->{recalculate_aabb_tree} = 1;
+  }
 
 
   #extract just the name
@@ -3999,7 +4003,8 @@ sub readasciimdl {
     }
 
     # calculate new aabb trees if possible
-    if (eval "use MDLOpsW; 1;")
+    if ($options->{recalculate_aabb_tree} &&
+        eval "defined &MDLOpsM::Walkmesh::detect_format; 1;")
     {
         # advanced walkmesh functions are available, build working aabb trees
         for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++)
@@ -4016,7 +4021,7 @@ sub readasciimdl {
             ];
             # this is where the new aabb tree will be:
             $model{'nodes'}{$i}{'walkmesh'}{aabbs} = [];
-            aabb(
+            MDLOpsM::Walkmesh::aabb(
                 $model{'nodes'}{$i}{'walkmesh'},
                 [ (0..(scalar(@{$model{'nodes'}{$i}{'walkmesh'}->{faces}}) - 1)) ]
             );
