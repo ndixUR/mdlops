@@ -92,11 +92,13 @@
 # 
 package MDLOpsM;
 
-use Exporter;
-our @EXPORT = qw( modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
-our @ISA = qw(Exporter);
-use vars qw($VERSION);
-$VERSION = '0.8.0';
+BEGIN {
+  use Exporter;
+  our @EXPORT = qw( modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
+  our @ISA = qw(Exporter);
+  use vars qw($VERSION);
+  $VERSION = '0.8.0';
+}
 
 #use Time::HiRes qw(usleep ualarm gettimeofday tv_interval);
 use Time::HiRes qw(gettimeofday tv_interval);
@@ -7327,3 +7329,1427 @@ sub printhex {
  }
   print ("\n\n");
 }
+
+1;
+
+#^L
+package MDLOpsM::Walkmesh;
+use strict;
+use warnings;
+
+BEGIN {
+  require Exporter;
+  use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
+  $VERSION = '0.1.0';
+  @EXPORT = qw(readbinarywalkmesh writebinarywalkmesh readasciiwalkmesh writeasciiwalkmesh detect_format aabb);
+  @ISA = qw(Exporter);
+}
+
+use Data::Dumper;
+
+BEGIN {
+  use vars qw($info);
+  $info = {
+    sizes => {
+      header => 136,
+      vert => 12,
+      face => 12,
+      type => 4,
+      normal => 12,
+      plane_distance => 4,
+      aabb => 44,
+      adjacent_face => 12,
+      edge_loop => 8,
+      perimeter => 4
+    },
+    templates => {
+      header => 'A[8]L' . ('f' x 15) . 'LL' . 'LL' . 'L' . 'L' . 'L' . 'LLLLLLLLL',
+      face => 'LLL',
+      type => 'L',
+      aabb => 'f[6]l[5]',
+      adjacent_face => 'lll',
+      edge_loop => 'll',
+      perimeter => 'l',
+    },
+    hooks => {
+      pwk => [ 'use01', 'use02' ],
+      dwk => [ 'open1_01', 'open2_01', 'closed_01', 'closed_02' ],
+    },
+    filler => "
+  orientation 1.0 0.0 0.0 0.0
+  wirecolor 0.694118 0.580392 0.101961
+  multimaterial 20
+    Dirt
+    Obscuring
+    Grass
+    Stone
+    Wood
+    Water
+    Nonwalk
+    Transparent
+    Carpet
+    Metal
+    Puddles
+    Swamp
+    Mud
+    Leaves
+    Lava
+    BottomlessPit
+    DeepWater
+    Door
+    Snow
+    Sand
+  ambient 0.588 0.588 0.588
+  diffuse 0.705882 0.0 1.0
+  specular 0.0 0.0 0.0
+  selfillumcolor 0.0 0.0 0.0
+  bitmap NULL
+"
+  };
+}
+
+# walkmesh materials
+use constant WOK_DIRT           => 1;
+use constant WOK_OBSCURING      => 2;
+use constant WOK_GRASS          => 3;
+use constant WOK_STONE          => 4;
+use constant WOK_WOOD           => 5;
+use constant WOK_WATER          => 6;
+use constant WOK_NONWALK        => 7;
+use constant WOK_TRANSPARENT    => 8;
+use constant WOK_CARPET         => 9;
+use constant WOK_METAL          => 10;
+use constant WOK_PUDDLES        => 11;
+use constant WOK_SWAMP          => 12;
+use constant WOK_MUD            => 13;
+use constant WOK_LEAVES         => 14;
+use constant WOK_LAVA           => 15;
+use constant WOK_BOTTOMLESSPIT  => 16;
+use constant WOK_DEEPWATER      => 17;
+use constant WOK_DOOR           => 18;
+use constant WOK_SNOW           => 19;
+use constant WOK_SAND           => 20;
+
+###############################################################################
+#
+###############################################################################
+sub detect_format {
+  my ($file) = @_;
+
+  my ($fh, $test);
+
+  if (!open($fh, '<', $file)) {
+    return undef;
+  }
+  my $is_binary = 0;
+  read $fh, $test, 8;
+  if ($test =~ /^bwm v1.0$/i) {
+    $is_binary = 1;
+  }
+  close $fh;
+  return $is_binary;
+}
+
+sub detect_type {
+  my ($file) = @_;
+
+  if ($file =~ /wok$/i) {
+    return 'wok';
+  } elsif ($file =~ /dwk$/i) {
+    return 'dwk';
+  } elsif ($file =~ /pwk$/i) {
+    return 'pwk';
+  }
+
+  return undef;
+}
+
+###############################################################################
+#
+###############################################################################
+sub readasciiwalkmesh {
+  my ($file, $options) = @_;
+
+  my ($fh, $lines);
+
+  my $walkmesh = {
+    header => {},
+    verts  => [],
+    faces  => [],
+    types  => [],
+  };
+
+  # the extra data that will make our calculations easier
+  my $extra = {
+    vertfaces => {}
+  };
+
+  if (!-f $file ||
+      !open($fh, '<', $file)) {
+    die sprintf('error: file does not exist or not readable: %s: %s', $file, $!);
+  }
+
+  $lines = [ <$fh> ];
+  close ($fh);
+
+  my $parsing = {
+    node => 0,
+    vertices => 0,
+    faces => 0
+  };
+  my $face_data = [];
+
+  if (scalar(grep { /(?:^|\s+)node.*dwk_wg_/i } @{$lines}) > 1 &&
+      !defined($options->{walkmesh_name})) {
+    #print Dumper([grep { /(?:^|\s+)node.*dwk_wg_/i } @{$lines}]);
+    my $walkmeshes = {
+      closed => readasciiwalkmesh($file, { walkmesh_name => 'wg_closed' }),
+      open1  => readasciiwalkmesh($file, { walkmesh_name => 'wg_open1'  }),
+      open2  => readasciiwalkmesh($file, { walkmesh_name => 'wg_open2'  }),
+    };
+    $walkmeshes->{closed}{header}{dwk_type} = 'closed';
+    $walkmeshes->{open1}{header}{dwk_type}  = 'open1';
+    $walkmeshes->{open2}{header}{dwk_type}  = 'open2';
+    $walkmeshes->{closed}{header}{points} = [
+      (map {$walkmeshes->{closed}{header}{position}[$_] +
+           $walkmeshes->{closed}{header}{closed_01}[$_]} keys @{$walkmeshes->{closed}{header}{closed_01}}),
+      (map {$walkmeshes->{closed}{header}{position}[$_] +
+           $walkmeshes->{closed}{header}{closed_02}[$_]} keys @{$walkmeshes->{closed}{header}{closed_02}}),
+      @{$walkmeshes->{closed}{header}{closed_01}},
+      @{$walkmeshes->{closed}{header}{closed_02}}
+    ];
+    $walkmeshes->{open1}{header}{points} = [
+      (map {$walkmeshes->{open1}{header}{closed_01}[$_] - $walkmeshes->{open1}{header}{position}[$_]} keys @{$walkmeshes->{open1}{header}{closed_01}}),
+      @{$walkmeshes->{open1}{header}{open1_01}},
+      @{$walkmeshes->{open1}{header}{closed_01}},
+      #(map {$walkmeshes->{open1}{header}{position}[$_] - ($walkmeshes->{closed}{header}{position}[$_] +
+      #     $walkmeshes->{open1}{header}{closed_01}[$_]) - $walkmeshes->{open1}{header}{position}[$_]} keys @{$walkmeshes->{open1}{header}{closed_01}}),
+      (map {$walkmeshes->{open1}{header}{position}[$_] +
+           $walkmeshes->{open1}{header}{open1_01}[$_]} keys @{$walkmeshes->{open1}{header}{open1_01}}),
+    ];
+    $walkmeshes->{open2}{header}{points} = [
+      (map {$walkmeshes->{open2}{header}{closed_02}[$_] - $walkmeshes->{open2}{header}{position}[$_]} keys @{$walkmeshes->{open2}{header}{closed_01}}),
+      @{$walkmeshes->{open2}{header}{open2_01}},
+      @{$walkmeshes->{open2}{header}{closed_02}},
+      #(map {$walkmeshes->{open2}{header}{position}[$_] +
+      #     $walkmeshes->{open2}{header}{closed_02}[$_]} keys @{$walkmeshes->{open2}{header}{closed_02}}),
+      (map {$walkmeshes->{open2}{header}{position}[$_] +
+           $walkmeshes->{open2}{header}{open2_01}[$_]} keys @{$walkmeshes->{open2}{header}{open2_01}}),
+    ];
+    return $walkmeshes;
+  }
+
+  # basic parsing of the pertinent ascii walkmesh data
+  for my $line (@{$lines}) {
+    # get node
+    if (!$parsing->{node} &&
+        $line =~ /(?:^|\s+)node (?:trimesh|aabb)\s+(\S+)/i) {
+      $walkmesh->{header}{name} = $1;
+      if (defined($options->{walkmesh_name}) &&
+          !($walkmesh->{header}{name} =~ /$options->{walkmesh_name}/i)) {
+        next;
+      }
+      $walkmesh->{header}{format} = 'BWM V1.0';
+      $walkmesh->{header}{type_readable} = detect_type($file);
+      $walkmesh->{header}{type} = 0;
+      if ($walkmesh->{header}{type_readable} eq 'wok') {
+        $walkmesh->{header}{type} = 1;
+      }
+      $parsing->{node} = 1;
+      next;
+    } elsif (!$parsing->{node}) {
+      next;
+    }
+    # get position
+    if ($line =~ /(?:^|\s+)position\s+(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/i) {
+      $walkmesh->{header}{position} = [ $1, $2, $3 ];
+      next;
+    }
+    # get vertices
+    if (!$parsing->{vertices} &&
+        $line =~ /(?:^|\s+)verts\s+(\d+)/) {
+      $parsing->{vertices} = $1;
+      next;
+    }
+    if ($parsing->{vertices} &&
+        $line =~ /(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/) {
+      # track vertices at a given position, by vertex index
+      my $vert_pos = sprintf('%.4g,%.4g,%.4g', $1, $2, $3);
+      if (!defined($extra->{verts_by_pos}{$vert_pos})) {
+        $extra->{verts_by_pos}{$vert_pos} = [];
+      }
+      $extra->{verts_by_pos}{$vert_pos} = [
+        @{$extra->{verts_by_pos}{$vert_pos}}, scalar(@{$walkmesh->{verts}})
+      ];
+      # add the vertex to the list
+      $walkmesh->{verts} = [
+        @{$walkmesh->{verts}}, [ $1, $2, $3 ]
+      ];
+      $parsing->{vertices} -= 1;
+      next;
+    }
+    # get faces and types (material)
+    if (!$parsing->{faces} &&
+        $line =~ /(?:^|\s+)faces\s+(\d+)/) {
+      $parsing->{faces} = $1;
+      next;
+    }
+    if ($parsing->{faces} &&
+        $line =~ /^\s+?(\d+)\s+(\d+)\s+(\d+)(?:\s+\d+){4}\s+(\d+)/) {
+      $face_data = [ @{$face_data}, [ $1, $2, $3, $4 ] ];
+      $parsing->{faces} -= 1;
+      next;
+    }
+    if ($line =~ /(?:^|\s+)endnode/i) {
+      $parsing->{node} = 0;
+      #$parsing->{vertices} = 0;
+      #$parsing->{faces} = 0;
+      next;
+    }
+  }
+
+  if (!defined($walkmesh->{header}{name})) {
+    # error, no node was found
+    die "no walkmesh name found";
+  }
+  if (!defined($walkmesh->{header}{position})) {
+    # error, no position was found
+    die "no walkmesh position found";
+  }
+
+  # walkmesh valid enough, parse the ascii hook point dummies for pwk/dwk
+  if ($walkmesh->{header}{type_readable} ne 'wok') {
+    for my $line (@{$lines}) {
+      # read hook position dummy nodes for pwk/dwk
+      if (!$parsing->{hook} &&
+          $line =~ /(?:^|\s+)node dummy\s+(\S+)/i) {
+        # try to match type-specific hook points w/ dummy name
+        for my $hook (@{$info->{hooks}{$walkmesh->{header}{type_readable}}}) {
+          if ($1 =~ /$hook$/i) {
+            $parsing->{hook} = $hook;
+            last;
+          }
+        }
+        next;
+      }
+      # get hook position
+      if (defined($parsing->{hook}) &&
+          $line =~ /(?:^|\s+)position\s+(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/i) {
+        $walkmesh->{header}{$parsing->{hook}} = [ $1, $2, $3 ];
+        next;
+      }
+      # clear hook parsing state
+      if (defined($parsing->{hook}) &&
+          $line =~ /(?:^|\s+)endnode/i) {
+        delete $parsing->{hook};
+      }
+    }
+  }
+  # parsing finished, move face & material data into place
+
+  # sort non-walk faces to the end of the list, then split off the types
+  $face_data = [
+    (grep { $_->[3] != WOK_NONWALK } @{$face_data}),
+    (grep { $_->[3] == WOK_NONWALK } @{$face_data})
+  ];
+  #print Dumper($face_data);die;
+  for my $face (@{$face_data}) {
+    $walkmesh->{faces} = [
+      @{$walkmesh->{faces}}, [ @{$face}[0..2] ]
+    ];
+    $walkmesh->{types} = [
+      @{$walkmesh->{types}}, $face->[3]
+    ];
+    # construct the adjacency map of vert index => face indices
+    if (!defined($extra->{vertfaces}{$face->[0]})) {
+      $extra->{vertfaces}{$face->[0]} = [];
+    }
+    if (!defined($extra->{vertfaces}{$face->[1]})) {
+      $extra->{vertfaces}{$face->[1]} = [];
+    }
+    if (!defined($extra->{vertfaces}{$face->[2]})) {
+      $extra->{vertfaces}{$face->[2]} = [];
+    }
+    $extra->{vertfaces}{$face->[0]} = [ @{$extra->{vertfaces}{$face->[0]}},
+                                        scalar(@{$walkmesh->{faces}}) - 1 ];
+    $extra->{vertfaces}{$face->[1]} = [ @{$extra->{vertfaces}{$face->[1]}},
+                                        scalar(@{$walkmesh->{faces}}) - 1 ];
+    $extra->{vertfaces}{$face->[2]} = [ @{$extra->{vertfaces}{$face->[2]}},
+                                        scalar(@{$walkmesh->{faces}}) - 1 ];
+  }
+  undef $face_data;
+
+  # calculate the rest of the values
+
+  # calculate the face normals
+  $walkmesh->{normals} = [];
+  for my $face (@{$walkmesh->{faces}}) {
+    my ($v1, $v2, $v3) = (
+      $walkmesh->{verts}[$face->[0]],
+      $walkmesh->{verts}[$face->[1]],
+      $walkmesh->{verts}[$face->[2]]
+    );
+    my $normal_vector = [
+      ($v2->[1] - $v1->[1]) * ($v3->[2] - $v1->[2]) - ($v2->[2] - $v1->[2]) * ($v3->[1] - $v1->[1]),
+      ($v2->[2] - $v1->[2]) * ($v3->[0] - $v1->[0]) - ($v2->[0] - $v1->[0]) * ($v3->[2] - $v1->[2]),
+      ($v2->[0] - $v1->[0]) * ($v3->[1] - $v1->[1]) - ($v2->[1] - $v1->[1]) * ($v3->[0] - $v1->[0])
+    ];
+    my $normal_factor = sqrt($normal_vector->[0]**2 +
+                             $normal_vector->[1]**2 +
+                             $normal_vector->[2]**2);
+    if ($normal_factor == 0) {
+      $normal_factor = 1;
+    }
+    $normal_vector = [ map { $_ / $normal_factor } @{$normal_vector} ];
+    $walkmesh->{normals} = [
+      @{$walkmesh->{normals}},
+      [ @{$normal_vector} ]
+    ];
+  }
+
+  # calculate the face plane coefficients
+  $walkmesh->{plane_distances} = [];
+  for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
+    # scalar product: normal vector dot v1
+    my ($normal, $v1) = (
+      $walkmesh->{normals}[$index],
+      $walkmesh->{verts}[$walkmesh->{faces}[$index][0]]
+    );
+    $walkmesh->{plane_distances} = [
+      @{$walkmesh->{plane_distances}},
+      -1.0 * ($normal->[0] * $v1->[0] + $normal->[1] * $v1->[1] + $normal->[2] * $v1->[2])
+    ];
+  }
+
+  # everything below is for wok walkmesh only, not dwk or pwk
+  if (!$walkmesh->{header}{type}) {
+    return $walkmesh;
+  }
+
+  # calculate the face adjacency for walkable faces
+  $walkmesh->{adjacent_faces} = [];
+  my $adjacency_matrix = {};
+  for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
+    if ($walkmesh->{types}[$index] == WOK_NONWALK) {
+      next;
+    }
+    # map of global face number/index => adjacency list number/index
+    # this structure would be necessary if we had walk faces mixed
+    # with non-walk faces, rather than following convention of all
+    # non-walk at the end
+    $adjacency_matrix->{$index} = scalar(keys(%{$adjacency_matrix}));
+  }
+  for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
+    if ($walkmesh->{types}[$index] == WOK_NONWALK) {
+     next;
+    }
+    # get vertex positions for each face vertex, suitable as keys into verts_by_pos
+    my $fv_pos = [
+      sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$index][0]]}),
+      sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$index][1]]}),
+      sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$index][2]]}),
+    ];
+    # construct a reduced list of faces connected to each vert,
+    # constrain list to only walkable faces
+    my $vfs = [
+      { map { $_ => 1 }
+        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+          map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[0]}}} },
+      { map { $_ => 1 }
+        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+          map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[1]}}} },
+      { map { $_ => 1 }
+        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+          map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[2]}}} },
+    ];
+#    my $vfs = [
+#      { map { $_ => 1 }
+#        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+#          @{$extra->{vertfaces}{$walkmesh->{faces}[$index][0]}} },
+#      { map { $_ => 1 }
+#        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+#          @{$extra->{vertfaces}{$walkmesh->{faces}[$index][1]}} },
+#      { map { $_ => 1 }
+#        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+#          @{$extra->{vertfaces}{$walkmesh->{faces}[$index][2]}} }
+#    ];
+    my $results = [];
+    for (my $i = 0; $i < 3; $i++) {
+      my $result = -1;
+      foreach (keys %{$vfs->[$i]}) {
+        my $next = $i == 2 ? -2 : 1;
+        if ($vfs->[$i + $next]{$_}) {
+          # this is getting us the adjacent face,
+          # but we need to know *which* edge in the other face,
+          # and then add 3*face# + 0|1|2 to get an edge-in-adjacent-face number
+          # $_ is a face number, but we need to know what edge in that face
+          my $fv_pos = [
+            sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$_][0]]}),
+            sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$_][1]]}),
+            sprintf('%.4g,%.4g,%.4g', @{$walkmesh->{verts}->[$walkmesh->{faces}[$_][2]]}),
+          ];
+          my $test = [
+#            [ grep { $_ == $index } @{$extra->{vertfaces}{$walkmesh->{faces}[$_][0]}} ],
+#            [ grep { $_ == $index } @{$extra->{vertfaces}{$walkmesh->{faces}[$_][1]}} ],
+#            [ grep { $_ == $index } @{$extra->{vertfaces}{$walkmesh->{faces}[$_][2]}} ]
+            [ grep { $_ == $index } map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[0]}}} ],
+            [ grep { $_ == $index } map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[1]}}} ],
+            [ grep { $_ == $index } map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[2]}}} ],
+          ];
+          $result = 3 * $adjacency_matrix->{$_};
+          if (scalar(@{$test->[0]}) && scalar(@{$test->[1]})) {
+            # edge #1 in adjacent face
+            $result += 0;
+            #print "$index $i $_ 1\n";
+          }
+          if (scalar(@{$test->[1]}) && scalar(@{$test->[2]})) {
+            # edge #2 in adjacent face
+            $result += 1;
+            #print "$index $i $_ 2\n";
+          }
+          if (scalar(@{$test->[2]}) && scalar(@{$test->[0]})) {
+            # edge #3 in adjacent face
+            $result += 2;
+            #print "$index $i $_ 3\n";
+          }
+        }
+      }
+      $results = [ @{$results}, $result ];
+    }
+    $walkmesh->{adjacent_faces} = [
+      @{$walkmesh->{adjacent_faces}}, [ @{$results} ]
+    ]
+  }
+  #print scalar(@{$walkmesh->{adjacent_faces}}) , "\n";
+  #print Dumper($walkmesh->{adjacent_faces}) , "\n";
+
+  # calculate perimetric walkable edge loops, build out the perimeters at the same time
+  # we won't have a way to do room adjacency until we start looking at multiple models
+  # and/or module (are/lyt?) files
+  $walkmesh->{edge_loops} = [];
+  $walkmesh->{perimeters} = [];
+  $extra->{edges} = [];
+  my $perimeter_count = 0;
+  for my $face_index (0..scalar(@{$walkmesh->{adjacent_faces}}) - 1) {
+    for my $edge_index (0..scalar(@{$walkmesh->{adjacent_faces}[$face_index]}) - 1) {
+      my $next = $edge_index == 2 ? 0 : $edge_index + 1;
+      if ($walkmesh->{adjacent_faces}[$face_index][$edge_index] == -1) {
+        $extra->{edges} = [
+          @{$extra->{edges}},
+          {
+            face => $face_index,
+            enum => $edge_index,
+            edge => $face_index * 3 + $edge_index,
+            v1   => $walkmesh->{faces}[$face_index][$edge_index],
+            v2   => $walkmesh->{faces}[$face_index][$next],
+          }
+        ];
+      }
+    }
+  }
+  my $edge_index = 0;
+  my $last_edge_vert = undef;
+  while (scalar(@{$extra->{edges}})) {
+    if (!defined($last_edge_vert)) {
+      # if no last vert, use this one
+      $walkmesh->{edge_loops} = [
+        @{$walkmesh->{edge_loops}},
+        [ $extra->{edges}[$edge_index]{edge}, -1 ]
+      ];
+      $last_edge_vert = $extra->{edges}[$edge_index]{v2};
+      $perimeter_count += 1;
+      splice @{$extra->{edges}}, $edge_index, 1;
+      $edge_index = 0;
+      next;
+    } elsif ($extra->{edges}[$edge_index]{v1} == $last_edge_vert) {
+      # if last vert, find next edge on this loop
+      $walkmesh->{edge_loops} = [
+        @{$walkmesh->{edge_loops}}, [
+          $extra->{edges}[$edge_index]{edge},
+          -1 # adjacent room (from module .are file list)
+        ]
+      ];
+      $last_edge_vert = $extra->{edges}[$edge_index]{v2};
+      $perimeter_count += 1;
+      splice @{$extra->{edges}}, $edge_index, 1;
+      $edge_index = 0;
+      next;
+    } elsif ($edge_index == scalar(@{$extra->{edges}}) - 1) {
+      # if last vert and last edge, loop is closed
+      $walkmesh->{perimeters} = [
+        @{$walkmesh->{perimeters}}, $perimeter_count
+      ];
+      undef $last_edge_vert;
+      $edge_index = 0;
+      next;
+    }
+    $edge_index += 1;
+  }
+  # write the final perimeter
+  $walkmesh->{perimeters} = [
+    @{$walkmesh->{perimeters}}, $perimeter_count
+  ];
+
+  # calculate the AABB tree
+  $walkmesh->{aabbs} = [];
+  aabb($walkmesh, [ (0..(scalar(@{$walkmesh->{faces}}) - 1)) ]);
+  #printf("aabb: %u\n", scalar(@{$walkmesh->{aabbs}}));
+
+  return $walkmesh;
+}
+
+###############################################################################
+#
+###############################################################################
+sub aabb {
+  my ($walkmesh, $faces, $centroids, $parent_split) = @_;
+
+  # this is past a leaf, should not happen
+  if (!scalar(@{$faces})) {
+    return -1;
+  }
+  print "\n";
+
+  # 0-base array index of this tree node
+  my $tree_index = scalar(@{$walkmesh->{aabbs}});
+
+  if (!defined($centroids)) {
+    # generate face centroid list for reuse throughout tree construction
+    $centroids = [];
+    for my $index (@{$faces}) {
+      my $face_centroid = [ 0.0, 0.0, 0.0 ];
+      my $face = $walkmesh->{faces}[$index];
+      for my $vert (@{$face}) {
+        my $vertex = $walkmesh->{verts}[$vert];
+        # add values to face centroid
+        map { $face_centroid->[$_] += $vertex->[$_] } (0..2);
+      }
+      # face centroid?
+      $face_centroid = [ map { $_ / 3 } @{$face_centroid} ];
+      $centroids = [ @{$centroids}, [ @{$face_centroid} ] ];
+    }
+  }
+
+  # bounding box calculation structure
+  my $bb = {
+    min => [  100000.0,  100000.0,  100000.0 ],
+    max => [ -100000.0, -100000.0, -100000.0 ],
+    #min => [  0,  0,  0 ],
+    #max => [ -0, -0, -0 ],
+    centroids => $centroids,
+  };
+
+  my $norms = {};
+  # calculate bounding box min/max/center coordinates
+  for my $index (@{$faces}) {
+    my $face = $walkmesh->{faces}[$index];
+    for my $vert (@{$face}) {
+      my $vertex = $walkmesh->{verts}[$vert];
+      # get minimum vertex value for x, y, z
+      #map { $bb->{min}[$_] = $bb->{min}[$_] > $vertex->[$_] ? $vertex->[$_] + 0.01 : $bb->{min}[$_] } (0..2);
+      map { $bb->{min}[$_] = $bb->{min}[$_] > $vertex->[$_] ? $vertex->[$_] : $bb->{min}[$_] } (0..2);
+      # get maximum vertex value for x, y, z
+      #map { $bb->{max}[$_] = $bb->{max}[$_] < $vertex->[$_] ? $vertex->[$_] + 0.01 : $bb->{max}[$_] } (0..2);
+      map { $bb->{max}[$_] = $bb->{max}[$_] < $vertex->[$_] ? $vertex->[$_] : $bb->{max}[$_] } (0..2);
+    }
+    $norms->{$index} = &face_normal(
+      @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}]
+    );
+  }
+
+  # the aabb node for this point in the tree
+  my $node = [ @{$bb->{min}}, @{$bb->{max}}, -1, 4, 0, -1, -1 ];
+  $walkmesh->{aabbs} = [ @{$walkmesh->{aabbs}}, $node ];
+
+  # handle a leaf node, the easy case
+  if (scalar(@{$faces}) == 1) {
+    # set the face index for this tree node
+    $node->[6] = $faces->[0];
+    return $tree_index;
+  }
+
+#for my $index (14,17,39,40) {
+#  print "index: $index\n";
+#  print Dumper($walkmesh->{faces}[$index]);
+#  print Dumper($norms->{$index});
+#  print Dumper($bb->{centroids}[$index]);
+#  print Dumper($walkmesh->{plane_distances}[$a]);
+#}
+#  print Dumper($walkmesh->{plane_distances});
+#die;
+#for my $index (16,41,20) {
+#for my $index (115,54) {
+#  print "index: $index\n";
+#  print Dumper($walkmesh->{faces}[$index]);
+#  print Dumper([ @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}] ]);
+#  print Dumper($norms->{$index});
+#  print Dumper($bb->{centroids}[$index]);
+#  print Dumper($walkmesh->{plane_distances}[$a]);
+#}
+#die;
+if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
+  print Dumper($faces);
+}
+#if (scalar(grep { $_ == 16 || $_ == 41 } @{$faces}) >= 2) {
+#  print Dumper($faces);
+#}
+
+  # use bounding box size to determine axis upon which to divide the tree
+  $bb->{size} = [ map { $bb->{max}[$_] - $bb->{min}[$_] } (0..2) ];
+  $bb->{area} = [ map { my $d1 = ($_ + 1) % 3; my $d2 = ($_ + 2) % 3; $bb->{size}[$d1] * $bb->{size}[$d2] } (0..2) ];
+  my $split_axis = 0;
+  if ($bb->{size}[1] > $bb->{size}[0]) {
+    $split_axis = 1;
+  }
+  if ($bb->{size}[2] > $bb->{size}[1] &&
+      $bb->{size}[2] > $bb->{size}[0]) {
+    $split_axis = 2;
+  }
+  # sort centroids for median selection
+  my $sorted = [
+    [ sort {
+      if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
+      { return -1 }
+      elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
+      { return 1 }
+  #    if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][1])
+  #    { return -1 }
+  #    elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][1])
+  #    { return 1 }
+  #    if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][2])
+  #    { return -1 }
+  #    elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][2])
+  #    { return 1 }
+#      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
+#      { return 1 }
+#      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
+#      { return 1 }
+#      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+#      { return -1 }
+#      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+#      { return 1 }
+#      if ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+#      if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+
+#      if ($norms->{$a}[0] < $norms->{$b}[0])
+#      { return 1 }
+#      if ($norms->{$a}[0] > $norms->{$b}[0])
+#      { return 1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+      #{ return -1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+      #{ return 1 }
+      #return $b <=> $a;
+      #return $a <=> $b;
+      print "FALLTHROUGH x $a $b\n";
+      return 0;
+    } @{$faces} ],
+    [ sort {
+      #if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+      #{ return -1 }
+      #elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+      #{ return 1 }
+      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
+      { return -1 }
+      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
+      { return 1 }
+  #    if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+  #    { return -1 }
+  #    elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+  #    { return 1 }
+  #    if ($bb->{centroids}[$a][1] + $norms->{$a}[1] < $bb->{centroids}[$b][1] + $norms->{$b}[1])
+  #    { return -1 }
+  #    elsif ($bb->{centroids}[$a][1] + $norms->{$a}[1] > $bb->{centroids}[$b][1] + $norms->{$b}[1])
+  #    { return 1 }
+#      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
+#      { return 1 }
+# the following is 13 => 28 on 303narc
+      if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
+      { return -1 }
+      elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
+      { return 1 }
+  #    if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
+   #   { return -1 }
+   #   elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
+   #   { return 1 }
+      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+      { return -1 }
+      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+      { return 1 }
+# the following is 13 => 25 on 303narc
+#      if ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+#      if ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+#
+#      if ($norms->{$a}[1] < $norms->{$b}[1])
+#      { return 1 }
+#      if ($norms->{$a}[1] > $norms->{$b}[1])
+#      { return -1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+      #{ return -1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+      #{ return 1 }
+      #return $b <=> $a;
+      #return $a <=> $b;
+      print "FALLTHROUGH y $a $b\n";
+      return 0;
+    } @{$faces} ],
+    [ sort {
+      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
+      { return -1 }
+      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
+      { return 1 }
+#      if ($bb->{centroids}[$a][1] * $bb->{centroids}[$a][0] < $bb->{centroids}[$b][1] * $bb->{centroids}[$b][0])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][1] * $bb->{centroids}[$a][0] > $bb->{centroids}[$b][1] * $bb->{centroids}[$b][0])
+#      { return 1 }
+      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
+      { return -1 }
+      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
+      { return 1 }
+   #   if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
+   #   { return -1 }
+   #   elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
+   #   { return 1 }
+#      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+#      { return -1 }
+#      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+#      { return 1 }
+#      if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+#      if ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
+#      { return -1 }
+#      elsif ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
+#      { return 1 }
+#      if ($norms->{$a}[2] < $norms->{$b}[2])
+#      { return 1 }
+#      if ($norms->{$a}[2] > $norms->{$b}[2])
+#      { return -1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+      #{ return -1 }
+      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+      #{ return 1 }
+      #return $b <=> $a;
+      #return $a <=> $b;
+      print "FALLTHROUGH z $a $b\n";
+      return 0;
+    } @{$faces} ],
+  ];
+
+  #if ($tree_index == 26) {
+  #if ($tree_index == 136) {
+  #print Dumper($bb->{max});
+  #print Dumper($bb->{min});
+  print Dumper($bb->{size});
+  print "area:\n";
+  print Dumper($bb->{area});
+  #}
+  print "$tree_index split: $split_axis, parentsplit: $parent_split\n";
+
+  # this part doesn't really make sense w/ median aabb construction (i think)
+  #my $change_axis = 1;
+  #for my $index (@{$faces}) {
+  #  $change_axis = $change_axis && ($bb->{centroids}[$index][$split_axis] == $bb->{avg}[$split_axis]) ? 1 : 0;
+  #}
+  #if ($change_axis) {
+  #  $split_axis += ($split_axis == 2 ? -2 : 1);
+  #}
+  my $uniques = [
+    {}, {}, {}
+  ];
+  print Dumper($sorted);
+  for my $ind (@{$sorted->[$split_axis]}) {
+    print "$ind\n";
+    foreach (0..2) {
+      #printf("%.4g\n", $bb->{centroids}[$sorted->[$_][$ind]][$_]);
+      $uniques->[$_]{sprintf('%.4g', $bb->{centroids}[$ind][$_])} = 1;
+    }
+  }
+  #print Dumper($uniques);
+  #die;
+  my $lists = {
+    left  => [],
+    right => [],
+  };
+  my $found_split = 0;
+  my $tested_axes = 1;
+  my $median_index_pos = int(scalar(@{$sorted->[0]}) / 2);
+  #print Dumper($sorted);
+  printf "split index: %u\n", $sorted->[$split_axis][$median_index_pos];
+  my $left_adj = 1;
+  my $right_adj = 0;
+  my $negative_axis = 0;
+  if ($bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$split_axis] >=
+      $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
+    print "SPLIT " . scalar(@{$sorted->[0]}) . "\n";
+    print Dumper($uniques);
+    #print Dumper([@{$bb->{centroids}}[16,41,20]]);
+    #$sorted->[$split_axis] = [ reverse @{$sorted->[$split_axis]} ];
+    #$median_index_pos -= 1;
+
+    print Dumper([@{$norms}{@{$sorted->[$split_axis]}}]);
+    for (0..2) {
+        printf(
+          "NOPE, %.7g - %.7g = %.7g\n",
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_],
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_],
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]
+        );
+        printf(
+          "YES, %.7g - %.7g = %.7g\n",
+          $norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_],
+          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_],
+          $norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_] -
+          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_],
+        );
+      if ($bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] >
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
+        printf "YES, %.7g\n", $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_];
+      }
+      if ($norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_] -
+          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_] >
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
+        print "YUP\n";
+#        $negative_axis = $_ + 3;
+#        my $temp = $sorted->[$split_axis][$median_index_pos - 1];
+#        $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
+#        $sorted->[$split_axis][$median_index_pos] = $temp;
+      }
+    }
+
+#if (scalar(@{$sorted->[0]}) == 3) {
+#if (scalar(grep { $_ == 16 || $_ == 41 } @{$faces}) == 2) {
+#      my $temp = $sorted->[$split_axis][$median_index_pos - 1];
+#      $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
+#      $sorted->[$split_axis][$median_index_pos] = $temp;
+#}
+
+    #$left_adj = 0;
+    #$right_adj = 1;
+#      my $temp = $sorted->[$split_axis][$median_index_pos - 1];
+#      $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
+#      $sorted->[$split_axis][$median_index_pos] = $temp;
+#    }
+  }
+  $lists->{left} = [ @{$sorted->[$split_axis]}[0..$median_index_pos - $left_adj] ];
+  $lists->{right} = [ @{$sorted->[$split_axis]}[$median_index_pos+$right_adj..scalar(@{$sorted->[$split_axis]}) - 1] ];
+  $node->[8] = 2**($negative_axis ? $negative_axis : $split_axis);
+  #printf "%u %u %u\n", scalar(@{$lists->{left}}), scalar(@{$lists->{right}}), $median_index_pos;
+  #print Dumper($lists);
+  $found_split = 1;
+  #die;
+
+  my $balance = [
+    [ 0, 0 ],
+    [ 0, 0 ],
+    [ 0, 0 ],
+    [ 0, 0 ],
+    [ 0, 0 ],
+    [ 0, 0 ],
+  ];
+  for my $test_axis (0..5) {
+    my $split_face = $sorted->[$split_axis][$median_index_pos];
+    if ($test_axis >= 3) {
+      $split_face = (reverse $sorted->[$split_axis])[$median_index_pos];
+    }
+    my $test_datum = $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$test_axis % 3];
+    #print "$test_datum\n";
+    for my $index (@{$faces}) {
+      if ($test_axis < 3 && $bb->{centroids}[$index][$test_axis % 3] < $test_datum) {
+        $balance->[$test_axis][0] += 1;
+      } elsif ($test_axis < 3 && $bb->{centroids}[$index][$test_axis % 3] > $test_datum) {
+        $balance->[$test_axis][1] += 1;
+      }
+      if ($test_axis >= 3 && $bb->{centroids}[$index][$test_axis % 3] > $test_datum) {
+        $balance->[$test_axis][0] += 1;
+      } elsif ($test_axis >= 3 && $bb->{centroids}[$index][$test_axis % 3] < $test_datum) {
+        $balance->[$test_axis][1] += 1;
+      }
+    }
+  }
+  print Dumper($balance);
+  print Dumper([ map { $_->[1] - $_->[0] } @{$balance} ]);
+  print Dumper([ map { scalar(@{$faces}) - $_->[1] - $_->[0] } @{$balance} ]);
+  for (0..2) {
+    print $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
+          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] . ' ';
+  }
+  print "\n";
+  for (0..2) {
+    print $bb->{size}[$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]. ' ';
+  }
+  print "\n";
+  my $total_norms = [ 0, 0, 0 ];
+  map { $total_norms->[0] += $_->[0]; $total_norms->[1] += $_->[1];$total_norms->[2] += $_->[2]; } values %{$norms};
+  print Dumper($total_norms);
+
+  my $translate_centroid = 0;
+  while (!$found_split) {
+    $lists->{left}      = [];
+    $lists->{right}     = [];
+    my $left_side       = 1;
+    my $split_axis_index = $split_axis % 3;
+    my $bb_median = $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]];
+    for my $index (@{$faces}) {
+      #printf("%s %s\n", $bb->{centroids}[$index][$split_axis], $bb_median->[$split_axis]);
+      my $translation = 0.0;
+      if ($translate_centroid) {
+        $translation = &face_normal(
+          @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}]
+        )->[$split_axis_index];
+        print "$translation\n";
+      }
+      if ($split_axis < 3) {
+        $left_side = ($bb->{centroids}[$index][$split_axis_index] + $translation < $bb_median->[$split_axis_index] ? 1 : 0);
+      } else {
+        $left_side = ($bb->{centroids}[$index][$split_axis_index] + $translation > $bb_median->[$split_axis_index] ? 1 : 0);
+      }
+      if ($left_side) {
+        $lists->{left} = [
+          @{$lists->{left}}, $index
+        ];
+      } else {
+        $lists->{right} = [
+          @{$lists->{right}}, $index
+        ];
+      }
+    }
+    #print Dumper($lists);
+    # this works for most significant plane in all of the non-8/16/32 cases
+    $node->[8] = 2**$split_axis;
+    if (scalar(@{$lists->{left}}) && scalar(@{$lists->{right}})) {
+      $found_split = 1;
+      print "found split, $tested_axes tries: $split_axis\n";
+    } else {
+      $tested_axes += 1;
+      if ($split_axis == 2 || $split_axis == 5) {
+        $sorted->[0] = [ reverse @{$sorted->[0]} ];
+        $sorted->[1] = [ reverse @{$sorted->[1]} ];
+        $sorted->[2] = [ reverse @{$sorted->[2]} ];
+      }
+      $split_axis += ($split_axis == 5 ? -5 : 1);
+      if ($tested_axes == 6) {
+        $translate_centroid = 1;
+      } elsif ($tested_axes >= 12) {
+        printf("WARNING: Error generating aabb tree...\n");
+        # this happens when the bounding box centroid for multiple faces is the same,
+        # in vanilla models, this happens. all the times i've seen it, the face normals
+        # point in opposite directions though,
+        # so it's intended to be a double-sided kind of thing,
+        # let's try using normal combination to tie-break.
+        print Dumper($faces);
+        print Dumper(@{$bb->{centroids}}[@{$faces}]);
+        print Dumper(@{$walkmesh->{faces}}[@{$faces}]);
+        print Dumper(@{$walkmesh->{verts}}[65..70]);
+        print Dumper($bb_median);
+        # compute face normals for 36 & 37
+        # 36 = (65, 66, 67), 37 = (68, 69, 70)
+        print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[36]}]));
+        print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[37]}]));
+        return $tree_index;
+      }
+    }
+  }
+
+  # recurse left and right, store returned child indices
+  $node->[9]  = aabb($walkmesh, [ @{$lists->{left}} ], $centroids, $split_axis);
+  $node->[10] = aabb($walkmesh, [ @{$lists->{right}} ], $centroids, $split_axis);
+
+  my $bbdiff = [
+    [ map { $walkmesh->{aabbs}[$node->[9]][$_ + 3] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..2) ],
+    [ map { $walkmesh->{aabbs}[$node->[10]][$_ + 3] - $walkmesh->{aabbs}[$node->[10]][$_] } (0..2) ],
+    #[ map { $walkmesh->{aabbs}[$node->[9]][$_] - $walkmesh->{aabbs}[$node->[9]][$_ + 3] } (0..2) ],
+    #[ map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2) ],
+  ];
+  $bbdiff->[2] = [ map { $bbdiff->[0][$_] - $bbdiff->[1][$_] } (0..2) ];
+  printf(
+    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+    @{$bbdiff->[0]}
+  );
+  printf(
+    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+    @{$bbdiff->[1]}
+  );
+  printf(
+    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+    @{$bbdiff->[2]}
+  );
+  printf(
+    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+    map { $bb->{size}[$_] + $bbdiff->[2][$_] } (0..2)
+  );
+  printf(
+    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
+    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
+  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
+#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2)
+#  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
+#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
+#  );
+
+  return $tree_index;
+}
+
+
+###############################################################################
+#
+###############################################################################
+sub face_normal {
+  my ($v1, $v2, $v3) = @_;
+  if (ref $v1 ne 'ARRAY' ||
+      ref $v2 ne 'ARRAY' ||
+      ref $v3 ne 'ARRAY') {
+    # invalid, not enough verts given
+    return [ 0.0, 0.0, 0.0 ];
+  }
+  return [
+    $v1->[1] * ($v2->[2] - $v3->[2]) +
+    $v2->[1] * ($v3->[2] - $v1->[2]) +
+    $v3->[1] * ($v1->[2] - $v2->[2]),
+    $v1->[2] * ($v2->[0] - $v3->[0]) +
+    $v2->[2] * ($v3->[0] - $v1->[0]) +
+    $v3->[2] * ($v1->[0] - $v2->[0]),
+    $v1->[0] * ($v2->[1] - $v3->[1]) +
+    $v2->[0] * ($v3->[1] - $v1->[1]) +
+    $v3->[0] * ($v1->[1] - $v2->[1]),
+  ];
+}
+
+###############################################################################
+#
+###############################################################################
+sub readbinarywalkmesh {
+  my ($file) = @_;
+
+  my ($fh, $buffer, $unpacked);
+
+  my $walkmesh = {
+    header => {},
+    verts  => [],
+    faces  => [],
+    types  => [],
+  };
+
+  if (!-f $file ||
+      !open($fh, '<', $file)) {
+    die sprintf('error: file does not exist or not readable: %s: %s', $file, $!);
+  }
+
+  # set binary read mode and seek 0 just to be sure
+  binmode $fh;
+  seek($fh, 0, 0);
+
+  # read the header
+  read($fh, $buffer, $info->{sizes}{header});
+  $unpacked = [ unpack($info->{templates}{header}, $buffer) ];
+  # classify the header info
+  $walkmesh->{header}{format}           = $unpacked->[0];
+  $walkmesh->{header}{type}             = $unpacked->[1];
+  $walkmesh->{header}{position}         = [ @{$unpacked}[14..16] ];
+  $walkmesh->{header}{vert_num}         = $unpacked->[17];
+  $walkmesh->{header}{vert_pos}         = $unpacked->[18];
+  $walkmesh->{header}{face_num}         = $unpacked->[19];
+  $walkmesh->{header}{face_pos}         = $unpacked->[20];
+  $walkmesh->{header}{type_num}         = $unpacked->[19]; # 4B * number of faces
+  $walkmesh->{header}{type_pos}         = $unpacked->[21];
+  $walkmesh->{header}{normal_num}       = $unpacked->[19]; # 12B * number of faces
+  $walkmesh->{header}{normal_pos}       = $unpacked->[22];
+  $walkmesh->{header}{plane_distance_num} = $unpacked->[19]; # 4B * number of faces
+  $walkmesh->{header}{plane_distance_pos} = $unpacked->[23];
+  $walkmesh->{header}{aabb_num}         = $unpacked->[24]; # 2n - 1 (n = number of faces)
+  $walkmesh->{header}{aabb_pos}         = $unpacked->[25];
+  $walkmesh->{header}{unknown}          = $unpacked->[26];
+  $walkmesh->{header}{adjacent_face_num} = $unpacked->[27]; # 12 byte values
+  $walkmesh->{header}{adjacent_face_pos} = $unpacked->[28];
+  $walkmesh->{header}{edge_loop_num}    = $unpacked->[29]; # 8B values
+  $walkmesh->{header}{edge_loop_pos}    = $unpacked->[30];
+  $walkmesh->{header}{perimeter_num}    = $unpacked->[31]; # 4B values
+  $walkmesh->{header}{perimeter_pos}    = $unpacked->[32];
+
+print Dumper([ @{$unpacked}[2..13] ]);
+  $walkmesh->{header}{type_readable} = detect_type($file);
+  if ($walkmesh->{header}{type_readable} eq 'pwk') {
+    # read the use01 and use02 points
+    $walkmesh->{header}{use01} = [ @{$unpacked}[2..4] ];
+    $walkmesh->{header}{use02} = [ @{$unpacked}[5..7] ];
+  }
+  if ($walkmesh->{header}{type_readable} eq 'dwk') {
+    # read the use01 and use02 points
+    # find subtype
+    if ($file =~ /^.+(\d).*$/) {
+      if ($1 == 0) {
+        $walkmesh->{header}{dwk_type} = 'closed';
+        $walkmesh->{header}{closed_01} = [ @{$unpacked}[8..10] ];
+        $walkmesh->{header}{closed_02} = [ @{$unpacked}[11..13] ];
+      } elsif ($1 == 1) {
+        $walkmesh->{header}{dwk_type} = 'open1';
+        $walkmesh->{header}{open1_01} = [ @{$unpacked}[5..7] ];
+      } elsif ($1 == 2) {
+        $walkmesh->{header}{dwk_type} = 'open2';
+        $walkmesh->{header}{open2_01} = [ @{$unpacked}[5..7] ];
+      }
+    }
+    #XXX THIS IS WRONG
+    # 'open1_01', 'open1_02', 'closed_01', 'closed_02'
+    #$walkmesh->{header}{closed_01} = [ @{$unpacked}[2..4] ];
+    #$walkmesh->{header}{closed_02} = [ @{$unpacked}[5..7] ];
+    #$walkmesh->{header}{open1_01} = [ @{$unpacked}[8..10] ];
+    #$walkmesh->{header}{open2_01} = [ @{$unpacked}[11..13] ];
+  }
+
+  # read each data type
+  for my $data_type ('vert', 'face', 'type', 'normal', 'plane_distance', 'aabb', 'adjacent_face', 'edge_loop', 'perimeter') {
+    my $num_key         = $data_type . '_num';
+    my $pos_key         = $data_type . '_pos';
+    my $plural          = $data_type . 's';
+    my $numper          = $info->{sizes}{$data_type} / 4;
+    my $template        = defined($info->{templates}{$data_type}) ? $info->{templates}{$data_type} x $walkmesh->{header}{$num_key} : 'f*';
+
+    $walkmesh->{$plural} = [];
+    if ($walkmesh->{header}{$num_key} < 1) {
+      next;
+    }
+    seek($fh, $walkmesh->{header}{$pos_key}, 0);
+    read($fh, $buffer, $walkmesh->{header}{$num_key} * $info->{sizes}{$data_type});
+    $unpacked = [ unpack($template, $buffer) ];
+    for my $num (0..$walkmesh->{header}{$num_key} - 1) {
+      $walkmesh->{$plural} = [
+        @{$walkmesh->{$plural}},
+        ($numper > 1
+           ? [ @{$unpacked}[($num * $numper)..(($num * $numper) + ($numper - 1))] ]
+           : $unpacked->[$num])
+      ];
+    }
+  }
+  close ($fh);
+
+#print Dumper($walkmesh->{header});
+#print Dumper($walkmesh);
+#die;
+  return $walkmesh;
+}
+
+
+###############################################################################
+#
+###############################################################################
+sub writeasciiwalkmesh {
+  my ($file, $walkmesh, $options) = @_;
+
+  my ($fh);
+
+  if (!open($fh, '>', $file)) {
+    die sprintf('error: file not writable: %s', $!);
+  }
+
+  if (defined($walkmesh->{closed}) && defined($walkmesh->{open1})) {
+    # write out combined dwk for 3 inputs
+    $options->{model} = sprintf('%s_DWK', uc $options->{model});
+    for my $dwk_type ('closed', 'open1', 'open2') {
+      printf(
+        $fh "node trimesh md_DWK_wg_%s\n" .
+        "  parent %s\n  position % .7g % .7g % .7g%s",
+        $dwk_type,
+        $options->{model},
+        @{$walkmesh->{$dwk_type}{header}{position}},
+        $info->{filler}
+      );
+      printf(
+        $fh "verts %u\n  %s\n",
+        scalar(@{$walkmesh->{$dwk_type}{verts}}),
+        join("\n  ", map { sprintf('% .7g % .7g % .7g', @{$_}) } @{$walkmesh->{$dwk_type}{verts}})
+      );
+      printf(
+        $fh "faces %u\n  %s\n",
+        scalar(@{$walkmesh->{$dwk_type}{faces}}),
+        join("\n  ", map {
+          sprintf('%u %u %u 1 0 0 0 %u',
+                  @{$walkmesh->{$dwk_type}{faces}[$_]},
+                  $walkmesh->{$dwk_type}{types}[$_])
+        } (0..scalar(@{$walkmesh->{$dwk_type}{faces}}) - 1))
+      );
+      print $fh "endnode\n";
+
+      # write out door walkmesh dummies
+      for my $hook (@{$info->{hooks}{dwk}}) {
+        if (!defined($walkmesh->{$dwk_type}{header}{$hook})) {
+          next;
+        }
+        printf(
+          $fh "node dummy %s\n" .
+          "  parent %s\n  position % .7g % .7g % .7g\n" .
+          "endnode\n",
+          'md_DWK_dp_' . $hook, $options->{model},
+          @{$walkmesh->{$dwk_type}{header}{$hook}}
+        );
+      }
+    }
+  } else {
+    # write out wok or pwk
+    printf(
+      $fh "node trimesh %s_wg%s\n" .
+      "  parent %s\n  position % .7g % .7g % .7g%s",
+      uc $options->{model}, uc $options->{extension},
+      $options->{model},
+      @{$walkmesh->{header}{position}},
+      $info->{filler}
+    );
+    printf(
+      $fh "verts %u\n  %s\n",
+      scalar(@{$walkmesh->{verts}}),
+      join("\n  ", map { sprintf('% .7g % .7g % .7g', @{$_}) } @{$walkmesh->{verts}})
+    );
+    printf(
+      $fh "faces %u\n  %s\n",
+      scalar(@{$walkmesh->{faces}}),
+      join("\n  ", map {
+        sprintf('%u %u %u 1 0 0 0 %u',
+                @{$walkmesh->{faces}[$_]},
+                $walkmesh->{types}[$_])
+      } (0..scalar(@{$walkmesh->{faces}}) - 1))
+    );
+    if ($walkmesh->{header}{type}) {
+      my $links = [ grep { $_->[1] != -1 } @{$walkmesh->{edge_loops}} ];
+      if (scalar(@{$links})) {
+        printf(
+          $fh "roomlinks %u\n  %s\n",
+          scalar(@{$links}),
+          join("\n  ", map {
+            sprintf('%u %u', @{$_})
+          } (@{$links}))
+        );
+      }
+    }
+    print $fh "endnode\n";
+
+    # write out placeable walkmesh dummies
+    for my $hook (@{$info->{hooks}{pwk}}) {
+      if (!defined($walkmesh->{header}{$hook})) {
+        next;
+      }
+      printf(
+        $fh "node dummy %s\n" .
+        "  parent %s\n  position % .7g % .7g % .7g\n" .
+        "endnode\n",
+        'pwk_' . $hook, $options->{model},
+        @{$walkmesh->{header}{$hook}}
+      );
+    }
+  }
+}
+
+###############################################################################
+#
+###############################################################################
+sub writebinarywalkmesh {
+  my ($file, $walkmesh) = @_;
+
+  my ($fh);
+
+  if (!open($fh, '>', $file)) {
+    die sprintf('error: file not writable: %s', $!);
+  }
+
+  # set binary write mode
+  binmode $fh;
+
+  # write the header
+  print($fh pack('A[8]', $walkmesh->{header}{format}));
+  print($fh pack('L', $walkmesh->{header}{type}));
+  if ($walkmesh->{header}{type}) {
+    # wok file
+    print($fh pack('f[12]', 0 x 13));
+  } elsif ($walkmesh->{header}{type_readable} eq 'pwk') {
+    # pwk file
+    print($fh pack('f[12]',
+      0,
+      defined($walkmesh->{header}{use01}) ? @{$walkmesh->{header}{use01}} : (0, 0, 0),
+      defined($walkmesh->{header}{use02}) ? @{$walkmesh->{header}{use02}} : (0, 0, 0),
+      0 x 6
+    ));
+  } elsif ($walkmesh->{header}{type_readable} eq 'dwk') {
+    # dwk file
+    print($fh pack('f[12]',
+      0,
+      defined($walkmesh->{header}{points}) ? @{$walkmesh->{header}{points}} : (0 x 12),
+    ));
+  }
+  print($fh pack('f[3]', @{$walkmesh->{header}{position}}));
+  my $data_position = $info->{sizes}{header};
+  print($fh pack('LL', scalar(@{$walkmesh->{verts}}), $data_position));
+  $data_position += scalar(@{$walkmesh->{verts}}) * $info->{sizes}{vert};
+  print($fh pack('LL', scalar(@{$walkmesh->{faces}}), $data_position));
+  $data_position += scalar(@{$walkmesh->{faces}}) * $info->{sizes}{face};
+  print($fh pack('L', $data_position));
+  $data_position += scalar(@{$walkmesh->{faces}}) * $info->{sizes}{type};
+  print($fh pack('L', $data_position));
+  $data_position += scalar(@{$walkmesh->{faces}}) * $info->{sizes}{normal};
+  print($fh pack('L', $data_position));
+  $data_position += scalar(@{$walkmesh->{faces}}) * $info->{sizes}{plane_distance};
+  if ($walkmesh->{header}{type}) {
+    # wok file
+    print($fh pack('LL', scalar(@{$walkmesh->{aabbs}}), $data_position));
+    $data_position += scalar(@{$walkmesh->{aabbs}}) * $info->{sizes}{aabb};
+    print($fh pack('L', 0));
+    print($fh pack('LL', scalar(@{$walkmesh->{adjacent_faces}}), $data_position));
+    $data_position += scalar(@{$walkmesh->{adjacent_faces}}) * $info->{sizes}{adjacent_face};
+    print($fh pack('LL', scalar(@{$walkmesh->{edge_loops}}), $data_position));
+    $data_position += scalar(@{$walkmesh->{edge_loops}}) * $info->{sizes}{edge_loop};
+    print($fh pack('LL', scalar(@{$walkmesh->{perimeters}}), $data_position));
+  } else {
+    # pwk or dwk file
+    print($fh pack('LLLLLLLLL', 0 x 9));
+  }
+
+  # write the vertices
+  print($fh pack('f*', map { @{$_} } @{$walkmesh->{verts}}));
+  # write the faces
+  print($fh pack('L*', map { @{$_} } @{$walkmesh->{faces}}));
+  # write the types
+  print($fh pack('L*', @{$walkmesh->{types}}));
+  # write the face normals
+  print($fh pack('f*', map { @{$_} } @{$walkmesh->{normals}}));
+  # write the face planar distances
+  print($fh pack('f*', @{$walkmesh->{plane_distances}}));
+
+  if (!$walkmesh->{header}{type}) {
+    return;
+  }
+
+  # write the aabb tree array
+  print($fh map { pack($info->{templates}{aabb}, @{$_}) } @{$walkmesh->{aabbs}});
+  # write the walkable face adjacency
+  print($fh pack('l*', map { @{$_} } @{$walkmesh->{adjacent_faces}}));
+  # write the perimetric edge loops
+  print($fh pack('l*', map { @{$_} } @{$walkmesh->{edge_loops}}));
+  # write the perimeter edge count
+  print($fh pack('l*', @{$walkmesh->{perimeters}}));
+
+  close ($fh);
+}
+
+1;
