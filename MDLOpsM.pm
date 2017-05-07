@@ -4992,8 +4992,9 @@ sub writebinarymdl {
       }
       # add on the end padding
       # 3 1x10^7 floats followed by enough 0's to make one row
+      my $terminator = ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) ? 1000000 : 10000000;
       $buffer = pack(
-        "f*", 10000000, 10000000, 10000000,
+        "f*", $terminator, $terminator, $terminator,
         (0) x ( # using repetition operator to get the correct # of 0's
           ($model->{'nodes'}{$i}{'mdxdatasize'} / 4) - # floats in a row
           3 - # subtract the 3 1x10^7s
