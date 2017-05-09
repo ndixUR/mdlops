@@ -3547,11 +3547,11 @@ sub readasciimdl {
         # if ALL smooth group numbers in the node ARE a power of 2,
         # they will be reduced to log base 2 before being written to binary.
         # otherwise smooth group numbers will be left as is.
-        if ($4 > 0 && (log($4) / log(2)) =~ /\D/)
-        {
+        #if ($4 > 0 && (log($4) / log(2)) =~ /\D/)
+        #{
           # logarithm contained a non-digit (.) so not a clean power of 2
-          $model{'nodes'}{$nodenum}{'sg_base2'} = 0;
-        }
+        #  $model{'nodes'}{$nodenum}{'sg_base2'} = 0;
+        #}
 
         $count++;
 
