@@ -3091,8 +3091,9 @@ sub readasciimdl {
   
   # these values are for the trimesh counter sequence,
   # an odd inverted count the purpose of which is unknown to me
-  $model{'meshsequence'} = 98;
-  $model{'meshsequencebasis'} = { start => 99, end => 0 };
+  #$model{'meshsequence'} = 98;
+  #$model{'meshsequencebasis'} = { start => 99, end => 0 };
+  $model{'meshsequence'} = 1;
 
   # read in the ascii mdl
   while (<$ASCIIMDL>) {
@@ -3209,24 +3210,31 @@ sub readasciimdl {
       # handle mesh sequence counter
       if ($model{'nodes'}{$nodenum}{'nodetype'} & NODE_HAS_MESH) {
         # assign mesh sequence counter
-        $model{'nodes'}{$nodenum}{'array3'} = $model{'meshsequence'};
+        #$model{'nodes'}{$nodenum}{'array3'} = $model{'meshsequence'};
         # prepare next mesh sequence counter number
         # modeling a strange sequence... 98..0, 100,199..101, 200,299..201
         # if anyone ever reads the following lines of code ... sorry.
-        if ($model{'meshsequence'} > $model{'meshsequencebasis'}->{start}) {
+        #if ($model{'meshsequence'} > $model{'meshsequencebasis'}->{start}) {
           # set end of next range to current value + 1
-          $model{'meshsequencebasis'}->{end} = $model{'meshsequence'} + 1;
+        #  $model{'meshsequencebasis'}->{end} = $model{'meshsequence'} + 1;
           # set current value to start of previous range + 100
-          $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 100;
+        #  $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 100;
           # set start of next range to current range start + 100
-          $model{'meshsequencebasis'}->{start} += 100;
-        }
+        #  $model{'meshsequencebasis'}->{start} += 100;
+        #}
         # decrement the counter
-        $model{'meshsequence'} -= 1;
-        if ($model{'meshsequence'} < $model{'meshsequencebasis'}->{end}) {
+        #$model{'meshsequence'} -= 1;
+        #if ($model{'meshsequence'} < $model{'meshsequencebasis'}->{end}) {
           # if we decrement past our range basis, set next value to upper limit + 1
-          $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 1
-        }
+        #  $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 1
+        #}
+        # use bead-v inverted sequence counter method, slightly easier to understand
+        # some chance these should be based on part numbers, which are computed later,
+        # and this is an even more wrong place to do lightsaber mesh counter number...
+        my $quo = int($model{'meshsequence'} / 100);
+        my $mod = $model{'meshsequence'} % 100;
+        $model{'nodes'}{$nodenum}{'array3'} = ((2 ** $quo) * 100) - ($t - ($mod ? $quo * 100 : 0)) - ($quo ? 0 : 1);
+        $model{'meshsequence'} += 1;
       }
       # number of textures will be added to as they are found in parsing
       $model{'nodes'}{$nodenum}{'texturenum'} = 0;
