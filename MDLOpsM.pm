@@ -1043,7 +1043,10 @@ my $dothis = 0;
 
   # Positions in animations are deltas from the initial position.
   if ($tree =~ /^anims/ && defined($ref->{$node}{'Acontrollers'}{8})) {
-    my @initialPosVals = split /\s+/, $model->{'nodes'}{$node}{'Acontrollers'}{8}[0];
+    my @initialPosVals = (0, 0, 0);
+    if (defined($model->{'nodes'}{$node})) {
+      @initialPosVals = split /\s+/, $model->{'nodes'}{$node}{'Acontrollers'}{8}[0];
+    }
     # handle bezier key value expansion here. method designed for list like:
     # 0, 1, 2, 3
     # bezier list is like
@@ -3482,7 +3485,8 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'verts'}[$count] = [$1, $2, $3];
         $count++;
       } elsif ($task eq "faces") { # read in the faces
-        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+?(\S+)?\s+?(\S+)?\s+?(\S+)?/;
+        $line =~ /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*(?:(\S+)\s+(\S+)\s+(\S+)|$)/;
+        #print Dumper([ $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 ]);
         # magnusll export compatibility - relocated matID
         if (defined($11)) {
           # magnusll's faces structure w/ the extra tvert indices but no extra matID
@@ -3695,6 +3699,42 @@ sub readasciimdl {
     }
     $supermodel = undef;
     print("original model is version: " . modelversion($pathonly . $model{'name'} . ".mdl") . "\n");
+  }
+
+
+  # pwk and dwk nodes can reside in the model, and even be animated therein,
+  # however, we don't want to write them out in geometry,
+  # remove them now, letting the pwk/dwk files handle their positions etc.
+  if ($model{classification} eq 'Placeable' ||
+      $model{classification} eq 'Door') {
+    # remove any walkmesh nodes now (preserving them in our names list)
+    foreach (keys %nodeindex) {
+      if (/_dwk$/i || /_pwk$/i) {
+        my $wkm_root_index = $nodeindex{$_};
+        # remove the root node from its parent
+        $model{nodes}{$model{nodes}{$wkm_root_index}->{parentnodenum}}->{children} = [
+          grep {
+            $_ != $wkm_root_index
+          } @{$model{nodes}{$model{nodes}{$wkm_root_index}->{parentnodenum}}->{children}}
+        ];
+        # update the parent's child count
+        $model{nodes}{$model{nodes}{$wkm_root_index}->{parentnodenum}}->{childcount} = scalar(
+          @{$model{nodes}{$model{nodes}{$wkm_root_index}->{parentnodenum}}->{children}}
+        );
+        # delete the root node and its children
+        my $walkmesh_nodes = [ @{$model{nodes}{$wkm_root_index}{children}}, $wkm_root_index ];
+        for my $wkm_index (@{$walkmesh_nodes}) {
+          delete $model{nodes}{$wkm_index};
+          # decrease the total
+          $model{nodes}{truenodenum} -= 1;
+          # decrease the total that includes any supermodel nodes
+          if (defined($model{totalnumnodes})) {
+            $model{totalnumnodes} -= 1;
+          }
+        }
+        last;
+      }
+    }
   }
 
   # make sure we have the right node number - we weren't processing a bunch of the nodes at the end!
@@ -4885,29 +4925,6 @@ sub readasciimdl {
     postprocessnodes($model{'anims'}{$i}{'nodes'}{0}, $model{'anims'}{$i}, 1);
   }
   
-  # pwk and dwk nodes can reside in the model, and even be animated therein,
-  # however, we don't want to write them out in geometry,
-  # remove them now, letting the pwk/dwk files handle their positions etc.
-  if ($model{classification} eq 'Placeable' ||
-      $model{classification} eq 'Door') {
-    # remove any walkmesh nodes now (preserving them in our names list)
-    foreach (keys %nodeindex) {
-      if (/_dwk$/i || /_pwk$/i) {
-        my $walkmesh_nodes = [ @{$model{nodes}{$nodeindex{$_}}{children}}, $nodeindex{$_} ];
-        for my $wkm_index (@{$walkmesh_nodes}) {
-          delete $model{nodes}{$wkm_index};
-          # decrease the total
-          $model{nodes}{truenodenum} -= 1;
-          # decrease the total that includes any supermodel nodes
-          if (defined($model{totalnumnodes})) {
-            $model{totalnumnodes} -= 1;
-          }
-        }
-        last;
-      }
-    }
-  }
-
   print (" nodenum: " . $nodenum . " true: " . $model{'nodes'}{'truenodenum'} . "\n") if $printall;
   $nodenum = $model{'nodes'}{'truenodenum'};
   #cook the bone weights and prepare the bone map
@@ -5127,17 +5144,22 @@ sub writebinarymdl {
   # seek (BMDLOUT, 180, 0);
   $model->{'nameheader'}{'start'} = tell(BMDLOUT);
   $buffer =  pack("LLLL", 0, 0, $mdxsize, 0);
-  $buffer .= pack("LLL", 80+88+28, $nodenum, $nodenum);
+  #$buffer .= pack("LLL", 80+88+28, $nodenum, $nodenum);
+  $buffer .= pack("LLL", 80+88+28, scalar(@{$model->{'partnames'}}), scalar(@{$model->{'partnames'}}));
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
   #write out the name indexes
-  $buffer = pack("L", 80+88+28+(4*$nodenum));
+  #$buffer = pack("L", 80+88+28+(4*$nodenum));
+  $buffer = pack("L", 80+88+28+(4*scalar(@{$model->{'partnames'}})));
   $work = 0;
-  for (my $i = 1; $i < $nodenum; $i++) {
+  for (my $i = 1; $i < scalar(@{$model->{'partnames'}}); $i++) {
+  #for (my $i = 1; $i < $nodenum; $i++) {
+  #foreach (@{$model->{'partnames'}}) {
     $work += length( $model->{'partnames'}[$i-1] )+1;
+    #$work += length($_)+1;
     #$work += length($partname[$i-1])+1;
-    $buffer .= pack("L", 80+88+28+(4*$nodenum)+$work);
-  }  
+    $buffer .= pack("L", 80+88+28+(4*scalar(@{$model->{'partnames'}}))+$work);
+  }
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
   #write out the part names
