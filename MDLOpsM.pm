@@ -3228,6 +3228,7 @@ sub readasciimdl {
           # if we decrement past our range basis, set next value to upper limit + 1
         #  $model{'meshsequence'} = $model{'meshsequencebasis'}->{start} + 1
         #}
+
         # use bead-v inverted sequence counter method, slightly easier to understand
         # some chance these should be based on part numbers, which are computed later,
         # and this is an even more wrong place to do lightsaber mesh counter number...
@@ -3406,7 +3407,7 @@ sub readasciimdl {
       $task = "tverts";
       $count = 0;
     } elsif ($innode && ($line =~ /\s*tverts1\s+(\S*)/i ||
-                         $line =~ /\s*lightmaptverts\s+(\S*)/i) { # if in a node look for the start of the tverts for 2nd texture
+                         $line =~ /\s*lightmaptverts\s+(\S*)/i)) { # if in a node look for the start of the tverts for 2nd texture
       # magnusll export compatibility - lightmaptverts
       $model{'nodes'}{$nodenum}{'tverts1num'} = $1;
       $model{'nodes'}{$nodenum}{'texturenum'} += 1;
