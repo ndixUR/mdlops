@@ -3345,6 +3345,11 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'bitmap2'} = "";
       $model{'nodes'}{$nodenum}{'texture0'} = "";
       $model{'nodes'}{$nodenum}{'texture1'} = "";
+    } elsif ($innode && $line =~ /\s*lightmap\s+(\S*)/i) {  # if in a node look for the bitmap2 property
+      # magnusll export compatibility - lightmap
+      $model{'nodes'}{$nodenum}{'bitmap2'} = $1;
+      # magnusll export does not include lightmapped flag, set it now
+      $model{'nodes'}{$nodenum}{'lightmapped'} = 1;
     } elsif ($innode && $line =~ /\s*bitmap2\s+(\S*)/i) {  # if in a node look for the bitmap2 property
       $model{'nodes'}{$nodenum}{'bitmap2'} = $1;
     } elsif ($innode && $line =~ /\s*texture0\s+(\S*)/i) {  # if in a node look for the texture0 property
@@ -3392,7 +3397,9 @@ sub readasciimdl {
       #print($task . "|" . $count . "\n");
       $task = "tverts";
       $count = 0;
-    } elsif ($innode && $line =~ /\s*tverts1\s+(\S*)/i) { # if in a node look for the start of the tverts for 2nd texture
+    } elsif ($innode && ($line =~ /\s*tverts1\s+(\S*)/i ||
+                         $line =~ /\s*lightmaptverts\s+(\S*)/i) { # if in a node look for the start of the tverts for 2nd texture
+      # magnusll export compatibility - lightmaptverts
       $model{'nodes'}{$nodenum}{'tverts1num'} = $1;
       $model{'nodes'}{$nodenum}{'texturenum'} += 1;
       $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TEX1_VERTICES;
@@ -3466,8 +3473,15 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'verts'}[$count] = [$1, $2, $3];
         $count++;
       } elsif ($task eq "faces") { # read in the faces
-        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)/;
-        $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+(\S*)\s+?(\S+)?\s+?(\S+)?\s+?(\S+)?/;
+        # magnusll export compatibility - relocated matID
+        if (defined($11)) {
+          # magnusll's faces structure w/ the extra tvert indices but no extra matID
+          $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $11";
+        } else {
+          # normal/usual faces structure
+          $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
+        }
         $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $4, -1, -1, -1, $1, $2, $3 ];
 
         # temporary list of uvs associated with each face, deleted after vertex validation
@@ -3515,6 +3529,18 @@ sub readasciimdl {
         if (!defined($model{'nodes'}{$nodenum}{'tverti'}{$3}))
         {
           $model{'nodes'}{$nodenum}{'tverti'}{$3} = $7;
+        }
+
+        # magnusll export compatibility - texindices1 in faces
+        # record magnusll style lightmap tverts in our texindices1 structure
+        if (defined($11) && !defined($model{'nodes'}{$nodenum}{texindices1}{$1})) {
+          $model{'nodes'}{$nodenum}{texindices1}{$1} = $8;
+        }
+        if (defined($11) && !defined($model{'nodes'}{$nodenum}{texindices1}{$2})) {
+          $model{'nodes'}{$nodenum}{texindices1}{$2} = $9;
+        }
+        if (defined($11) && !defined($model{'nodes'}{$nodenum}{texindices1}{$3})) {
+          $model{'nodes'}{$nodenum}{texindices1}{$3} = $10;
         }
 
         # test whether smooth group number is base 2
