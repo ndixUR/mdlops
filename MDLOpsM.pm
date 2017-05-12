@@ -7557,9 +7557,11 @@ sub readasciiwalkmesh {
   my $parsing = {
     node => 0,
     vertices => 0,
-    faces => 0
+    faces => 0,
+    roomlinks => 0
   };
   my $face_data = [];
+  my $room_links = {};
 
   if (scalar(grep { /(?:^|\s+)node.*dwk_wg_/i } @{$lines}) > 1 &&
       !defined($options->{walkmesh_name})) {
@@ -7660,6 +7662,24 @@ sub readasciiwalkmesh {
         $line =~ /^\s+?(\d+)\s+(\d+)\s+(\d+)(?:\s+\d+){4}\s+(\d+)/) {
       $face_data = [ @{$face_data}, [ $1, $2, $3, $4 ] ];
       $parsing->{faces} -= 1;
+      next;
+    }
+    if (!$parsing->{roomlinks} &&
+        $line =~ /(?:^|\s+)roomlinks\s*(\d+?)?/i) {
+      $parsing->{roomlinks} = defined($1) ? int($1) : 'endlist';
+      next;
+    }
+    if ($parsing->{roomlinks} &&
+        $line =~ /(?:^|\s+)(\d+)\s+(\d+)/) {
+      $room_links->{$1} = int($2);
+      if ($parsing->{roomlinks} ne 'endlist') {
+        $parsing->{roomlinks} -= 1;
+      }
+      next;
+    }
+    if ($parsing->{roomlinks} &&
+        $line =~ /(?:^|\s+)endlist/i) {
+      $parsing->{roomlinks} = 0;
       next;
     }
     if ($line =~ /(?:^|\s+)endnode/i) {
@@ -7916,7 +7936,9 @@ sub readasciiwalkmesh {
       # if no last vert, use this one
       $walkmesh->{edge_loops} = [
         @{$walkmesh->{edge_loops}},
-        [ $extra->{edges}[$edge_index]{edge}, -1 ]
+        [ $extra->{edges}[$edge_index]{edge},
+          (defined($room_links->{$extra->{edges}[$edge_index]{edge}})
+             ? $room_links->{$extra->{edges}[$edge_index]{edge}} : -1) ]
       ];
       $last_edge_vert = $extra->{edges}[$edge_index]{v2};
       $perimeter_count += 1;
@@ -7928,7 +7950,9 @@ sub readasciiwalkmesh {
       $walkmesh->{edge_loops} = [
         @{$walkmesh->{edge_loops}}, [
           $extra->{edges}[$edge_index]{edge},
-          -1 # adjacent room (from module .are file list)
+          # adjacent room (from module .lyt file list)
+          (defined($room_links->{$extra->{edges}[$edge_index]{edge}})
+             ? $room_links->{$extra->{edges}[$edge_index]{edge}} : -1)
         ]
       ];
       $last_edge_vert = $extra->{edges}[$edge_index]{v2};
