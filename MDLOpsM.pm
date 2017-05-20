@@ -4025,17 +4025,25 @@ sub readasciimdl {
     }
   } else {
     # validation not requested, so we need to translate texindices now...
-    if (defined($model{'nodes'}{$i}{texindices1})) {
-      # has face index => tvert1 index, needs to be vert index => tvert1
-      my $tex_idxs = {};
-      for my $fidx (keys %{$model{'nodes'}{$i}{texindices1}}) {
-        $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][8]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[0];
-        $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][9]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[1];
-        $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][10]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[2];
+    for (my $i = 0; $i < $nodenum; $i++)
+    {
+      if (!($model{nodes}{$i}{nodetype} & NODE_HAS_MESH) ||
+          $model{nodes}{$i}{nodetype} & NODE_HAS_SABER ||
+          $model{nodes}{$i}{nodetype} & NODE_HAS_AABB) {
+        next;
       }
-      $model{'nodes'}{$i}{texindices1} = $tex_idxs;
+      if (defined($model{'nodes'}{$i}{texindices1})) {
+        # has face index => tvert1 index, needs to be vert index => tvert1
+        my $tex_idxs = {};
+        for my $fidx (keys %{$model{'nodes'}{$i}{texindices1}}) {
+          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][8]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[0];
+          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][9]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[1];
+          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][10]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[2];
+        }
+        $model{'nodes'}{$i}{texindices1} = $tex_idxs;
+      }
+      #XXX same for texindices2,3...
     }
-    #XXX same for texindices2,3...
   }
 
 
