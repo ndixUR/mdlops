@@ -2189,13 +2189,13 @@ sub writeasciimdl {
   # track bumpmapped textures at the model level,
   # this will need to be tested against client software like nwmax
   # this is our only way to know whether a mesh requires tangent space calculations
-  if (defined($model->{'bumpmapped_texture'}) &&
-      scalar(keys %{$model->{'bumpmapped_texture'}})) {
-      foreach (keys %{$model->{'bumpmapped_texture'}}) {
-          printf(MODELOUT "bumpmapped_texture %s\n", $_);
-      }
-      print(MODELOUT "\n");
-  }
+  #if (defined($model->{'bumpmapped_texture'}) &&
+  #    scalar(keys %{$model->{'bumpmapped_texture'}})) {
+  #    foreach (keys %{$model->{'bumpmapped_texture'}}) {
+  #        printf(MODELOUT "bumpmapped_texture %s\n", $_);
+  #    }
+  #    print(MODELOUT "\n");
+  #}
 
   print(MODELOUT "beginmodelgeom $model->{'partnames'}[0]\n");
   print(MODELOUT "  bmin $model->{'bmin'}[0] $model->{'bmin'}[1] $model->{'bmin'}[2]\n");
@@ -2317,6 +2317,10 @@ sub writeasciimdl {
       print(MODELOUT "  specular 0.000000 0.000000 0.000000\n");
       print(MODELOUT "  shininess 0.000000\n");
       print(MODELOUT "  wirecolor 1 1 1\n");
+      printf(
+        MODELOUT "  tangentspace %u\n",
+        ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) ? 1 : 0
+      );
     }
      
     # light node
@@ -3315,6 +3319,12 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'rotatetexture'} = $1;
     } elsif ($innode && $line =~ /\s*m_bIsBackgroundGeometry\s+(\S*)/i) { # if in a node look for the BackgroundGeometry property
       $model{'nodes'}{$nodenum}{'m_bIsBackgroundGeometry'} = $1;
+    } elsif ($innode && $line =~ /\s*tangentspace\s+(\S*)/i) { # if in a node look for the tangentspace property
+      $model{'nodes'}{$nodenum}{'tangentspace'} = $1;
+      if (defined($model{'nodes'}{$nodenum}{'bitmap'}) &&
+          !($model{'nodes'}{$nodenum}{'bitmap'} =~ /^null$/i)) {
+        $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TANGENT_SPACE;
+      }
     } elsif ($innode && $line =~ /\s*beaming\s+(\S*)/i) { # if in a node look for the beaming property
       $model{'nodes'}{$nodenum}{'beaming'} = $1;
     } elsif ($innode && $line =~ /\s*transparencyhint\s+(\S*)/i) { # if in a node look for the transparencyhint property
@@ -3350,9 +3360,11 @@ sub readasciimdl {
     } elsif ($innode && $line =~ /\s*bitmap\s+(\S*)/i) {  # if in a node look for the bitmap property
       $model{'nodes'}{$nodenum}{'bitmap'} = $1;
       # if this is a bump mapped texture, indicate that we need tangent space calculations
-      if (defined($model{'bumpmapped_texture'}) &&
-          defined($model{'bumpmapped_texture'}{lc $1})) {
-          $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TANGENT_SPACE;
+      if ((defined($model{'bumpmapped_texture'}) &&
+           defined($model{'bumpmapped_texture'}{lc $1})) ||
+          (defined($model{'nodes'}{$nodenum}{'tangentspace'}) &&
+           $model{'nodes'}{$nodenum}{'tangentspace'})) {
+        $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_TANGENT_SPACE;
       }
       $model{'nodes'}{$nodenum}{'bitmap2'} = "";
       $model{'nodes'}{$nodenum}{'texture0'} = "";
