@@ -3048,11 +3048,11 @@ sub readasciimdl {
 
 
   #extract just the name
-  $buffer =~ /(.*\\)*(.*)\.mdl/;
+  $buffer =~ /(.*[\\\/])*(.*)\.mdl/i;
   $file = $2;
   $model{'filename'} = $2;
   
-  $buffer =~ /(.*)\.mdl/;
+  $buffer =~ /(.*)\.mdl/i;
   $filepath = $1;
   open($ASCIIMDL, $filepath.".mdl") or die "can't open MDL file $filepath.mdl\n";
 
@@ -3102,6 +3102,9 @@ sub readasciimdl {
   #$model{'meshsequencebasis'} = { start => 99, end => 0 };
   $model{'meshsequence'} = 1;
 
+  # counter for MDLedit-style 'names' entries
+  $model{'fakenodes'} = 0;
+
   # read in the ascii mdl
   while (<$ASCIIMDL>) {
     my $line = $_;
@@ -3120,6 +3123,8 @@ sub readasciimdl {
       $model{'anims'}{$animnum}{'name'} = $1;
       $model{'numanims'}++;
       $model{'anims'}{$animnum}{'nodelist'} = [];
+      $model{'anims'}{$animnum}{'eventtimes'} = [];
+      $model{'anims'}{$animnum}{'eventnames'} = [];
     } elsif ($line =~ /doneanim/i && $isanimation) { # look for the end of an animation
       $isanimation = 0;
       $animnum++;
@@ -3357,6 +3362,11 @@ sub readasciimdl {
     } elsif ($innode && $line =~ /\s*shininess\s+(\S*)/i) {  # if in a node look for the shininess property
       # shininess numbers are not used, have no place in binary models
       $model{'nodes'}{$nodenum}{'shininess'} = $1;
+    } elsif ($line =~ /^\s*names\s+(\S+)/i) {
+      # this is the MDLedit approach to walkmesh nodes that get removed,
+      # for now, try just inserting them into the names list,
+      # it's not going to help with part number mapping, but we'll see
+      $model{'partnames'}[$nodenum + ++$model{'fakenodes'}] = $1;
     } elsif ($innode && $line =~ /\s*bitmap\s+(\S*)/i) {  # if in a node look for the bitmap property
       $model{'nodes'}{$nodenum}{'bitmap'} = $1;
       # if this is a bump mapped texture, indicate that we need tangent space calculations
@@ -3387,12 +3397,15 @@ sub readasciimdl {
     } elsif ($innode && $line =~ /\s*period\s+(\S*)/i) { # if in a node look for the period property
       $model{'nodes'}{$nodenum}{'period'} = $1;
     } elsif (!$innode && $line =~ /^\s*event\s+(\S+)\s+(\S+)/i && $isanimation) { # if in an animation look for the events
-      if (!defined($model{'anims'}{$animnum}{'numevents'})) {
-        $model{'anims'}{$animnum}{'numevents'} = 0;
-      }
-      $model{'anims'}{$animnum}{'eventtimes'}[$count] = $1;
-      $model{'anims'}{$animnum}{'eventnames'}[$count] = $2;
-      $model{'anims'}{$animnum}{'numevents'}++;
+      $model{'anims'}{$animnum}{'eventtimes'} = [
+        @{$model{'anims'}{$animnum}{'eventtimes'}}, $1
+      ];
+      $model{'anims'}{$animnum}{'eventnames'} = [
+        @{$model{'anims'}{$animnum}{'eventnames'}}, $2
+      ];
+      $model{'anims'}{$animnum}{'numevents'} = scalar(
+        @{$model{'anims'}{$animnum}{'eventtimes'}}
+      );
     } elsif (!$innode && $line =~ /eventlist/i && $isanimation) { # if in an animation look for the start of the event list
       $task = "events";
       $model{'anims'}{$animnum}{'numevents'} = 0;
@@ -3497,7 +3510,7 @@ sub readasciimdl {
         $model{'nodes'}{$nodenum}{'verts'}[$count] = [$1, $2, $3];
         $count++;
       } elsif ($task eq "faces") { # read in the faces
-        $line =~ /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*(?:(\S+)\s+(\S+)\s+(\S+)|$)/;
+        $line =~ /^\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*(?:(\S+)\s+(\S+)\s+(\S+)|$)/;
         #print Dumper([ $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 ]);
         # magnusll export compatibility - relocated matID
         if (defined($11)) {
