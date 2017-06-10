@@ -425,6 +425,53 @@ sub modelversion
     }
 }
 ##############################################################
+# calculate a face's surface area
+#
+sub facearea
+{
+  my ($v1, $v2, $v3) = (@_);
+
+  my ($a, $b, $c, $s);
+
+  $a = sqrt(($v1->[0] - $v2->[0]) ** 2 +
+            ($v1->[1] - $v2->[1]) ** 2 +
+            ($v1->[2] - $v2->[2]) ** 2);
+
+  $b = sqrt(($v1->[0] - $v3->[0]) ** 2 +
+            ($v1->[1] - $v3->[1]) ** 2 +
+            ($v1->[2] - $v3->[2]) ** 2);
+
+  $c = sqrt(($v2->[0] - $v3->[0]) ** 2 +
+            ($v2->[1] - $v3->[1]) ** 2 +
+            ($v2->[2] - $v3->[2]) ** 2);
+
+  $s = ($a + $b + $c) / 2;
+
+  return sqrt($s * ($s - $a) * ($s - $b) * ($s - $c));
+}
+##############################################################
+# calculate a face's normalized normal vector and plane distance
+#
+sub facenormal
+{
+  my ($v1, $v2, $v3) = (@_);
+  my $normal;
+  my $pd;
+  $normal = [
+    $v1->[1] * ($v2->[2] - $v3->[2]) + $v2->[1] * ($v3->[2] - $v1->[2]) + $v3->[1] * ($v1->[2] - $v2->[2]),
+    $v1->[2] * ($v2->[0] - $v3->[0]) + $v2->[2] * ($v3->[0] - $v1->[0]) + $v3->[2] * ($v1->[0] - $v2->[0]),
+    $v1->[0] * ($v2->[1] - $v3->[1]) + $v2->[0] * ($v3->[1] - $v1->[1]) + $v3->[0] * ($v1->[1] - $v2->[1]),
+  ];
+  $pd = (-1.0 * $v1->[0]) * ($v2->[1] * $v3->[2] - $v3->[1] * $v2->[2]) -
+        $v2->[0] * ($v3->[1] * $v1->[2] - $v1->[1] * $v3->[2]) -
+        $v3->[0] * ($v1->[1] * $v2->[2] - $v2->[1] * $v1->[2]);
+  my $norm_factor = sqrt($normal->[0]**2 + $normal->[1]**2 + $normal->[2]**2);
+  if ($norm_factor != 0.0) {
+    $pd /= $norm_factor;
+  }
+  return ($pd, $normal);
+}
+##############################################################
 
 #read in a binary model
 #
@@ -546,6 +593,518 @@ sub readbinarymdl
     # $tree, $parent, $startnode, $model, $version
 
     $temp = getnodes('nodes', 'NULL', $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
+
+    $options->{compute_smoothgroups} = 1;
+    $options->{weld_model} = 1;
+    # compute the data structures for smoothgroup number detection/computation
+    # and producing models with vertices welded
+    my $face_by_pos = {};
+    if ($options->{compute_smoothgroups} ||
+        $options->{weld_model}) {
+        # construct node global position/orientation transforms
+        for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
+            my $ancestry = [ $i ];
+            my $parent = $model{'nodes'}{$i};
+            # walk up to the root from the node, prepending each ancestor node number
+            # so that we get a flat list of children from root to node
+            while ($parent->{'parentnodenum'} != -1 &&
+                   !($parent->{'parent'} =~ /^null$/i)) {
+                $ancestry = [ $parent->{'parentnodenum'}, @{$ancestry} ];
+                $parent = $model{'nodes'}{$parent->{'parentnodenum'}};
+            }
+            # initialize the node's transform structure which contains
+            # the model-global position and orientation, and,
+            # a list of transformed vertex positions
+            $model{'nodes'}{$i}{transform} = {
+                position    => [ 0.0, 0.0, 0.0 ],
+                orientation => [ 0.0, 0.0, 0.0, 1.0 ],
+                verts       => []
+            };
+            for my $ancestor (@{$ancestry}) {
+                if (defined($model{'nodes'}{$ancestor}{'Bcontrollers'}) &&
+                    defined($model{'nodes'}{$ancestor}{'Bcontrollers'}{8})) {
+                    # node has a position, add it to current value
+                    map { $model{'nodes'}{$i}{transform}{position}->[$_] +=
+                          $model{'nodes'}{$ancestor}{Bcontrollers}{8}{values}->[0][$_] } (0..2);
+                }
+                if (defined($model{'nodes'}{$ancestor}{'Bcontrollers'}) &&
+                    defined($model{'nodes'}{$ancestor}{'Bcontrollers'}{20})) {
+                    # node has an orientation, multiply quaternions to combine orientations
+                    $model{'nodes'}{$i}{transform}{orientation} = &quaternion_multiply(
+                        $model{'nodes'}{$i}{transform}{orientation},
+                        $model{'nodes'}{$ancestor}{'Bcontrollers'}{20}{values}->[0]
+                    );
+                }
+            }
+        }
+        # construct vertex position index
+        for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
+            if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+                ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) ||
+                !($model{'nodes'}{$i}{render}))
+            {
+                next;
+            }
+            #for my $face_index (keys @{$model{nodes}{$i}{Bfaces}}) {
+            #}
+            # step through the vertices, storing the index in $work
+            for my $work (keys @{$model{'nodes'}{$i}{'verts'}})
+            {
+                # apply rotation to the vertex position
+                my $vert_pos = &quaternion_apply($model{'nodes'}{$i}{transform}{orientation},
+                                                 $model{'nodes'}{$i}{'verts'}[$work]);
+                # add position (this effectively makes the previous rotation around this point)
+                $vert_pos = [
+                    map { $model{'nodes'}{$i}{transform}{position}->[$_] + $vert_pos->[$_] } (0..2)
+                ];
+                # store translated vertex position
+                $model{'nodes'}{$i}{transform}{verts}->[$work] = $vert_pos;
+                # generate string key based on translated vertex position
+                my $vert_key = sprintf('%.4g,%.4g,%.4g', @{$vert_pos});
+                if (!defined($face_by_pos->{$vert_key})) {
+                    $face_by_pos->{$vert_key} = [];
+                }
+                # append this vertex's data to the data list for this position
+                $face_by_pos->{$vert_key} = [
+                    @{$face_by_pos->{$vert_key}},
+                    {
+                        mesh  => $i,
+                        meshname => $model{partnames}[$i],
+                        faces => [ @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ],
+                        vertex => $work
+                    }
+                ];
+            }
+        }
+    }
+    if ($options->{compute_smoothgroups}) {
+        # construct list of patches per mesh, patch is connected faces
+        #for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
+        #    if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+        #        ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER))
+        #    {
+        #        next;
+        #    }
+        #}
+        #for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
+        #    if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+        #        ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER))
+        #    {
+        #        next;
+        #    }
+        #}
+        # for every vertex position
+        # patch: mesh, vertex, smoothinggroups, faces, smoothedpatches, smoothinggroupnumbers
+        my $patch_normal = sub {
+          my ($pos_data) = @_;
+          #print Dumper(keys %model);
+          #print Dumper($pos_data);
+          my $vertnorm = $model{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
+          my $testnorm = [ 0.0, 0.0, 0.0 ];
+          for my $face_index (@{$pos_data->{faces}}) {
+            # this one is normalized...
+            my $facenorm = [
+              @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2]
+            ];
+#            my $facenorm = facenormal(
+#              @{$model{nodes}{$pos_data->{mesh}}{verts}}[
+#                @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+#              ]
+#            );
+            my $facearea = facearea(
+              @{$model{nodes}{$pos_data->{mesh}}{verts}}[
+                @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+              ]
+            );
+            #print Dumper($facenorm);
+            #print Dumper([
+            #  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+            #]);
+            printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
+            $testnorm = [ map {
+              $testnorm->[$_] += $facearea * $facenorm->[$_];
+            } (0..2) ];
+            print Dumper($testnorm);
+          }
+          #print "final norm for group:\n";
+          #$testnorm = normalize_vector($testnorm);
+          return $testnorm;
+        };
+        # based on Math::Subsets::List
+        # Copyright (c) 2009 Philip R Brenan.
+        # but different because it just returns a set of combinations
+        # so we can actually return out of it reasonably
+        sub combinations {
+          my $l = 0;
+          my @p = ();
+          my @P = @_;
+          my $n = scalar(@P);
+          my $list = [];
+
+          my $p; $p = sub {
+            if ($l < $n) {
+              ++$l;
+              &$p();
+              push @p, $P[$l-1];
+              &$p();
+              pop @p;
+              --$l
+            } elsif (scalar(@p)) {
+              #print "$l \n";
+              #print "p @p\n";
+              $list = [ @{$list}, [ @p ] ];
+            }
+            return $list;
+          };
+          $list = &$p;
+          $p = undef;
+
+          return @{$list};
+        };
+
+        my $protogroups = {};
+        for my $vert_key (keys %{$face_by_pos}) {
+          if (scalar(@{$face_by_pos->{$vert_key}}) == 1) {
+            # faces touching this position are all part of patch
+            next;
+          }
+          #print Dumper($face_by_pos->{$vert_key});
+          my $norm_used = {};
+          $protogroups->{$vert_key} = [];
+          for my $pos_key (keys @{$face_by_pos->{$vert_key}}) {
+            if (defined($norm_used->{$pos_key})) {
+              next;
+            }
+            my $pos_data = $face_by_pos->{$vert_key}[$pos_key];
+            my $vertnorm = $model{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
+            my $testnorm = [ 0.0, 0.0, 0.0 ];
+            $norm_used->{$pos_key} = 1;
+            my $cur_group = [
+              map { [ $pos_data->{mesh}, $_ ] } @{$pos_data->{faces}}
+            ];
+            $testnorm = &$patch_normal($pos_data);
+            #$testnorm = normalize_vector($testnorm);
+            if (!vertex_equals(normalize_vector($testnorm), $vertnorm, 4)) {
+              print Dumper($testnorm);
+              print Dumper($vertnorm);
+              my $othernorms = {};
+              for my $other_key (grep {$_ != $pos_key} keys @{$face_by_pos->{$vert_key}}) {
+                $othernorms->{$other_key} = &$patch_normal($face_by_pos->{$vert_key}[$other_key]);
+              }
+              #print "onorm initial\n";
+              print Dumper($othernorms);
+              my $subtestnorm;
+              #subsets {
+              #  print "presubset: @_\n";
+              #} keys %{$othernorms};
+#print "dump\n";
+#print Dumper(combinations(keys %{$othernorms}));
+              my $matched = 0;
+              for my $combo (combinations(keys %{$othernorms})) {
+                $subtestnorm = [ @{$testnorm} ];
+                print "subset: ".@{$combo}."\n";
+                print Dumper($combo);
+                for my $okey (@{$combo}) {
+                  $subtestnorm = [ map {
+                    $subtestnorm->[$_] += $othernorms->{$okey}[$_];
+                  } (0..2) ];
+                }
+                if (vertex_equals(normalize_vector($subtestnorm), $vertnorm, 4)) {
+                  print "@{$combo} matched\n";
+                  map { $norm_used->{$_} = 1; } @{$combo};
+                  $matched = 1;
+                  for my $okey (@{$combo}) {
+                    $cur_group = [
+                      @{$cur_group},
+                      map { [ $face_by_pos->{$vert_key}[$okey]{mesh}, $_ ] } @{$face_by_pos->{$vert_key}[$okey]{faces}}
+                    ];
+                  }
+                  last;
+                }
+              } keys %{$othernorms};
+              if (!$matched) {
+                print "NO MATCH\n";
+              }
+              #print Dumper($subtestnorm);
+              #print Dumper(normalize_vector($subtestnorm));
+              #my $attempted = 1;
+              #my $total = 1;
+              #my $i = 1;
+              #$total *= ++$i while $i < scalar(keys %{$othernorms});
+              #while ($attempted < $total) {
+              #}
+              print "others\n";
+              print Dumper($othernorms);
+              print Dumper([ map {normalize_vector($othernorms->{$_})} keys %{$othernorms} ]);
+              $protogroups->{$vert_key} = [
+                @{$protogroups->{$vert_key}}, [ @{$cur_group} ]
+              ];
+            }
+          }
+          #print Dumper($protogroups);
+          #print Dumper([
+          #  map {$protogroups->{$_}} sort {
+          #    scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
+          #  } keys %{$protogroups}
+          #]);
+        }
+        #print Dumper(
+        #    shift [sort {
+        #      scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
+        #    } keys %{$protogroups}]
+        #);
+        # sgs is going to be our smoothgroups:
+        # a list of lists of (mesh, face) tuples, each list is a smoothing group
+        my $sgs = [
+          @{$protogroups->{
+            shift [ sort {
+              scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
+            } keys %{$protogroups} ]
+          }}
+        ];
+        #for my $pg_key (sort { scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}}) } keys %{$protogroups}) {
+          # first algorithm,
+          # starting w/ the most divided patch,
+          # so start w/ the number of SGs required by first entry
+#          if (!defined($sgs)) {
+#            $sgs = [
+              #map { [] } (0..scalar(@{$protogroups->{$pg_key}}))
+#              @{$protogroups->{$pg_key}}
+#            ];
+#            print Dumper([ keys @{$sgs} ]);
+#          }
+          # what we want to do is go through our protogroups, for each patch in each group, if any of the faces are in any of the current sgs, add all the faces to the group
+          #for my $pg2_key (keys %{$protogroups}) {
+
+        # put the rest of the faces that were not smoothgroup boundary faces
+        # into the protogroup structure so we have a single list to traverse
+        for my $vert_key (keys %{$face_by_pos}) {
+          if (!defined($protogroups->{$vert_key}) ||
+              !scalar(@{$protogroups->{$vert_key}})) {
+            $protogroups->{$vert_key} = [ [
+              map {
+                [ $face_by_pos->{$vert_key}[0]{mesh}, $_ ]
+              } @{$face_by_pos->{$vert_key}[0]{faces}}
+            ] ];
+            #print Dumper($protogroups->{$vert_key});
+          }
+        }
+        #print Dumper($sgs);
+        print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
+        #die;
+        # remaining, our batch tracker
+        my $remaining = 0;
+        # run to completion
+        while (1) {
+          print "remaining protogroups: $remaining\n";
+          for my $pg2_key (keys %{$protogroups}) {
+            my $used = [];
+            for my $gkey (keys @{$protogroups->{$pg2_key}}) {
+              for my $face_def (@{$protogroups->{$pg2_key}[$gkey]}) {
+                if (scalar(grep { scalar(@{$_}) } map {
+                  grep {
+                    #print Dumper($_);
+                    #print Dumper($face_def);
+                    $_->[0] == $face_def->[0] &&
+                    $_->[1] == $face_def->[1];
+                  } @{$_}
+                } @{$sgs})) {
+                  my $sg_index = shift [
+                    grep { defined($_) }  map {
+                      if (scalar(grep {
+                        $_->[0] == $face_def->[0] &&
+                        $_->[1] == $face_def->[1]
+                      } @{$sgs->[$_]})) {
+                        $_;
+                      } else {
+                        undef;
+                      }
+                    } keys @{$sgs}
+                  ];
+                  #print Dumper($sgs->[$sg_index]);
+                  #print Dumper($protogroups->{$pg2_key}[$gkey]);
+                  #die;
+                  $sgs->[$sg_index] = [
+                    @{$sgs->[$sg_index]},
+                    @{$protogroups->{$pg2_key}[$gkey]}
+                  ];
+                  $used = [ @{$used}, $gkey ];
+                  printf(
+                    "match %u,%u in sg #%u\n",
+                    @{$face_def}, $sg_index
+                  );
+                }
+              }
+            }
+            # delete the patches used from this patchgroup
+            if (scalar(@{$used})) {
+              map { #print "delete $_\n";
+                delete $protogroups->{$pg2_key}[$_];
+              } @{$used};
+            }
+          }
+          print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
+          # delete patchgroups that are empty
+          map { #print "delete pg $_\n";
+            delete $protogroups->{$_};
+          } grep {
+            !scalar(@{$protogroups->{$_}})
+          } keys %{$protogroups};
+          if ($remaining == scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})) {
+            # we ran through patchgroups without progressing,
+            # shift off the first patch we encounter,
+            # start the next smoothgroup with it
+            $sgs = [
+              @{$sgs}, [
+                @{$protogroups->{(keys %{$protogroups})[0]}[0]}
+              ]
+            ];
+            delete $protogroups->{(keys %{$protogroups})[0]}[0];
+            # delete patchgroups that are empty
+            map { #print "kdelete pg $_\n";
+              delete $protogroups->{$_};
+            } grep {
+              !scalar(@{$protogroups->{$_}})
+            } keys %{$protogroups};
+          }
+          $remaining = scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups});
+          printf(
+            "%u\n",
+            scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})
+          );
+          if (!scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})) {
+            #print "last\n";
+            last;
+          }
+        }
+        # consider all vertex positions having multiple vertices
+        # compute face areas
+        # zero out the smoothgroup numbers we are about to (maybe but probably not) build up
+        for my $smoothgroup (@{$sgs}) {
+          for my $face_data (@{$smoothgroup}) {
+            my @Aface = split(
+              /\s/, $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]]
+            );
+            $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]] = join(
+              ' ', (@Aface)[0..2], 0, (@Aface)[4..7]
+            );
+          }
+        }
+        # assign smoothgroup numbers, rewrite the ascii faces, build them up from 0
+        my $sg_no = 0;
+        for my $smoothgroup (sort { scalar(@{$b}) <=> scalar(@{$a}) } @{$sgs}) {
+          for my $face_data (@{$smoothgroup}) {
+            my @Aface = split(/\s/, $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]]);
+            $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]] = join(
+              ' ',
+              (@Aface)[0..2],
+              $Aface[3] | (2 ** $sg_no), # 2 ** $sg_no,
+              (@Aface)[4..7]
+            );
+          }
+          $sg_no += 1;
+        }
+#        for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
+#            if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+#                ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) ||
+#                !($model{'nodes'}{$i}{render}))
+#            {
+#                next;
+#            }
+#            for my $face_index (keys @{$model{nodes}{$i}{Bfaces}}) {
+#                my $sg_no = 0;
+#                for my $sg_index (keys @{$sgs}) {
+#                    if (scalar(grep { $_->[0] == $i &&
+#                                      $_->[1] == $face_index } @{$sgs->[$sg_index]})) {
+#                        $sg_no |= 2**$sg_index;
+#                        print "$i $face_index = $sg_no\n";
+#                        $model{nodes}{$i}{Afaces}[$face_index] = join(
+#                          ' ',
+#                          (split(/\s/, $model{nodes}{$i}{Afaces}[$face_index]))[0..2],
+#                          $sg_no,
+#                          (split(/\s/, $model{nodes}{$i}{Afaces}[$face_index]))[4..7]
+#                        );
+#                    }
+#                }
+#            }
+#        }
+        #print Dumper($sgs);
+        #die;
+    }
+    if ($options->{weld_model}) {
+      # weld the model's vertices
+      # welding first pass, identify vertices, reindex faces
+      my $removed = {};
+      for my $vert_key (keys %{$face_by_pos}) {
+        my $face_data = $face_by_pos->{$vert_key};
+        my $verts_use = {};
+        for my $group (@{$face_data}) {
+          if (!defined($verts_use->{$group->{mesh}})) {
+            $verts_use->{$group->{mesh}} = $group->{vertex};
+            next;
+          }
+          #printf(
+          #  "%u %u\n",
+          #  scalar(@{$model{nodes}{$group->{mesh}}{verts}}),
+          #  $model{nodes}{$group->{mesh}}{vertcoordnum}
+          #);
+          for my $face_index (keys @{$model{nodes}{$group->{mesh}}{Bfaces}}) {
+            my $face_data = [
+              split(/\s/, $model{nodes}{$group->{mesh}}{Afaces}[$face_index])
+            ];
+            for my $datum_index (0..2) {
+              if ($face_data->[$datum_index] == $group->{vertex}) {
+                #printf("remove %u,%u\n", $group->{mesh}, $group->{vertex});
+                if (defined($model{nodes}{$group->{mesh}}{verts}[$group->{vertex}])) {
+                  # delete the vertex,
+                  # leaving an undefined in the list at the vertex index position
+                  delete $model{nodes}{$group->{mesh}}{verts}[$group->{vertex}];
+                  $model{nodes}{$group->{mesh}}{vertcoordnum} -= 1;
+                }
+                $face_data->[$datum_index] = $verts_use->{$group->{mesh}};
+                $removed->{$group->{mesh}}{$group->{vertex}} = 1;
+              }
+            }
+            $model{nodes}{$group->{mesh}}{Afaces}[$face_index] = join(' ', @{$face_data});
+          }
+        }
+      }
+      # welding second pass, remove vertices, reindex other faces
+      if (scalar(keys %{$removed})) {
+        # for each mesh that needs vertices removed
+        for my $mesh (keys %{$removed}) {
+          # for each vertex index that needs to be removed, highest=>lowest
+          for my $vert_removed (sort { $b <=> $a } keys %{$removed->{$mesh}}) {
+            # for each face in the mesh
+            for my $face_index (keys @{$model{nodes}{$mesh}{Afaces}}) {
+              # split the face ascii data
+              my $face_data = [
+                split(/\s/, $model{nodes}{$mesh}{Afaces}[$face_index])
+              ];
+              # for each vertex in this face
+              for my $fv_index (0..2) {
+                # vertex index is after the one being removed, decrement it
+                if ($face_data->[$fv_index] > $vert_removed) {
+                  $face_data->[$fv_index] -= 1;
+                }
+              }
+              # rejoin and save the face ascii data
+              $model{nodes}{$mesh}{Afaces}[$face_index] = join(' ', @{$face_data});
+            }
+          }
+          # remove the deleted vertices
+          $model{nodes}{$mesh}{verts} = [
+            grep { defined($_) } @{$model{nodes}{$mesh}{verts}}
+          ];
+          #printf(
+          #  "%u %u\n",
+          #  scalar(@{$model{nodes}{$mesh}{verts}}),
+          #  $model{nodes}{$mesh}{vertcoordnum}
+          #);
+        }
+      }
+    }
+        #die;
 
     #read in the animation indexes
     if ($model{'numanims'} != 0 && $options->{extract_anims})
@@ -1401,6 +1960,7 @@ my $dothis = 0;
 
    
    #prepare the faces list
+   $ref->{$node}{vertfaces} = {};
    for (my $i = 0; $i < $ref->{$node}{'facesnum'}; $i++) {
       $temp = ($i * 11);
       $ref->{$node}{'Afaces'}[$i] = $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
@@ -1430,6 +1990,24 @@ my $dothis = 0;
       }
       #$ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4];
       $ref->{$node}{'Bfaces'}[$i] = [@{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}}[$temp..$temp+10]];
+      if (!defined($ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8]})) {
+        $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8]} = [];
+      }
+      if (!defined($ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9]})) {
+        $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9]} = [];
+      }
+      if (!defined($ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10]})) {
+        $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10]} = [];
+      }
+      $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8]} = [
+        @{$ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8]}}, $i
+      ];
+      $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9]} = [
+        @{$ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9]}}, $i
+      ];
+      $ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10]} = [
+        @{$ref->{$node}{vertfaces}{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10]}}, $i
+      ];
     }
   }
 
@@ -2471,7 +3049,8 @@ sub writeasciimdl {
           ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES ||
            $nodetype & NODE_HAS_SABER)) {
         # write out tverts, nwmax requires these to be 3 coordinate numbers
-        printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        #printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        printf(MODELOUT "  tverts %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
           printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
@@ -4405,6 +4984,7 @@ sub readasciimdl {
             # skip saber mesh nodes
             next;
         }
+        $model{nodes}{$i}{rawfacenormals} = [];
 
         # If the node has a mesh and isn't a saber, calculate the face plane normals and plane distances
         if (($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) && !($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER))
@@ -4445,6 +5025,7 @@ sub readasciimdl {
 #               print "Normalizing calculated: $norm\n";
 
                 # Check for $norm being 0 to prevent illegal division by 0...
+                $model{'nodes'}{$i}{'rawfacenormals'}[$count] = [ $xpx, $xpy, $xpz ];
                 $model{'nodes'}{$i}{'facenormals'}[$count] = normalize_vector([ $xpx, $xpy, $xpz ]);
 
                 if ($norm != 0)
@@ -4677,6 +5258,7 @@ sub readasciimdl {
             }
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
                 map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]}
+                #map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'rawfacenormals'}[$faceA]}
             ];
             # initialize tangent space vectors with value from chosen face vectors
             if (defined($model{'nodes'}{$meshA}{'facetangents'}) &&
@@ -4788,12 +5370,15 @@ sub readasciimdl {
                     # accumulate the x, y, and z components of the vertex normal vector
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] * $area * $angle
+                        #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[0] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] * $area * $angle
+                        #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[1] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += (
                         $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2] * $area * $angle
+                        #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[2] * $area * $angle
                     );
                     # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
                     if (defined($model{'nodes'}{$meshB}{'facetangents'}[$faceB])) {
