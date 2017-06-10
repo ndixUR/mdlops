@@ -1197,10 +1197,14 @@ my $dothis = 0;
     $ref->{$node}{'unknown'} = $ref->{$node}{'subhead'}{'unpacked'}[32];
     # the following 5 things are hypothetical at this point
     $ref->{$node}{'animateuv'} = $ref->{$node}{'subhead'}{'unpacked'}[46];
-    $ref->{$node}{'uvdirectionx'} = $ref->{$node}{'subhead'}{'unpacked'}[47];
-    $ref->{$node}{'uvdirectiony'} = $ref->{$node}{'subhead'}{'unpacked'}[48];
-    $ref->{$node}{'uvjitter'} = $ref->{$node}{'subhead'}{'unpacked'}[49];
-    $ref->{$node}{'uvjitterspeed'} = $ref->{$node}{'subhead'}{'unpacked'}[50];
+    $ref->{$node}{'uvdirectionx'} = $ref->{$node}{'subhead'}{'unpacked'}[47] !~ /(?:nan|inf)/i
+                                      ? $ref->{$node}{'subhead'}{'unpacked'}[47] : 0.0;
+    $ref->{$node}{'uvdirectiony'} = $ref->{$node}{'subhead'}{'unpacked'}[48] !~ /(?:nan|inf)/i
+                                      ? $ref->{$node}{'subhead'}{'unpacked'}[48] : 0.0;
+    $ref->{$node}{'uvjitter'} = $ref->{$node}{'subhead'}{'unpacked'}[49] !~ /(?:nan|inf)/i
+                                  ? $ref->{$node}{'subhead'}{'unpacked'}[49] : 0.0;
+    $ref->{$node}{'uvjitterspeed'} = $ref->{$node}{'subhead'}{'unpacked'}[50] !~ /(?:nan|inf)/i
+                                       ? $ref->{$node}{'subhead'}{'unpacked'}[50] : 0.0;
     $ref->{$node}{'mdxdatasize'} = $ref->{$node}{'subhead'}{'unpacked'}[51];
     # the MDX data bitmap contains a bit for each element present in MDX data rows
     $ref->{$node}{'mdxdatabitmap'} = $ref->{$node}{'subhead'}{'unpacked'}[52];
