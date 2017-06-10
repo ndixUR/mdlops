@@ -1735,24 +1735,32 @@ sub convert_trimesh_to_saber {
   }
   #print Dumper($facecounts);
 
+  # handle kotormax doubled number of faces,
+  # added because max's 2-sided support seems weak
+  my $plane_faces = 12;
+  my $count_factor = 1;
+  if (scalar(@{$meshnode->{Bfaces}}) > $plane_faces) {
+    my $count_factor = int(scalar(@{$meshnode->{Bfaces}}) / $plane_faces);
+  }
+
   # now classify the vertex indices by 'role' or 'type'
   my $corners = [
-    grep { $facecounts->{$_} == 1 } keys %{$facecounts}
+    grep { $facecounts->{$_} == 1 * $count_factor } keys %{$facecounts}
   ];
   #print "corners\n";
   #print Dumper($corners);
   my $row_two = [
-    grep { $facecounts->{$_} == 3 } keys %{$facecounts}
+    grep { $facecounts->{$_} == 3 * $count_factor } keys %{$facecounts}
   ];
   #print "row two\n";
   #print Dumper($row_two);
   my $inner_edge = [
-    grep { $facecounts->{$_} == 2 } keys %{$facecounts}
+    grep { $facecounts->{$_} == 2 * $count_factor } keys %{$facecounts}
   ];
   #print "inner edge\n";
   #print Dumper($inner_edge);
   my $row_one_outer = [
-    grep { $facecounts->{$_} == 4 } keys %{$facecounts}
+    grep { $facecounts->{$_} == 4 * $count_factor } keys %{$facecounts}
   ];
   #print "row one outer edge\n";
   #print Dumper($row_one_outer);
