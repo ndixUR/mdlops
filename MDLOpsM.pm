@@ -491,6 +491,16 @@ sub readbinarymdl
       # once the UI is updated, remove legacy params
       $options->{extract_anims} = $extractanims;
     }
+    # compute real smoothgroup numbers for visible meshes
+    # default value is on
+    if (!defined($options->{compute_smoothgroups})) {
+      $options->{compute_smoothgroups} = 1;
+    }
+    # weld model vertices
+    # default value is off
+    if (!defined($options->{weld_model})) {
+      $options->{weld_model} = 0;
+    }
 
     #extract just the name of the model
     $buffer =~ /(.*\\)*(.*)\.mdl/;
@@ -594,8 +604,8 @@ sub readbinarymdl
 
     $temp = getnodes('nodes', 'NULL', $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
 
-    $options->{compute_smoothgroups} = 1;
-    $options->{weld_model} = 1;
+    #$options->{compute_smoothgroups} = 1;
+    #$options->{weld_model} = 1;
     # compute the data structures for smoothgroup number detection/computation
     # and producing models with vertices welded
     my $face_by_pos = {};
@@ -669,7 +679,7 @@ sub readbinarymdl
                     @{$face_by_pos->{$vert_key}},
                     {
                         mesh  => $i,
-                        meshname => $model{partnames}[$i],
+                        #meshname => $model{partnames}[$i],
                         faces => [ @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ],
                         vertex => $work
                     }
@@ -730,6 +740,19 @@ sub readbinarymdl
           #$testnorm = normalize_vector($testnorm);
           return $testnorm;
         };
+        sub score_vector {
+          my ($test_vector, $ref_vector) = @_;
+          my $score = 0.0;
+          my $work = [ 0.0 x scalar(@{$ref_vector}) ];
+          for my $test_key (0..scalar(@{$ref_vector}) - 1) {
+            if (!defined($test_vector->[$test_key])) {
+              last;
+            }
+            $work->[$test_key] = abs($ref_vector->[$test_key] - $test_vector->[$test_key]);
+          }
+          map { $score += $_ } @{$work};
+          return $score;
+        }
         # based on Math::Subsets::List
         # Copyright (c) 2009 Philip R Brenan.
         # but different because it just returns a set of combinations
@@ -820,6 +843,8 @@ sub readbinarymdl
                     ];
                   }
                   last;
+                } else {
+
                 }
               } keys %{$othernorms};
               if (!$matched) {
@@ -836,10 +861,10 @@ sub readbinarymdl
               print "others\n";
               print Dumper($othernorms);
               print Dumper([ map {normalize_vector($othernorms->{$_})} keys %{$othernorms} ]);
-              $protogroups->{$vert_key} = [
-                @{$protogroups->{$vert_key}}, [ @{$cur_group} ]
-              ];
             }
+            $protogroups->{$vert_key} = [
+              @{$protogroups->{$vert_key}}, [ @{$cur_group} ]
+            ];
           }
           #print Dumper($protogroups);
           #print Dumper([
@@ -848,6 +873,11 @@ sub readbinarymdl
           #  } keys %{$protogroups}
           #]);
         }
+        #print Dumper([
+        #  map {$protogroups->{$_}} sort {
+        #    scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
+        #  } keys %{$protogroups}
+        #]);
         #print Dumper(
         #    shift [sort {
         #      scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
@@ -857,9 +887,9 @@ sub readbinarymdl
         # a list of lists of (mesh, face) tuples, each list is a smoothing group
         my $sgs = [
           @{$protogroups->{
-            shift [ sort {
+            (sort {
               scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
-            } keys %{$protogroups} ]
+            } keys %{$protogroups})[0]
           }}
         ];
         #for my $pg_key (sort { scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}}) } keys %{$protogroups}) {
@@ -879,16 +909,26 @@ sub readbinarymdl
         # put the rest of the faces that were not smoothgroup boundary faces
         # into the protogroup structure so we have a single list to traverse
         for my $vert_key (keys %{$face_by_pos}) {
-          if (!defined($protogroups->{$vert_key}) ||
-              !scalar(@{$protogroups->{$vert_key}})) {
+          if ((!defined($protogroups->{$vert_key}) ||
+               !scalar(@{$protogroups->{$vert_key}})) &&
+              scalar(@{$face_by_pos->{$vert_key}}) == 1) {
             $protogroups->{$vert_key} = [ [
               map {
+                #print "$face_by_pos->{$vert_key}[0]{mesh}, $_\n";
                 [ $face_by_pos->{$vert_key}[0]{mesh}, $_ ]
               } @{$face_by_pos->{$vert_key}[0]{faces}}
             ] ];
             #print Dumper($protogroups->{$vert_key});
           }
         }
+        #for my $a (keys %{$protogroups}) {
+        #  for my $b (@{$protogroups->{$a}}) {
+        #    if (!scalar(@{$b})) {
+        #      print "$a $b\n";
+        #    }
+        #  }
+        #}
+        #die;
         #print Dumper($sgs);
         print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
         #die;
@@ -909,7 +949,7 @@ sub readbinarymdl
                     $_->[1] == $face_def->[1];
                   } @{$_}
                 } @{$sgs})) {
-                  my $sg_index = shift [
+                  my $sg_index = (
                     grep { defined($_) }  map {
                       if (scalar(grep {
                         $_->[0] == $face_def->[0] &&
@@ -920,7 +960,7 @@ sub readbinarymdl
                         undef;
                       }
                     } keys @{$sgs}
-                  ];
+                  )[0];
                   #print Dumper($sgs->[$sg_index]);
                   #print Dumper($protogroups->{$pg2_key}[$gkey]);
                   #die;
@@ -939,11 +979,29 @@ sub readbinarymdl
             # delete the patches used from this patchgroup
             if (scalar(@{$used})) {
               map { #print "delete $_\n";
-                delete $protogroups->{$pg2_key}[$_];
+                if (defined($protogroups->{$pg2_key}[$_])) {
+                  delete $protogroups->{$pg2_key}[$_];
+                }
               } @{$used};
             }
           }
-          print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
+          #print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
+          for my $pg2_key (keys %{$protogroups}) {
+            for my $gkey (keys @{$protogroups->{$pg2_key}}) {
+              #$protogroups->{$pg2_key}[$gkey] = [
+              #$gkey = [
+                #grep {defined($_) && scalar(@{$_})} @{$gkey}
+                #grep {defined($_) && scalar(@{$_})} @{$protogroups->{$pg2_key}[$gkey]}
+              #];
+              if (defined($protogroups->{$pg2_key}[$gkey]) &&
+                  !scalar(@{$protogroups->{$pg2_key}[$gkey]})) {
+                delete $protogroups->{$pg2_key}[$gkey];
+              }
+            }
+            $protogroups->{$pg2_key} = [
+              grep {defined($_) && scalar(@{$_})} @{$protogroups->{$pg2_key}}
+            ];
+          }
           # delete patchgroups that are empty
           map { #print "delete pg $_\n";
             delete $protogroups->{$_};
@@ -1059,6 +1117,12 @@ sub readbinarymdl
                   # delete the vertex,
                   # leaving an undefined in the list at the vertex index position
                   delete $model{nodes}{$group->{mesh}}{verts}[$group->{vertex}];
+                  if ($model{nodes}{$group->{mesh}}{nodetype} & NODE_HAS_SKIN) {
+                    delete $model{nodes}{$group->{mesh}}{Abones}[$group->{vertex}];
+                  }
+                  if ($model{nodes}{$group->{mesh}}{nodetype} & NODE_HAS_DANGLY) {
+                    delete $model{nodes}{$group->{mesh}}{constraints}[$group->{vertex}];
+                  }
                   $model{nodes}{$group->{mesh}}{vertcoordnum} -= 1;
                 }
                 $face_data->[$datum_index] = $verts_use->{$group->{mesh}};
@@ -1096,6 +1160,16 @@ sub readbinarymdl
           $model{nodes}{$mesh}{verts} = [
             grep { defined($_) } @{$model{nodes}{$mesh}{verts}}
           ];
+          if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_SKIN) {
+            $model{nodes}{$mesh}{Abones} = [
+              grep { defined($_) } @{$model{nodes}{$mesh}{Abones}}
+            ];
+          }
+          if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_DANGLY) {
+            $model{nodes}{$mesh}{constraints} = [
+              grep { defined($_) } @{$model{nodes}{$mesh}{constraints}}
+            ];
+          }
           #printf(
           #  "%u %u\n",
           #  scalar(@{$model{nodes}{$mesh}{verts}}),
@@ -2195,6 +2269,8 @@ sub convert_saber_to_trimesh {
   # change node name
   my $orig_name = $model->{'partnames'}[$nodenumber];
   $model->{'partnames'}[$nodenumber] = '2081__' . $model->{'partnames'}[$nodenumber];
+  delete $model->{nodeindex}{$orig_name};
+  $model->{nodeindex}{$model->{'partnames'}[$nodenumber]} = $nodenumber;
 
   # find blade width as vertex position difference
   my $blade_width = [ map {
@@ -2318,7 +2394,7 @@ sub convert_trimesh_to_saber {
   my $plane_faces = 12;
   my $count_factor = 1;
   if (scalar(@{$meshnode->{Bfaces}}) > $plane_faces) {
-    my $count_factor = int(scalar(@{$meshnode->{Bfaces}}) / $plane_faces);
+    $count_factor = int(scalar(@{$meshnode->{Bfaces}}) / $plane_faces);
   }
 
   # now classify the vertex indices by 'role' or 'type'
@@ -3093,7 +3169,7 @@ sub writeasciimdl {
         #}
       }
       if ($nodetype == NODE_SKIN && !$options->{convert_skin}) {
-        printf(MODELOUT "  weights %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        printf(MODELOUT "  weights %u\n", scalar(@{$model->{'nodes'}{$i}{'Abones'}}));
         foreach ( @{$model->{'nodes'}{$i}{'Abones'}} ) {
           printf(MODELOUT "    %s\n", $_);
         }
@@ -3102,7 +3178,8 @@ sub writeasciimdl {
         printf(MODELOUT "  displacement % .7g\n", $model->{'nodes'}{$i}{'displacement'});
         printf(MODELOUT "  tightness % .7g\n", $model->{'nodes'}{$i}{'tightness'});
         printf(MODELOUT "  period % .7g\n", $model->{'nodes'}{$i}{'period'});
-        printf(MODELOUT "  constraints %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        #printf(MODELOUT "  constraints %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
+        printf(MODELOUT "  constraints %u\n", scalar(@{$model->{'nodes'}{$i}{'constraints'}}));
         foreach ( @{$model->{'nodes'}{$i}{'constraints'}} ) {
           printf(MODELOUT "    % .7g\n", $_);
         }
@@ -4244,7 +4321,11 @@ sub readasciimdl {
   print ( lc($model{'supermodel'}) . "|" . $supercheck . "\n") if $printall;
   if (lc($model{'supermodel'}) ne "null" && $supercheck == 1 && -f $pathonly . $model{'supermodel'} . '.mdl') {
     print("Loading binary supermodel: " . $pathonly . $model{'supermodel'} . ".mdl\n");
-    $supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0, modelversion($pathonly . $model{'supermodel'} . ".mdl"));
+    $supermodel = &readbinarymdl(
+      $pathonly . $model{'supermodel'} . ".mdl",
+      0, modelversion($pathonly . $model{'supermodel'} . ".mdl"),
+      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0 }
+    );
     &get_super_nodes(\%model, $supermodel, undef, undef, 0, 0);
     $model{totalnumnodes} += $model{'nodes'}{'truenodenum'};
     if ($printall) {
@@ -4261,7 +4342,12 @@ sub readasciimdl {
   elsif (lc($model{'supermodel'}) ne "null" && $supercheck == 1) {
     print("Loading original binary model: " . $pathonly . $model{'name'} . ".mdl\n");
     #$supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0);
-    $supermodel = &readbinarymdl($pathonly . $model{'name'} . ".mdl", 0, modelversion($pathonly . $model{'name'} . ".mdl"));
+    #$supermodel = &readbinarymdl($pathonly . $model{'name'} . ".mdl", 0, modelversion($pathonly . $model{'name'} . ".mdl"));
+    $supermodel = &readbinarymdl(
+      $pathonly . $model{'supermodel'} . ".mdl",
+      0, modelversion($pathonly . $model{'supermodel'} . ".mdl"),
+      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0 }
+    );
     foreach (keys %{$supermodel->{'nodes'}} ) {
       if ($_ eq "truenodenum") {next;}
       if ($supermodel->{'nodes'}{$_}{'supernode'} > $model{'largestsupernode'}) {
@@ -4324,9 +4410,13 @@ sub readasciimdl {
     if (!($model{nodes}{$i}{nodetype} & NODE_HAS_SABER)) {
       next;
     }
+    if (defined($model{nodes}{$i}{verts}) &&
+        scalar(@{$model{nodes}{$i}{verts}}) == 16) {
+      $model{nodes}{$i}{convert_saber} = 1;
+    }
     if ($model{nodes}{$i}{convert_saber}) {
       $model{nodes}{$i} = convert_trimesh_to_saber(\%model, $i);
-      print "converted\n";
+      #print "converted\n";
     }
     # these are mesh node indices
     #my $normal_face_indices = [ [ 13, 12,  8 ],
