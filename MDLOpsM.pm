@@ -5402,7 +5402,7 @@ sub readasciimdl {
                     }
                     my $area = $options->{weight_by_area} ? $faceareas{$meshB}{$faceB} : 1;
                     # initialize angle to 1 in case no vertices match somehow
-                    my $angle = -1;
+                    my $angle = $options->{weight_by_angle} ? -1 : 1;
                     # store faceB vertices in listrefs $bv1-3
                     my ($bv1, $bv2, $bv3) = (
                         $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
