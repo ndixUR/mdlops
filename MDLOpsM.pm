@@ -730,11 +730,11 @@ sub readbinarymdl
             #print Dumper([
             #  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
             #]);
-            printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
+            #printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
             $testnorm = [ map {
               $testnorm->[$_] += $facearea * $facenorm->[$_];
             } (0..2) ];
-            print Dumper($testnorm);
+            #print Dumper($testnorm);
           }
           #print "final norm for group:\n";
           #$testnorm = normalize_vector($testnorm);
@@ -754,9 +754,8 @@ sub readbinarymdl
           return $score;
         }
         # based on Math::Subsets::List
-        # Copyright (c) 2009 Philip R Brenan.
         # but different because it just returns a set of combinations
-        # so we can actually return out of it reasonably
+        # so we can actually return/next out of it reasonably
         sub combinations {
           my $l = 0;
           my @p = ();
@@ -808,14 +807,14 @@ sub readbinarymdl
             $testnorm = &$patch_normal($pos_data);
             #$testnorm = normalize_vector($testnorm);
             if (!vertex_equals(normalize_vector($testnorm), $vertnorm, 4)) {
-              print Dumper($testnorm);
-              print Dumper($vertnorm);
+#              print Dumper($testnorm);
+#              print Dumper($vertnorm);
               my $othernorms = {};
               for my $other_key (grep {$_ != $pos_key} keys @{$face_by_pos->{$vert_key}}) {
                 $othernorms->{$other_key} = &$patch_normal($face_by_pos->{$vert_key}[$other_key]);
               }
               #print "onorm initial\n";
-              print Dumper($othernorms);
+#              print Dumper($othernorms);
               my $subtestnorm;
               #subsets {
               #  print "presubset: @_\n";
@@ -825,15 +824,15 @@ sub readbinarymdl
               my $matched = 0;
               for my $combo (combinations(keys %{$othernorms})) {
                 $subtestnorm = [ @{$testnorm} ];
-                print "subset: ".@{$combo}."\n";
-                print Dumper($combo);
+#                print "subset: ".@{$combo}."\n";
+#                print Dumper($combo);
                 for my $okey (@{$combo}) {
                   $subtestnorm = [ map {
                     $subtestnorm->[$_] += $othernorms->{$okey}[$_];
                   } (0..2) ];
                 }
                 if (vertex_equals(normalize_vector($subtestnorm), $vertnorm, 4)) {
-                  print "@{$combo} matched\n";
+                  #print "@{$combo} matched\n";
                   map { $norm_used->{$_} = 1; } @{$combo};
                   $matched = 1;
                   for my $okey (@{$combo}) {
@@ -846,9 +845,10 @@ sub readbinarymdl
                 } else {
 
                 }
-              } keys %{$othernorms};
+              }
+              #keys %{$othernorms};
               if (!$matched) {
-                print "NO MATCH\n";
+#                print "NO MATCH\n";
               }
               #print Dumper($subtestnorm);
               #print Dumper(normalize_vector($subtestnorm));
@@ -858,9 +858,9 @@ sub readbinarymdl
               #$total *= ++$i while $i < scalar(keys %{$othernorms});
               #while ($attempted < $total) {
               #}
-              print "others\n";
-              print Dumper($othernorms);
-              print Dumper([ map {normalize_vector($othernorms->{$_})} keys %{$othernorms} ]);
+#              print "others\n";
+#              print Dumper($othernorms);
+#              print Dumper([ map {normalize_vector($othernorms->{$_})} keys %{$othernorms} ]);
             }
             $protogroups->{$vert_key} = [
               @{$protogroups->{$vert_key}}, [ @{$cur_group} ]
@@ -878,216 +878,192 @@ sub readbinarymdl
         #    scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
         #  } keys %{$protogroups}
         #]);
+        #print Dumper($protogroups);
         #print Dumper(
         #    shift [sort {
         #      scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
         #    } keys %{$protogroups}]
         #);
-        # sgs is going to be our smoothgroups:
-        # a list of lists of (mesh, face) tuples, each list is a smoothing group
-        my $sgs = [
-          @{$protogroups->{
-            (sort {
-              scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}})
-            } keys %{$protogroups})[0]
-          }}
-        ];
-        #for my $pg_key (sort { scalar(@{$protogroups->{$b}}) <=> scalar(@{$protogroups->{$a}}) } keys %{$protogroups}) {
-          # first algorithm,
-          # starting w/ the most divided patch,
-          # so start w/ the number of SGs required by first entry
-#          if (!defined($sgs)) {
-#            $sgs = [
-              #map { [] } (0..scalar(@{$protogroups->{$pg_key}}))
-#              @{$protogroups->{$pg_key}}
-#            ];
-#            print Dumper([ keys @{$sgs} ]);
-#          }
-          # what we want to do is go through our protogroups, for each patch in each group, if any of the faces are in any of the current sgs, add all the faces to the group
-          #for my $pg2_key (keys %{$protogroups}) {
 
-        # put the rest of the faces that were not smoothgroup boundary faces
-        # into the protogroup structure so we have a single list to traverse
-        for my $vert_key (keys %{$face_by_pos}) {
-          if ((!defined($protogroups->{$vert_key}) ||
-               !scalar(@{$protogroups->{$vert_key}})) &&
-              scalar(@{$face_by_pos->{$vert_key}}) == 1) {
-            $protogroups->{$vert_key} = [ [
-              map {
-                #print "$face_by_pos->{$vert_key}[0]{mesh}, $_\n";
-                [ $face_by_pos->{$vert_key}[0]{mesh}, $_ ]
-              } @{$face_by_pos->{$vert_key}[0]{faces}}
+        ###
+        # collect faces
+        # recursive method to process the point-local smooth group faces via adjacency graph
+        ###
+        sub collect_faces {
+          my ($sgs, $pgs, $fbp, $tracking, $model, $vert_key) = @_;
+          #print "$vert_key\n";
+
+          # select data list to use
+          my $list;
+          if (defined($pgs->{$vert_key})) {
+            #print "defined\n";
+            # a patchgroup exists, use it
+            $list = $pgs->{$vert_key};
+          } elsif (defined($fbp->{$vert_key})) {
+            #print Dumper($fbp->{$vert_key});
+            # point must have only connected face geometry,
+            # prepare a dummy patchgroup, knowing that only one patch exists
+            $list = [ [
+              map { [ $fbp->{$vert_key}[0]{mesh}, $_ ] } @{$fbp->{$vert_key}[0]{faces}}
             ] ];
-            #print Dumper($protogroups->{$vert_key});
+          } else {
+            #print "unknown $vert_key\n";
+            # this shouldn't happen, but was while debugging
+            return $sgs;
           }
-        }
-        #for my $a (keys %{$protogroups}) {
-        #  for my $b (@{$protogroups->{$a}}) {
-        #    if (!scalar(@{$b})) {
-        #      print "$a $b\n";
-        #    }
-        #  }
-        #}
-        #die;
-        #print Dumper($sgs);
-        print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
-        #die;
-        # remaining, our batch tracker
-        my $remaining = 0;
-        # run to completion
-        while (1) {
-          print "remaining protogroups: $remaining\n";
-          for my $pg2_key (keys %{$protogroups}) {
-            my $used = [];
-            for my $gkey (keys @{$protogroups->{$pg2_key}}) {
-              for my $face_def (@{$protogroups->{$pg2_key}[$gkey]}) {
-                if (scalar(grep { scalar(@{$_}) } map {
-                  grep {
-                    #print Dumper($_);
-                    #print Dumper($face_def);
-                    $_->[0] == $face_def->[0] &&
-                    $_->[1] == $face_def->[1];
-                  } @{$_}
-                } @{$sgs})) {
-                  my $sg_index = (
-                    grep { defined($_) }  map {
-                      if (scalar(grep {
-                        $_->[0] == $face_def->[0] &&
-                        $_->[1] == $face_def->[1]
-                      } @{$sgs->[$_]})) {
-                        $_;
-                      } else {
-                        undef;
-                      }
-                    } keys @{$sgs}
-                  )[0];
-                  #print Dumper($sgs->[$sg_index]);
-                  #print Dumper($protogroups->{$pg2_key}[$gkey]);
-                  #die;
-                  $sgs->[$sg_index] = [
-                    @{$sgs->[$sg_index]},
-                    @{$protogroups->{$pg2_key}[$gkey]}
-                  ];
-                  $used = [ @{$used}, $gkey ];
-                  printf(
-                    "match %u,%u in sg #%u\n",
-                    @{$face_def}, $sg_index
-                  );
+
+          # avoid reprocessing
+          if (defined($tracking->{$vert_key})) {
+            #print "$vert_key return\n";
+            return $sgs;
+          }
+          #print "$vert_key tracked\n";
+          $tracking->{$vert_key} = 1;
+
+          #print Dumper($list);
+          # consider all the point-local smooth groups at this global position
+          for my $local_sg (keys @{$list}) {
+            my $local_sg_matched = -1;
+            my $face_data = $list->[$local_sg];
+            # are we still considering which real smooth group(s)
+            # match this local smooth group?
+            my $lsg_matching = 1;
+            # pass #1:
+            # go through all faces in this point-local smooth group
+            for my $face_info (@{$face_data}) {
+              # if consideration has stopped (due to merge), continue...
+              if (!$lsg_matching) { last; }
+              # go through all real smooth groups
+              for my $real_sg (keys @{$sgs}) {
+                # if the real smooth group still exists,
+                # is different from one already matched,
+                # and contains the face under consideration
+                if (defined($sgs->[$real_sg]) &&
+                    $real_sg != $local_sg_matched &&
+                    defined($sgs->[$real_sg]{$face_info->[0]}) &&
+                    defined($sgs->[$real_sg]{$face_info->[0]}{$face_info->[1]})) {
+                  # we already have a matching real smooth group for this,
+                  # meaning that the two need to be merged,
+                  # merge this one into previous match
+                  if ($local_sg_matched != -1) {
+                    print "FOUND THE DUB $real_sg => $local_sg_matched\n" if $printall;
+                    #print Dumper($sgs->[$real_sg]);
+                    # complex looking multi-level hash merge
+                    $sgs->[$local_sg_matched] = {
+                      %{$sgs->[$local_sg_matched]},
+                      map { $_ => {
+                        defined($sgs->[$local_sg_matched]{$_}) ? %{$sgs->[$local_sg_matched]{$_}} : (),
+                        %{$sgs->[$real_sg]{$_}}
+                      } } keys %{$sgs->[$real_sg]}
+                    };
+                    # delete the real smooth group we just merged
+                    delete $sgs->[$real_sg];
+                    # reindex the real smooth groups
+                    $sgs = [ grep { defined($_) } @{$sgs} ];
+                    # make sure no more real smooth group consideration happens
+                    # after the merge
+                    $lsg_matching = 0;
+                    last;
+                  }
+                  # first matching real smooth group found, record it
+                  $local_sg_matched = $real_sg;
                 }
               }
             }
-            # delete the patches used from this patchgroup
-            if (scalar(@{$used})) {
-              map { #print "delete $_\n";
-                if (defined($protogroups->{$pg2_key}[$_])) {
-                  delete $protogroups->{$pg2_key}[$_];
-                }
-              } @{$used};
+            if ($local_sg_matched == -1) {
+              # no matching real smooth group was found, so create one
+              #print "new\n";
+              $local_sg_matched = scalar(@{$sgs});
+              $sgs = [ @{$sgs}, {} ];
+              #print Dumper($sgs);
             }
-          }
-          #print Dumper([ map { scalar(@{$_}) } @{$sgs} ]);
-          for my $pg2_key (keys %{$protogroups}) {
-            for my $gkey (keys @{$protogroups->{$pg2_key}}) {
-              #$protogroups->{$pg2_key}[$gkey] = [
-              #$gkey = [
-                #grep {defined($_) && scalar(@{$_})} @{$gkey}
-                #grep {defined($_) && scalar(@{$_})} @{$protogroups->{$pg2_key}[$gkey]}
-              #];
-              if (defined($protogroups->{$pg2_key}[$gkey]) &&
-                  !scalar(@{$protogroups->{$pg2_key}[$gkey]})) {
-                delete $protogroups->{$pg2_key}[$gkey];
+
+            # pass #2:
+            # go through all faces in this point-local smooth group
+            for my $face_info (@{$face_data}) {
+              my $exists = 0;
+              for my $real_sg (grep { $local_sg_matched != $_ } keys @{$sgs}) {
+                if (defined($sgs->[$real_sg]{$face_info->[0]}) &&
+                    defined($sgs->[$real_sg]{$face_info->[0]}{$face_info->[1]})) {
+                  $exists = 1;
+                  #last;
+                }
+              }
+              next if $exists;
+              if (!defined($sgs->[$local_sg_matched]{$face_info->[0]}) ||
+                  !defined($sgs->[$local_sg_matched]{$face_info->[0]}{$face_info->[1]})) {
+                # record the mesh and face index in the matched real smooth group
+                $sgs->[$local_sg_matched]{$face_info->[0]}{$face_info->[1]} = 1;
+              } else {
+                #print "defined\n";
               }
             }
-            $protogroups->{$pg2_key} = [
-              grep {defined($_) && scalar(@{$_})} @{$protogroups->{$pg2_key}}
-            ];
+            #print Dumper($sgs);
+
+            # pass #3:
+            # go through all faces in this point-local smooth group
+            for my $face_info (@{$face_data}) {
+              # prepare list of vertex position keys for each vertex in the face,
+              # except the one at the point we considered above
+              my $face_vert_keys = [
+                grep { $vert_key != $_ }
+                map { sprintf('%.4g,%.4g,%.4g', @{$_}) }
+                @{$model{nodes}{$face_info->[0]}{transform}{verts}}[
+                  @{$model{nodes}{$face_info->[0]}{Bfaces}[$face_info->[1]]}[8..10]
+                ]
+              ];
+              #print Dumper($face_vert_keys);
+              # recursively collect faces from each other vertex on this face
+              for my $fv_key (@{$face_vert_keys}) {
+                $sgs = collect_faces($sgs, $pgs, $fbp, $tracking, $model, $fv_key);
+              }
+            }
           }
-          # delete patchgroups that are empty
-          map { #print "delete pg $_\n";
-            delete $protogroups->{$_};
-          } grep {
-            !scalar(@{$protogroups->{$_}})
-          } keys %{$protogroups};
-          if ($remaining == scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})) {
-            # we ran through patchgroups without progressing,
-            # shift off the first patch we encounter,
-            # start the next smoothgroup with it
-            $sgs = [
-              @{$sgs}, [
-                @{$protogroups->{(keys %{$protogroups})[0]}[0]}
-              ]
-            ];
-            delete $protogroups->{(keys %{$protogroups})[0]}[0];
-            # delete patchgroups that are empty
-            map { #print "kdelete pg $_\n";
-              delete $protogroups->{$_};
-            } grep {
-              !scalar(@{$protogroups->{$_}})
-            } keys %{$protogroups};
-          }
-          $remaining = scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups});
-          printf(
-            "%u\n",
-            scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})
-          );
-          if (!scalar(grep { scalar(@{$protogroups->{$_}}) } keys %{$protogroups})) {
-            #print "last\n";
-            last;
-          }
+          return $sgs;
         }
-        # consider all vertex positions having multiple vertices
-        # compute face areas
-        # zero out the smoothgroup numbers we are about to (maybe but probably not) build up
+        # sgs is going to be our smoothgroups:
+        # list of hashes of hashes, [ mesh => { face_index => 1 } ]
+        # the leaf data is currently unused, using keys for instant lookup
+        my $sgs = [];
+        # track which vertex positions have been collected so far...
+        my $collected = {};
+        for my $vert_key (keys %{$face_by_pos}) {
+          $sgs = collect_faces($sgs, $protogroups, $face_by_pos, $collected, \%model, $vert_key);
+          #printf("outer %u\n", join(',', scalar(@{$sgs})));
+        }
+        # zero out the smoothgroup numbers we are about to build up
         for my $smoothgroup (@{$sgs}) {
-          for my $face_data (@{$smoothgroup}) {
-            my @Aface = split(
-              /\s/, $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]]
-            );
-            $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]] = join(
-              ' ', (@Aface)[0..2], 0, (@Aface)[4..7]
-            );
+          for my $mesh (keys %{$smoothgroup}) {
+            for my $face_index (keys %{$smoothgroup->{$mesh}}) {
+              my @Aface = split(
+                /\s/, $model{nodes}{$mesh}{Afaces}[$face_index]
+              );
+              $model{nodes}{$mesh}{Afaces}[$face_index] = join(
+                ' ', (@Aface)[0..2], 0, (@Aface)[4..7]
+              );
+            }
           }
         }
-        # assign smoothgroup numbers, rewrite the ascii faces, build them up from 0
+        # assign smoothgroup numbers, rewrite the ascii faces,
+        # build them up from assumed 0
         my $sg_no = 0;
-        for my $smoothgroup (sort { scalar(@{$b}) <=> scalar(@{$a}) } @{$sgs}) {
-          for my $face_data (@{$smoothgroup}) {
-            my @Aface = split(/\s/, $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]]);
-            $model{nodes}{$face_data->[0]}{Afaces}[$face_data->[1]] = join(
-              ' ',
-              (@Aface)[0..2],
-              $Aface[3] | (2 ** $sg_no), # 2 ** $sg_no,
-              (@Aface)[4..7]
-            );
+        for my $smoothgroup (sort { scalar(keys %{$b}) <=> scalar(keys %{$a}) } @{$sgs}) {
+          for my $mesh (keys %{$smoothgroup}) {
+            for my $face_index (keys %{$smoothgroup->{$mesh}}) {
+              my @Aface = split(
+                /\s/, $model{nodes}{$mesh}{Afaces}[$face_index]
+              );
+              $model{nodes}{$mesh}{Afaces}[$face_index] = join(
+                ' ',
+                (@Aface)[0..2],
+                $Aface[3] | (2 ** $sg_no), # 2 ** $sg_no,
+                (@Aface)[4..7]
+              );
+            }
           }
           $sg_no += 1;
         }
-#        for (my $i = 0; $i < $model{'nodes'}{'truenodenum'}; $i++) {
-#            if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
-#                ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER) ||
-#                !($model{'nodes'}{$i}{render}))
-#            {
-#                next;
-#            }
-#            for my $face_index (keys @{$model{nodes}{$i}{Bfaces}}) {
-#                my $sg_no = 0;
-#                for my $sg_index (keys @{$sgs}) {
-#                    if (scalar(grep { $_->[0] == $i &&
-#                                      $_->[1] == $face_index } @{$sgs->[$sg_index]})) {
-#                        $sg_no |= 2**$sg_index;
-#                        print "$i $face_index = $sg_no\n";
-#                        $model{nodes}{$i}{Afaces}[$face_index] = join(
-#                          ' ',
-#                          (split(/\s/, $model{nodes}{$i}{Afaces}[$face_index]))[0..2],
-#                          $sg_no,
-#                          (split(/\s/, $model{nodes}{$i}{Afaces}[$face_index]))[4..7]
-#                        );
-#                    }
-#                }
-#            }
-#        }
-        #print Dumper($sgs);
-        #die;
+      # end smoothgroup calculation
     }
     if ($options->{weld_model}) {
       # weld the model's vertices
