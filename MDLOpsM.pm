@@ -4320,8 +4320,8 @@ sub readasciimdl {
     #$supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0);
     #$supermodel = &readbinarymdl($pathonly . $model{'name'} . ".mdl", 0, modelversion($pathonly . $model{'name'} . ".mdl"));
     $supermodel = &readbinarymdl(
-      $pathonly . $model{'supermodel'} . ".mdl",
-      0, modelversion($pathonly . $model{'supermodel'} . ".mdl"),
+      $pathonly . $model{'name'} . ".mdl",
+      0, modelversion($pathonly . $model{'name'} . ".mdl"),
       { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0 }
     );
     foreach (keys %{$supermodel->{'nodes'}} ) {
