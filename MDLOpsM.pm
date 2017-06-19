@@ -4452,8 +4452,10 @@ sub readasciimdl {
       my $Abones      = [];
       my $bones       = [];
       my $weights     = [];
+      my $constraints = [];
       # precompute the types of optional vertex data in use by this node
       my $use_skin    = ($model{nodes}{$i}{nodetype} & NODE_HAS_SKIN);
+      my $use_dangly  = ($model{nodes}{$i}{nodetype} & NODE_HAS_DANGLY);
       my $use_tverts  = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX0_VERTICES);
       my $use_tverts1 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX1_VERTICES);
       my $use_tverts2 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX2_VERTICES);
@@ -4598,6 +4600,10 @@ sub readasciimdl {
             $vertfaces->{$new_index} = [];
           }
           $vertfaces->{$new_index} = [ @{$vertfaces->{$new_index}}, $face_index ];
+          # vertex dangly deformation data
+          if ($use_dangly) {
+            $constraints->[$new_index] = $model{'nodes'}{$i}{constraints}[$face->[$fv_index]];
+          }
           # vertex skin deformation data
           if ($use_skin) {
             $Abones->[$new_index] = $model{'nodes'}{$i}{Abones}[$face->[$fv_index]];
@@ -4670,6 +4676,9 @@ sub readasciimdl {
         }
         # remove the now-inaccurate list of uv indices per face
         delete $model{'nodes'}{$i}{'faceuvs'};
+      }
+      if ($use_dangly) {
+        $model{'nodes'}{$i}{constraints} = $constraints;
       }
       if ($use_skin) {
         #$model{'nodes'}{$i}{Abones} = [ @{$Abones} ];
