@@ -4999,29 +4999,12 @@ sub readasciimdl {
         foreach (keys @{$model{'nodes'}{$i}{'Bfaces'}}) {
             # store the face data in a hash reference, $face
             my $face = $model{'nodes'}{$i}{'Bfaces'}->[$_];
-            # store the triangular face's 3 vertices as list references in $v1-3
-            my ($v1, $v2, $v3) = (
+            # calculate the face's surface area
+            my $area = facearea(
                 $model{'nodes'}{$i}{'verts'}[$face->[8]],
                 $model{'nodes'}{$i}{'verts'}[$face->[9]],
                 $model{'nodes'}{$i}{'verts'}[$face->[10]]
             );
-
-            # calculate the face's surface area
-            my ($a, $b, $c, $s) = (0, 0, 0, 0);
-            $a = sqrt(($v1->[0] - $v2->[0]) ** 2 +
-                      ($v1->[1] - $v2->[1]) ** 2 +
-                      ($v1->[2] - $v2->[2]) ** 2);
-
-            $b = sqrt(($v1->[0] - $v3->[0]) ** 2 +
-                      ($v1->[1] - $v3->[1]) ** 2 +
-                      ($v1->[2] - $v3->[2]) ** 2);
-
-            $c = sqrt(($v2->[0] - $v3->[0]) ** 2 +
-                      ($v2->[1] - $v3->[1]) ** 2 +
-                      ($v2->[2] - $v3->[2]) ** 2);
-
-            $s = ($a + $b + $c)/2;
-            my $area = sqrt($s * ($s - $a) * ($s - $b) * ($s - $c));
 
             #print "Area: $area in $face->[4]\n";
 
