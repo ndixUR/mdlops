@@ -602,7 +602,7 @@ sub readbinarymdl
     $model{'nodes'}{'truenodenum'} = 0;
     # $tree, $parent, $startnode, $model, $version
 
-    $temp = getnodes('nodes', 'NULL', $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
+    $temp = getnodes('nodes', undef, $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
 
     #$options->{compute_smoothgroups} = 1;
     #$options->{weld_model} = 1;
@@ -1235,7 +1235,7 @@ sub readbinarymdl
             #next are the animation nodes
             $model{'anims'}{$i}{'nodes'} = {};
             # $tree, $parent, $startnode, $model, $version
-            getnodes("anims.$i", 'NULL', $model{'anims'}{$i}{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
+            getnodes("anims.$i", undef, $model{'anims'}{$i}{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
         }
     }
     else
@@ -1393,8 +1393,11 @@ sub getnodes {
   $ref->{$node}{'nodetype'} = $ref->{$node}{'header'}{'unpacked'}[0];
   
   $ref->{$node}{'supernode'} = $ref->{$node}{'header'}{'unpacked'}[1];
-  $ref->{$node}{'parent'} = $parent;
-  $ref->{$node}{'parentnodenum'} = $model->{'nodeindex'}{lc($parent)};
+  $ref->{$node}{'nodenum'} = $node;
+  #$ref->{$node}{'parent'} = $parent;
+  #$ref->{$node}{'parentnodenum'} = $model->{'nodeindex'}{lc($parent)};
+  $ref->{$node}{'parent'} = defined($parent) ? $model->{partnames}[$parent->{nodenum}] : 'NULL';
+  $ref->{$node}{'parentnodenum'} = defined($parent) ? $parent->{nodenum} : -1;
   $ref->{$node}{'positionheader'} = [@{$ref->{$node}{'subhead'}{'unpacked'}}[6..8]];
   $ref->{$node}{'rotationheader'} = [@{$ref->{$node}{'subhead'}{'unpacked'}}[9..12]]; #quaternion order: w x y z
   $ref->{$node}{'childrenloc'} = $ref->{$node}{'header'}{'unpacked'}[13];
@@ -2199,9 +2202,8 @@ my $dothis = 0;
     $ref->{$node}{'childindexes'}{'unpacked'} = [@children];
     # a list of childindex nodenums, rather than byte offsets
     $ref->{$node}{'childindexes'}{'nums'} = [];
-    $temp = $model->{'partnames'}[$node];
     foreach (@children) {
-      $work = $work + getnodes($tree, $temp, $_, $model, $version) ;
+      $work = $work + getnodes($tree, $ref->{$node}, $_, $model, $version) ;
     }    
   }
   return $work;
