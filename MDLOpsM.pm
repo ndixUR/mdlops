@@ -4349,6 +4349,8 @@ sub readasciimdl {
         );
       }
     }
+    $supermodel = undef;
+    print("super model is version: " . modelversion($pathonly . $model{'supermodel'} . ".mdl") . "\n");
   }
   elsif (lc($model{'supermodel'}) ne "null" && $supercheck == 1) {
     print("Loading original binary model: " . $pathonly . $model{'name'} . ".mdl\n");
@@ -4365,11 +4367,11 @@ sub readasciimdl {
         $model{'largestsupernode'} = $supermodel->{'nodes'}{$_}{'supernode'};
       }
       if ( defined( $nodeindex{ lc( $supermodel->{'partnames'}[$_] ) } ) ) {
-        if ($supermodel->{'nodes'}{$_}{'nodetype'} == NODE_SKIN) {
-          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}} ];
-          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'tbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'tbones'}{'unpacked'}} ];
-          $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'array8'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'array8'}{'unpacked'}} ];
-        }
+        #if ($supermodel->{'nodes'}{$_}{'nodetype'} == NODE_SKIN) {
+        #  $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}} ];
+        #  $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'tbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'tbones'}{'unpacked'}} ];
+        #  $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'array8'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'array8'}{'unpacked'}} ];
+        #}
         $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'supernode'} = $supermodel->{'nodes'}{$_}{'supernode'};
       }
     }
@@ -6067,6 +6069,8 @@ sub postprocessnodes {
           }
 
           # apparently now our T and Q bones are good to go.  yay.
+          # now prepare 'array8' w/ 0's (runtime array)
+          $node->{array8} = [ ([0, 0]) x $count ];
         }
       }
     }
@@ -6857,8 +6861,9 @@ sub writebinarynode
             $model->{'nodes'}{$i}{'skinarray3location'} = tell(BMDLOUT);
             foreach (0..$nodenum - 1)
             {
-                $buffer .= pack("S", $model->{'nodes'}{$i}{'array8'}{'unpacked'}[($_ * 2)] );
-                $buffer .= pack("S", $model->{'nodes'}{$i}{'array8'}{'unpacked'}[($_ * 2) + 1] );
+                $buffer .= pack('SS', @{$model->{'nodes'}{$i}{'array8'}[$_]});
+                #$buffer .= pack("S", $model->{'nodes'}{$i}{'array8'}{'unpacked'}[($_ * 2)] );
+                #$buffer .= pack("S", $model->{'nodes'}{$i}{'array8'}{'unpacked'}[($_ * 2) + 1] );
                 #$buffer .= pack("f*", 0,0 );
             }
             $totalbytes += length($buffer);
