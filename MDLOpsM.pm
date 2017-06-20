@@ -6043,9 +6043,17 @@ sub postprocessnodes {
           # I believe this changes from (distance/length from this node to other node) to
           # (distance/length from other node to this node).  But I'm too lazy to work out the math to see if that's correct.
           # Also, we will now adjust our orientation quaternions to be in the w,x,y,z format
+          # The TBone value for node[nodenum] <=> node[nodenum] should be 0,0,0.
+          # We enforce this before inverting, adjusting all other TBones by same
+          my $base = $node->{TBones}[$node->{nodenum}];
           for (my $i = 0; $i < $count; $i++) {
             $node->{'QBones'}[$i][3] = - $node->{'QBones'}[$i][3];
             
+            # apply base correction to TBone
+            $node->{'TBones'}[$i] = [
+              map { $node->{'TBones'}[$i][$_] - $base->[$_] } (0..2)
+            ];
+            # invert TBone
             $node->{'TBones'}[$i][0] = - $node->{'TBones'}[$i][0];
             $node->{'TBones'}[$i][1] = - $node->{'TBones'}[$i][1];
             $node->{'TBones'}[$i][2] = - $node->{'TBones'}[$i][2];
