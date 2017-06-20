@@ -450,7 +450,9 @@ sub facearea
 
   $s = ($a + $b + $c) / 2;
 
-  return sqrt($s * ($s - $a) * ($s - $b) * ($s - $c));
+  my $inter = $s * ($s - $a) * ($s - $b) * ($s - $c);
+
+  return $inter > 0.0 ? sqrt($inter) : 0.0;
 }
 ##############################################################
 # calculate a face's normalized normal vector and plane distance
@@ -1048,6 +1050,95 @@ sub readbinarymdl
           $sgs = collect_faces($sgs, $protogroups, $face_by_pos, $collected, \%model, $vert_key);
           #printf("outer %u\n", join(',', scalar(@{$sgs})));
         }
+
+        # we have classified geometry faces into raw smoothgroups,
+        # now we need to consolidate the numbers down to a minimal set,
+        # this is done by combining non-adjacent groups
+        printf "%u raw smoothgroups\n", scalar(@{$sgs}) if $printall;
+
+        # construct adjacency matrix
+        my $adjacency = [
+          map { [ (0) x scalar(@{$sgs}) ] } @{$sgs}
+        ];
+        for my $vert_key (keys %{$face_by_pos}) {
+          my $group_sgs = {};
+          # find sg number for every patch,
+          # record all sg numbers in use at a given point (they are adjacent)
+          for my $group (@{$face_by_pos->{$vert_key}}) {
+            for my $face_index (@{$group->{faces}}) {
+              for my $sg_index (keys @{$sgs}) {
+                if ($sgs->[$sg_index]{$group->{mesh}}{$face_index}) {
+                  $group_sgs->{$sg_index} = 1;
+                  # last here would mean one sg per face...
+                  # last;
+                }
+              }
+            }
+          }
+          # record the adjacency
+          for my $i (keys %{$group_sgs}) {
+            for my $j (keys %{$group_sgs}) {
+              $adjacency->[$i][$j] = 1;
+            }
+          }
+        }
+        # pretty debug output of raw sg adjacency matrix
+        map { printf(' %s' x scalar(@{$_}) . " %u\n", @{$_},
+              scalar(@{[grep{$_ == 0}@{$_}]})) } @{$adjacency} if $printall;
+
+        # sg_num_map, target sg => { source sg => 1, ... }
+        my $sg_num_map = {
+          map { $_ => {} } keys @{$adjacency}
+        };
+        # sg_num_map inverse, source sg => target sg
+        my $sg_num_map_inv = {};
+
+        # sg_test is smoothgroup source,
+        # consider collapsing into a lower numbered one
+        for my $sg_test (reverse keys @{$adjacency}) {
+          if (scalar(keys %{$sg_num_map->{$sg_test}})) {
+            # we collapsed at least one thing into this smoothgroup already,
+            # stop collapsing
+            last;
+          }
+          # sg_comp is smoothgroup target
+          # consider allowing higher numbered sg to join
+          for my $sg_comp (keys @{$adjacency}) {
+            if ($sg_comp >= $sg_test) {
+              # target bigger than source, give up
+              last;
+            }
+            if ($adjacency->[$sg_test][$sg_comp]) {
+              # source and target are adjacent, cannot be combined
+              next;
+            }
+            if (scalar(keys %{$sg_num_map->{$sg_comp}})) {
+              # test for smoothgroups already collapsed into target
+              # having been adjacent to source
+              my $child_adjacent = 0;
+              for my $sg_comp_child (keys %{$sg_num_map->{$sg_comp}}) {
+                if ($adjacency->[$sg_test][$sg_comp_child]) {
+                  $child_adjacent = 1;
+                }
+              }
+              if ($child_adjacent) {
+                next;
+              }
+            }
+            # no guard clauses triggered,
+            # so we are clear to collapse sg_test into sg_comp
+            $sg_num_map->{$sg_comp}{$sg_test} = 1;
+            $sg_num_map_inv->{$sg_test} = $sg_comp;
+            last;
+          }
+        }
+
+        # we have consolidated down to a minimal set of smoothgroups
+        #print Dumper($sg_num_map);
+        printf "%u final smoothgroups\n", scalar(
+          grep {scalar(keys %{$sg_num_map->{$_}})} keys %{$sg_num_map}
+        ) if $printall;
+
         # zero out the smoothgroup numbers we are about to build up
         for my $smoothgroup (@{$sgs}) {
           for my $mesh (keys %{$smoothgroup}) {
@@ -1063,8 +1154,11 @@ sub readbinarymdl
         }
         # assign smoothgroup numbers, rewrite the ascii faces,
         # build them up from assumed 0
-        my $sg_no = 0;
-        for my $smoothgroup (sort { scalar(keys %{$b}) <=> scalar(keys %{$a}) } @{$sgs}) {
+        for my $sg_base (keys @{$sgs}) {
+          my $smoothgroup = $sgs->[$sg_base];
+          # use collapsed sg number base if present
+          $sg_base = defined($sg_num_map_inv->{$sg_base})
+                       ? $sg_num_map_inv->{$sg_base} : $sg_base;
           for my $mesh (keys %{$smoothgroup}) {
             for my $face_index (keys %{$smoothgroup->{$mesh}}) {
               my @Aface = split(
@@ -1073,12 +1167,11 @@ sub readbinarymdl
               $model{nodes}{$mesh}{Afaces}[$face_index] = join(
                 ' ',
                 (@Aface)[0..2],
-                $Aface[3] | (2 ** $sg_no), # 2 ** $sg_no,
+                $Aface[3] | (2 ** $sg_base),
                 (@Aface)[4..7]
               );
             }
           }
-          $sg_no += 1;
         }
       # end smoothgroup calculation
     }
@@ -2061,7 +2154,8 @@ my $dothis = 0;
         $ref->{$node}{'Afaces'}[$i] .= sprintf(' %u', $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4]);
       } else {
         # otherwise, use material "1", which will get the selected texture(s)
-        $ref->{$node}{'Afaces'}[$i] .=" 1";
+        $ref->{$node}{'Afaces'}[$i] .= sprintf(' %u', $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4]);
+        #$ref->{$node}{'Afaces'}[$i] .=" 1";
       }
       #$ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4];
       $ref->{$node}{'Bfaces'}[$i] = [@{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}}[$temp..$temp+10]];
