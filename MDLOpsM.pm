@@ -5425,22 +5425,22 @@ sub readasciimdl {
                     my $angle = $options->{weight_by_angle} ? -1 : 1;
                     # store faceB vertices in listrefs $bv1-3
                     my ($bv1, $bv2, $bv3) = (
-                        $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
-                        $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
-                        $model{'nodes'}{$meshB}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
+                        $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
+                        $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
+                        $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
                     );
                     if ($options->{weight_by_angle} &&
-                        vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv1, 4))
+                        vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv1, 4))
                     {
                         $angle = compute_vertex_angle($bv1, $bv2, $bv3);
                     }
                     elsif ($options->{weight_by_angle} &&
-                           vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv2, 4))
+                           vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv2, 4))
                     {
                         $angle = compute_vertex_angle($bv2, $bv1, $bv3);
                     }
                     elsif ($options->{weight_by_angle} &&
-                           vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $bv3, 4))
+                           vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv3, 4))
                     {
                         $angle = compute_vertex_angle($bv3, $bv1, $bv2);
                     }
