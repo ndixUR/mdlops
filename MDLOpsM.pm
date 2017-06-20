@@ -766,6 +766,12 @@ sub readbinarymdl
           my $n = scalar(@P);
           my $list = [];
 
+          # limit of 12 here is semi-reasonable for a precomputed factorial list
+          # 12 takes < 1 second, 14 takes 12 seconds, more...
+          if ($n > 12) {
+            $n = 12;
+          }
+
           my $p; $p = sub {
             if ($l < $n) {
               ++$l;
@@ -796,6 +802,8 @@ sub readbinarymdl
           #print Dumper($face_by_pos->{$vert_key});
           my $norm_used = {};
           $protogroups->{$vert_key} = [];
+          my $patchnorms = [ map { &$patch_normal($_) } @{$face_by_pos->{$vert_key}} ];
+          my $poskey_combos = [ combinations(keys @{$face_by_pos->{$vert_key}}) ];
           for my $pos_key (keys @{$face_by_pos->{$vert_key}}) {
             if (defined($norm_used->{$pos_key})) {
               next;
@@ -807,14 +815,16 @@ sub readbinarymdl
             my $cur_group = [
               map { [ $pos_data->{mesh}, $_ ] } @{$pos_data->{faces}}
             ];
-            $testnorm = &$patch_normal($pos_data);
+            $testnorm = $patchnorms->[$pos_key];
+            #$testnorm = &$patch_normal($pos_data);
             #$testnorm = normalize_vector($testnorm);
             if (!vertex_equals(normalize_vector($testnorm), $vertnorm, 4)) {
 #              print Dumper($testnorm);
 #              print Dumper($vertnorm);
               my $othernorms = {};
               for my $other_key (grep {$_ != $pos_key} keys @{$face_by_pos->{$vert_key}}) {
-                $othernorms->{$other_key} = &$patch_normal($face_by_pos->{$vert_key}[$other_key]);
+                #$othernorms->{$other_key} = &$patch_normal($face_by_pos->{$vert_key}[$other_key]);
+                $othernorms->{$other_key} = $patchnorms->[$other_key];
               }
               #print "onorm initial\n";
 #              print Dumper($othernorms);
@@ -825,7 +835,8 @@ sub readbinarymdl
 #print "dump\n";
 #print Dumper(combinations(keys %{$othernorms}));
               my $matched = 0;
-              for my $combo (combinations(keys %{$othernorms})) {
+              #for my $combo (combinations(keys %{$othernorms})) {
+              for my $combo (grep { defined($othernorms->{$_}) } @{$poskey_combos}) {
                 $subtestnorm = [ @{$testnorm} ];
 #                print "subset: ".@{$combo}."\n";
 #                print Dumper($combo);
