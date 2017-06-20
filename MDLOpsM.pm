@@ -146,6 +146,7 @@ $structs{'nodechildren'} ={loc =>  13, num => 14, size =>  4, dnum => 1, name =>
 $structs{'subhead'}{'3k1'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",     tmplt => "f[4]L[12]l*"};
 #$structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'5k1'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",   tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
+$structs{'subhead'}{'17k1'} = {loc => -1, num => 1, size => 36,  dnum => 1, name => "reference_header", tmplt => "Z[32]L"};
 #$structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]ll"}; # kotor
 $structs{'subhead'}{'33k1'} = {loc => -1, num => 1, size => 332, dnum => 1, name => "trimesh_header",   tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SfL[3]"}; # kotor
 $structs{'subhead'}{'97k1'} = {loc => -1, num => 1, size => 432, dnum => 1, name => "skin_header",      tmplt => $structs{'subhead'}{'33k1'}->{tmplt} . 'l[16]S*'};
@@ -157,6 +158,7 @@ $structs{'subhead'}{'2081k1'}={loc => -1, num => 1, size => 352, dnum => 1, name
 $structs{'subhead'}{'3k2'} =  {loc => -1, num => 1, size =>  92, dnum => 1, name => "light_header",    tmplt => "f[4]L[12]l*"};
 #$structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[37]"};
 $structs{'subhead'}{'5k2'} =  {loc => -1, num => 1, size => 224, dnum => 1, name => "emitter_header",  tmplt => "f[3]L[5]Z[32]Z[32]Z[32]Z[32]Z[16]L[2]SCZ[32]CL"};
+$structs{'subhead'}{'17k2'} = {loc => -1, num => 1, size => 36,  dnum => 1, name => "reference_header", tmplt => "Z[32]L"};
 #$structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "l[5]f[16]lZ[32]Z[32]l[19]f[6]l[13]SSSSSSf[2]llll"}; # kotor2
 $structs{'subhead'}{'33k2'} = {loc => -1, num => 1, size => 340, dnum => 1, name => "trimesh_header",  tmplt => "L[5]f[16]LZ[32]Z[32]Z[12]Z[12]L[9]l[3]C[8]lf[4]l[13]SSC[6]SL[2]fL[3]"}; # kotor2
 $structs{'subhead'}{'97k2'} = {loc => -1, num => 1, size => 440, dnum => 1, name => "skin_header",     tmplt => $structs{'subhead'}{'33k2'}->{tmplt} . 'l[16]S*'};
@@ -281,6 +283,7 @@ use constant NODE_HAS_SABER     => 0x00000800;
 use constant NODE_DUMMY         => 1;
 use constant NODE_LIGHT         => 3;
 use constant NODE_EMITTER       => 5;
+use constant NODE_REFERENCE     => 17;
 use constant NODE_TRIMESH       => 33;
 use constant NODE_SKIN          => 97;
 use constant NODE_DANGLYMESH    => 289;
@@ -1803,7 +1806,12 @@ my $dothis = 0;
     $ref->{$node}{'renderorder'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
   }
   # subheader flag data snagged from http://nwn-j3d.cvs.sourceforge.net/nwn-j3d/nwn/c-src/mdl2ascii.cpp?revision=1.31&view=markup
-  
+
+  if ( $nodetype == NODE_REFERENCE ) { # reference
+    $ref->{$node}{'refModel'} = $ref->{$node}{'subhead'}{'unpacked'}[0];
+    $ref->{$node}{'reattachable'} = $ref->{$node}{'subhead'}{'unpacked'}[1];
+  }
+
   if ( $nodetype & NODE_HAS_MESH ) {
     $ref->{$node}{'facesloc'} = $ref->{$node}{'subhead'}{'unpacked'}[2];
     $ref->{$node}{'facesnum'} = $ref->{$node}{'subhead'}{'unpacked'}[3];
@@ -2862,6 +2870,8 @@ sub writeasciimdl {
       $temp2 = "trimesh";
     } elsif ($nodetype == NODE_AABB) {
       $temp2 = "aabb";
+    } elsif ($nodetype == NODE_REFERENCE) {
+      $temp2 = "reference";
     } elsif ($nodetype == NODE_SABER) {
 #      $temp2 = "dummy";
 #      $temp2 = "trimesh";
@@ -3055,6 +3065,11 @@ sub writeasciimdl {
           printf(MODELOUT "  %s %s\n", $controllername, join(" ", @args));
         }
       }
+    }
+
+    if ( $nodetype == NODE_REFERENCE ) {
+      printf(MODELOUT "  refModel %s\n", length($model->{nodes}{$i}{refModel}) ? $model->{nodes}{$i}{refModel} : 'NULL');
+      printf(MODELOUT "  reattachable %u\n", $model->{nodes}{$i}{reattachable});
     }
     
     # mesh nodes
@@ -3949,6 +3964,10 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{'lightpriority'} = $1;
     } elsif ($innode && $line =~ /\s*fadinglight\s+(\S*)/i) { # if in a node look for the fadinglight property
       $model{'nodes'}{$nodenum}{'fadinglight'} = $1;
+    } elsif ($innode && $line =~ /\s*refmodel\s+(\S+)/i) { # if in a node look for the refModel property
+      $model{'nodes'}{$nodenum}{'refModel'} = $1;
+    } elsif ($innode && $line =~ /\s*reattachable\s+(\S+)/i) { # if in a node look for the reattachable property
+      $model{'nodes'}{$nodenum}{'reattachable'} = $1;
     } elsif ($innode && $line =~ /\s*render\s+(\S*)/i) { # if in a node look for the render property
       $model{'nodes'}{$nodenum}{'render'} = $1;
     } elsif ($innode && $line =~ /\s*shadow\s+(\S*)/i) { # if in a node look for the shadow property
@@ -6529,6 +6548,17 @@ sub writebinarynode
     }
 
     #write out the emitter sub header and data (if any)
+    if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_REFERENCE)
+    {
+        $buffer = pack(
+            'Z[32]L',
+            $model->{'nodes'}{$i}{'refModel'},
+            $model->{'nodes'}{$i}{'reattachable'}
+        );
+        print (BMDLOUT $buffer);
+        $totalbytes += length($buffer);
+    }
+
     if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_EMITTER)
     {
         # size 224: 32 + 32 + 32 + 32 + 32 + 16 + 8 + 2 + 1 + 32 + 1 + 4
