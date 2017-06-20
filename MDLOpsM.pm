@@ -674,6 +674,9 @@ sub readbinarymdl
                 if (!defined($face_by_pos->{$vert_key})) {
                     $face_by_pos->{$vert_key} = [];
                 }
+                if (!defined($model{'nodes'}{$i}{'vertfaces'}{$work})) {
+                  $model{'nodes'}{$i}{'vertfaces'}{$work} = [];
+                }
                 # append this vertex's data to the data list for this position
                 $face_by_pos->{$vert_key} = [
                     @{$face_by_pos->{$vert_key}},
