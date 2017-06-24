@@ -1177,90 +1177,59 @@ sub readbinarymdl
     }
     if ($options->{weld_model}) {
       # weld the model's vertices
-      # welding first pass, identify vertices, reindex faces
-      my $removed = {};
+      my $removed = { map { $_ => [] } keys %{$model{nodes}} };
+      # welding first pass, identify removed vertices,
+      # reindex removed vertices in binary face structure
       for my $vert_key (keys %{$face_by_pos}) {
-        my $face_data = $face_by_pos->{$vert_key};
+        next unless scalar(@{$face_by_pos->{$vert_key}}) > 1;
         my $verts_use = {};
-        for my $group (@{$face_data}) {
+        for my $group (@{$face_by_pos->{$vert_key}}) {
           if (!defined($verts_use->{$group->{mesh}})) {
+            # first vertex for this mesh for this position, we will use it
             $verts_use->{$group->{mesh}} = $group->{vertex};
             next;
           }
-          #printf(
-          #  "%u %u\n",
-          #  scalar(@{$model{nodes}{$group->{mesh}}{verts}}),
-          #  $model{nodes}{$group->{mesh}}{vertcoordnum}
-          #);
-          for my $face_index (keys @{$model{nodes}{$group->{mesh}}{Bfaces}}) {
-            my $face_data = [
-              split(/\s/, $model{nodes}{$group->{mesh}}{Afaces}[$face_index])
+          # record extra vertex to be removed
+          $removed->{$group->{mesh}}[$group->{vertex}] = $verts_use->{$group->{mesh}};
+          # change this face index on all faces it is present on
+          for my $face_index (@{$group->{faces}}) {
+            $model{nodes}{$group->{mesh}}{Bfaces}[$face_index] = [
+              @{$model{nodes}{$group->{mesh}}{Bfaces}[$face_index]}[0..7],
+              map {
+                $_ == $group->{vertex} ? $verts_use->{$group->{mesh}} : $_
+              } @{$model{nodes}{$group->{mesh}}{Bfaces}[$face_index]}[8..10],
             ];
-            for my $datum_index (0..2) {
-              if ($face_data->[$datum_index] == $group->{vertex}) {
-                #printf("remove %u,%u\n", $group->{mesh}, $group->{vertex});
-                if (defined($model{nodes}{$group->{mesh}}{verts}[$group->{vertex}])) {
-                  # delete the vertex,
-                  # leaving an undefined in the list at the vertex index position
-                  delete $model{nodes}{$group->{mesh}}{verts}[$group->{vertex}];
-                  if ($model{nodes}{$group->{mesh}}{nodetype} & NODE_HAS_SKIN) {
-                    delete $model{nodes}{$group->{mesh}}{Abones}[$group->{vertex}];
-                  }
-                  if ($model{nodes}{$group->{mesh}}{nodetype} & NODE_HAS_DANGLY) {
-                    delete $model{nodes}{$group->{mesh}}{constraints}[$group->{vertex}];
-                  }
-                  $model{nodes}{$group->{mesh}}{vertcoordnum} -= 1;
-                }
-                $face_data->[$datum_index] = $verts_use->{$group->{mesh}};
-                $removed->{$group->{mesh}}{$group->{vertex}} = 1;
-              }
-            }
-            $model{nodes}{$group->{mesh}}{Afaces}[$face_index] = join(' ', @{$face_data});
           }
         }
       }
-      # welding second pass, remove vertices, reindex other faces
-      if (scalar(keys %{$removed})) {
-        # for each mesh that needs vertices removed
-        for my $mesh (keys %{$removed}) {
-          # for each vertex index that needs to be removed, highest=>lowest
-          for my $vert_removed (sort { $b <=> $a } keys %{$removed->{$mesh}}) {
-            # for each face in the mesh
-            for my $face_index (keys @{$model{nodes}{$mesh}{Afaces}}) {
-              # split the face ascii data
-              my $face_data = [
-                split(/\s/, $model{nodes}{$mesh}{Afaces}[$face_index])
-              ];
-              # for each vertex in this face
-              for my $fv_index (0..2) {
-                # vertex index is after the one being removed, decrement it
-                if ($face_data->[$fv_index] > $vert_removed) {
-                  $face_data->[$fv_index] -= 1;
-                }
-              }
-              # rejoin and save the face ascii data
-              $model{nodes}{$mesh}{Afaces}[$face_index] = join(' ', @{$face_data});
-            }
-          }
-          # remove the deleted vertices
-          $model{nodes}{$mesh}{verts} = [
-            grep { defined($_) } @{$model{nodes}{$mesh}{verts}}
-          ];
-          if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_SKIN) {
-            $model{nodes}{$mesh}{Abones} = [
-              grep { defined($_) } @{$model{nodes}{$mesh}{Abones}}
-            ];
-          }
-          if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_DANGLY) {
-            $model{nodes}{$mesh}{constraints} = [
-              grep { defined($_) } @{$model{nodes}{$mesh}{constraints}}
-            ];
-          }
-          #printf(
-          #  "%u %u\n",
-          #  scalar(@{$model{nodes}{$mesh}{verts}}),
-          #  $model{nodes}{$mesh}{vertcoordnum}
-          #);
+      # welding second pass, reconstruct vertices,
+      # reindex all vertices in ascii face structure
+      for my $mesh (keys %{$removed}) {
+        next unless scalar(@{[ grep {defined} @{$removed->{$mesh}} ]});
+        # keys is a list of the indices being kept, and since it is a list,
+        # it winds up being a map of new index => old vertex
+        my @keys = grep {
+          !defined($removed->{$mesh}[$_])
+        } (0..$model{nodes}{$mesh}{vertcoordnum} - 1);
+        # reconstruct ascii faces, keep smoothgroup number through material ID,
+        # but get (and adjust) vertex indices from equivalent binary face
+        $model{nodes}{$mesh}{Afaces} = [
+          map {
+            $model{nodes}{$mesh}{Afaces}[$_] =~ /^\s*\S+\s+\S+\s+\S+\s+(\S+\s*\S+\s+\S+\s+\S+\s+\S+)\s*$/;
+            join(' ', map {
+              $_ - scalar(@{[ grep {defined} @{$removed->{$mesh}}[0..$_] ]})
+            } @{$model{nodes}{$mesh}{Bfaces}[$_]}[8..10]) . " $1"
+          } keys @{$model{nodes}{$mesh}{Bfaces}}
+        ];
+        # record new number of vertices
+        $model{nodes}{$mesh}{vertcoordnum} = scalar(@keys);
+        # reconstruct verts, bones, and constraints by using @keys to slice
+        $model{nodes}{$mesh}{verts} = [ @{$model{nodes}{$mesh}{verts}}[@keys] ];
+        if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_SKIN) {
+          $model{nodes}{$mesh}{Abones} = [ @{$model{nodes}{$mesh}{Abones}}[@keys] ];
+        }
+        if ($model{nodes}{$mesh}{nodetype} & NODE_HAS_DANGLY) {
+          $model{nodes}{$mesh}{constraints} = [ @{$model{nodes}{$mesh}{constraints}}[@keys] ];
         }
       }
     }
