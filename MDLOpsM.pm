@@ -5701,8 +5701,10 @@ sub readasciimdl {
     for (my $i = 0; $i < $nodenum; $i ++)
     {
         # these calculations are only for mesh nodes
-        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH)) {
+        if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
+            ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER)) {
             # skip non-mesh nodes
+            # skip saber mesh nodes
             next;
         }
         my $results = {};
