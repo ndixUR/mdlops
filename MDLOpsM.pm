@@ -552,6 +552,7 @@ sub readbinarymdl
     $model{'modelheader'}{'raw'} = $buffer;
     $model{'modelheader'}{'unpacked'} = [unpack($structs{'modelheader'}{'tmplt'}, $buffer)];
     $model{'classification'} = $reverseclass{$model{'modelheader'}{'unpacked'}[0]};
+    $model{'ignorefog'} = !$model{'modelheader'}{'unpacked'}[3];
     $model{'animstart'} = $model{'modelheader'}{'unpacked'}[5];
     $model{'numanims'} = $model{'modelheader'}{'unpacked'}[6];
     $model{'bmin'} = [@{$model{'modelheader'}{'unpacked'}}[9..11]];
@@ -1947,13 +1948,13 @@ my $dothis = 0;
     $ref->{$node}{'chunkname'} = $ref->{$node}{'subhead'}{'unpacked'}[12];
     $ref->{$node}{'twosidedtex'} = $ref->{$node}{'subhead'}{'unpacked'}[13];
     $ref->{$node}{'loop'} = $ref->{$node}{'subhead'}{'unpacked'}[14];
-    $ref->{$node}{'emitterflags'} = $ref->{$node}{'subhead'}{'unpacked'}[15];
+    $ref->{$node}{'renderorder'} = $ref->{$node}{'subhead'}{'unpacked'}[15];
     $ref->{$node}{'m_bFrameBlending'} = $ref->{$node}{'subhead'}{'unpacked'}[16];
     $ref->{$node}{'m_sDepthTextureName'} = $ref->{$node}{'subhead'}{'unpacked'}[17];
     # initial study might point to one or both of these being bitfields aka flags,
     # possibly some of my complete guess flags (or others) are in these.
     $ref->{$node}{'m_bUnknown1'} = $ref->{$node}{'subhead'}{'unpacked'}[18];
-    $ref->{$node}{'m_lUnknown2'} = $ref->{$node}{'subhead'}{'unpacked'}[19];
+    $ref->{$node}{'emitterflags'} = $ref->{$node}{'subhead'}{'unpacked'}[19];
 
     $ref->{$node}{'p2p'} = ($ref->{$node}{'emitterflags'} & 0x0001) ? 1 : 0;
     $ref->{$node}{'p2p_sel'} = ($ref->{$node}{'emitterflags'} & 0x0002) ? 1 : 0;
@@ -1968,7 +1969,8 @@ my $dothis = 0;
     $ref->{$node}{'inherit_part'} = ($ref->{$node}{'emitterflags'} & 0x0400) ? 1 : 0;
     # the following are complete guesses
     $ref->{$node}{'depth_texture'} = ($ref->{$node}{'emitterflags'} & 0x0800) ? 1 : 0;
-    $ref->{$node}{'renderorder'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
+    $ref->{$node}{'EmitterFlag13'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
+    #$ref->{$node}{'renderorder'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
   }
   # subheader flag data snagged from http://nwn-j3d.cvs.sourceforge.net/nwn-j3d/nwn/c-src/mdl2ascii.cpp?revision=1.31&view=markup
 
@@ -2991,6 +2993,7 @@ sub writeasciimdl {
   print(MODELOUT "newmodel $model->{'partnames'}[0]\n");
   print(MODELOUT "setsupermodel $model->{'partnames'}[0] $model->{'supermodel'}\n");
   print(MODELOUT "classification $model->{'classification'}\n");
+  printf(MODELOUT "ignorefog %u\n", $model->{'ignorefog'});
   print(MODELOUT "setanimationscale $model->{'animationscale'}\n\n");
   
   # track bumpmapped textures at the model level,
@@ -3204,11 +3207,12 @@ sub writeasciimdl {
       }
       print(MODELOUT "  twosidedtex " . $model->{'nodes'}{$i}{'twosidedtex'} . "\n");
       print(MODELOUT "  loop " . $model->{'nodes'}{$i}{'loop'} . "\n");
+      print(MODELOUT "  renderorder " . $model->{'nodes'}{$i}{'renderorder'} . "\n");
       print(MODELOUT "  m_bFrameBlending " . $model->{'nodes'}{$i}{'m_bFrameBlending'} . "\n");
       print(MODELOUT "  m_sDepthTextureName " . $model->{'nodes'}{$i}{'m_sDepthTextureName'} . "\n");
 
-      printf(MODELOUT "\n# DEBUG MODE:\n  m_bUnknown1 %u\nm_lUnknown2 %u\n\n",
-                      $model->{'nodes'}{$i}{'m_bUnknown1'}, $model->{'nodes'}{$i}{'m_lUnknown2'});
+      #printf(MODELOUT "\n# DEBUG MODE:\n  m_bUnknown1 %u\nm_lUnknown2 %u\n\n",
+      #                $model->{'nodes'}{$i}{'m_bUnknown1'}, $model->{'nodes'}{$i}{'m_lUnknown2'});
 
       print(MODELOUT "  p2p " . $model->{'nodes'}{$i}{'p2p'} . "\n");
       print(MODELOUT "  p2p_sel " . $model->{'nodes'}{$i}{'p2p_sel'} . "\n");
@@ -3222,7 +3226,7 @@ sub writeasciimdl {
       print(MODELOUT "  splat " . $model->{'nodes'}{$i}{'splat'} . "\n");
       print(MODELOUT "  inherit_part " . $model->{'nodes'}{$i}{'inherit_part'} . "\n");
       print(MODELOUT "  depth_texture " . $model->{'nodes'}{$i}{'depth_texture'} . "\n");
-      print(MODELOUT "  renderorder " . $model->{'nodes'}{$i}{'renderorder'} . "\n");
+      print(MODELOUT "  EmitterFlag13 " . $model->{'nodes'}{$i}{'EmitterFlag13'} . "\n");
     
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
@@ -3882,8 +3886,8 @@ sub readasciimdl {
     'deadspace', 'blastRadius', 'blastLength',
     'numBranches', 'controlptsmoothing', 'xgrid', 'ygrid', 'spawntype',
     'update', 'render', 'blend', 'texture', 'chunkname',
-    'twosidedtex', 'loop', 'm_bFrameBlending', 'm_sDepthTextureName',
-    'm_bUnknown1', 'm_lUnknown2'
+    'twosidedtex', 'loop', 'renderorder', 'm_bFrameBlending', 'm_sDepthTextureName',
+    #'m_bUnknown1', 'm_lUnknown2'
   ];
   # emitter flags
   my $emitter_flags = {
@@ -3899,7 +3903,7 @@ sub readasciimdl {
     splat               => 0x0200,
     inherit_part        => 0x0400,
     depth_texture       => 0x0800,
-    renderorder         => 0x1000
+    EmitterFlag13       => 0x1000
   };
   # prepare emitter regex matches, all properties and flags are handled alike
   my $emitter_prop_match = join('|', @{$emitter_properties});
@@ -3910,6 +3914,7 @@ sub readasciimdl {
   $model{'bmax'} = [5, 5, 10];
   $model{'radius'} = 7;
   $model{'numanims'} = 0;
+  $model{'ignorefog'} = 0;
   $model{'animationscale'} = 0.971;
   
   # these values are for the trimesh counter sequence,
@@ -3969,6 +3974,8 @@ sub readasciimdl {
     } elsif ($line =~ /\s*classification\s+(\S*)/i) { # look for the model type
       # using this as a key into the classifications hash, so format the string
       $model{'classification'} = ucfirst lc $1;
+    } elsif ($line =~ /^\s*ignorefog\s+(\S+)/i) { # look for the model fog interaction
+      $model{'ignorefog'} = $1;
     } elsif (!$innode && $line =~ /\s*radius\s+(\S*)/i) {
       $model{'radius'} = $1;
     } elsif ($line =~ /\s*setanimationscale\s+(\S*)/i) {
@@ -6009,7 +6016,10 @@ sub writebinarymdl {
                            # it is sometimes 2 for characters, but no idea why yet
                            # it is 0 for all other classifications of models
                            $classification{$model->{'classification'}} == 32 ? 4 : 0,
-                           0,1,0);
+                           0,
+                           # actually more like affectedByFog, so invert the value
+                           $model->{'ignorefog'} ? 0 : 1,
+                           0);
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
   $model->{'animroot'}{'start'} = tell(BMDLOUT);
@@ -6766,11 +6776,11 @@ sub writebinarynode
             $model->{'nodes'}{$i}{'chunkname'},           # 12
             $model->{'nodes'}{$i}{'twosidedtex'},         # 13
             $model->{'nodes'}{$i}{'loop'},                # 14
-            $model->{'nodes'}{$i}{'emitterflags'},        # 15
+            $model->{'nodes'}{$i}{'renderorder'},         # 15
             $model->{'nodes'}{$i}{'m_bFrameBlending'},    # 16
             $model->{'nodes'}{$i}{'m_sDepthTextureName'}, # 17
-            $model->{'nodes'}{$i}{'m_bUnknown1'},         # 18
-            $model->{'nodes'}{$i}{'m_lUnknown2'},         # 19
+            0, #$model->{'nodes'}{$i}{'m_bUnknown1'},         # 18
+            $model->{'nodes'}{$i}{'emitterflags'},        # 19
         );
         print (BMDLOUT $buffer);
         $totalbytes += length($buffer);
