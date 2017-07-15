@@ -552,6 +552,7 @@ sub readbinarymdl
     $model{'modelheader'}{'raw'} = $buffer;
     $model{'modelheader'}{'unpacked'} = [unpack($structs{'modelheader'}{'tmplt'}, $buffer)];
     $model{'classification'} = $reverseclass{$model{'modelheader'}{'unpacked'}[0]};
+    $model{'classification_unk1'} = $model{'modelheader'}{'unpacked'}[1];
     $model{'ignorefog'} = !$model{'modelheader'}{'unpacked'}[3];
     $model{'animstart'} = $model{'modelheader'}{'unpacked'}[5];
     $model{'numanims'} = $model{'modelheader'}{'unpacked'}[6];
@@ -3002,6 +3003,7 @@ sub writeasciimdl {
   print(MODELOUT "newmodel $model->{'partnames'}[0]\n");
   print(MODELOUT "setsupermodel $model->{'partnames'}[0] $model->{'supermodel'}\n");
   print(MODELOUT "classification $model->{'classification'}\n");
+  print(MODELOUT "classification_unk1 $model->{'classification_unk1'}\n");
   printf(MODELOUT "ignorefog %u\n", $model->{'ignorefog'});
   print(MODELOUT "setanimationscale $model->{'animationscale'}\n\n");
   
@@ -3983,6 +3985,8 @@ sub readasciimdl {
     } elsif ($line =~ /\s*classification\s+(\S*)/i) { # look for the model type
       # using this as a key into the classifications hash, so format the string
       $model{'classification'} = ucfirst lc $1;
+    } elsif ($line =~ /^\s*classification_unk1\s+(\S+)/i) { # look for the unknown classification byte
+      $model{'classification_unk1'} = $1;
     } elsif ($line =~ /^\s*ignorefog\s+(\S+)/i) { # look for the model fog interaction
       $model{'ignorefog'} = $1;
     } elsif (!$innode && $line =~ /\s*radius\s+(\S*)/i) {
@@ -6021,14 +6025,17 @@ sub writebinarymdl {
   #write out the model header
   # seek (BMDLOUT, 92, 0);
   $buffer =  pack("C[4]L", $classification{$model->{'classification'}},
-                           # this is always 4 for placeables ...
-                           # it is sometimes 2 for characters, but no idea why yet
-                           # it is 0 for all other classifications of models
-                           $classification{$model->{'classification'}} == 32 ? 4 : 0,
-                           0,
-                           # actually more like affectedByFog, so invert the value
-                           $model->{'ignorefog'} ? 0 : 1,
-                           0);
+    # this is always 4 for placeables ...
+    # it is sometimes 2 for characters, but no idea why yet
+    # it is 0 for all other classifications of models
+    defined($model->{classification_unk1}) ? $model->{classification_unk1} : (
+      $classification{$model->{'classification'}} == $classification{Placeable} ? 4 : 0
+    ),
+    0,
+    # actually more like affectedByFog, so invert the value
+    $model->{'ignorefog'} ? 0 : 1,
+    0
+  );
   $totalbytes += length($buffer);
   print (BMDLOUT $buffer);
   $model->{'animroot'}{'start'} = tell(BMDLOUT);
