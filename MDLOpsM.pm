@@ -510,11 +510,11 @@ sub readbinarymdl
     }
 
     #extract just the name of the model
-    $buffer =~ /(.*\\)*(.*)\.mdl/;
+    $buffer =~ /(.*[\\\/])*(.*)\.mdl/i;
     $file = $2;
     $model{'filename'} = $2;
   
-    $buffer =~ /(.*)\.mdl/;
+    $buffer =~ /(.*)\.mdl/i;
     $filepath = $1;
 
     open(MODELMDL, $filepath.".mdl") or die "can't open MDL file: $filepath\n";
@@ -2991,11 +2991,22 @@ sub writeasciimdl {
   if (!defined($options->{convert_saber})) {
     $options->{convert_saber} = 1;
   }
+  # use .ascii file extensions, default off
+  if (!defined($options->{use_ascii_extension})) {
+    $options->{use_ascii_extension} = 0;
+  }
 
   $file = $model->{'filename'};
   $filepath = $model->{'filepath+name'};
   
-  open(MODELOUT, ">", $filepath."-ascii.mdl") or die "can't open out file\n";
+  my $outfile = sprintf(
+    '%s%s.mdl%s',
+    $filepath,
+    $options->{use_ascii_extension} ? '' : '-ascii',
+    $options->{use_ascii_extension} ? '.ascii' : ''
+  );
+
+  open(MODELOUT, ">", $outfile) or die "can't open out file\n";
   
   # write out the ascii mdl
   #write out the model header
@@ -3825,7 +3836,7 @@ sub get_super_nodes {
 # 
 sub readasciimdl {
   my ($buffer, $supercheck, $options) = (@_);
-  my ($file, $filepath);
+  my ($file, $extension, $filepath);
   my %model={};
   my $supermodel;
   my ($nodenum, $nodename, $work, $work2, $count, $nodestart, $ref);
@@ -3881,13 +3892,14 @@ sub readasciimdl {
 
 
   #extract just the name
-  $buffer =~ /(.*[\\\/])*(.*)\.mdl/i;
+  $buffer =~ /(.*[\\\/])*([^\\\/]+)\.(mdl.*)$/i;
   $file = $2;
+  $extension = $3;
   $model{'filename'} = $2;
   
   $buffer =~ /(.*)\.mdl/i;
   $filepath = $1;
-  open($ASCIIMDL, $filepath.".mdl") or die "can't open MDL file $filepath.mdl\n";
+  open($ASCIIMDL, "$filepath.$extension") or die "can't open MDL file $filepath.$extension\n";
 
   $model{'source'} = "ascii";
   $model{'filepath+name'} = $filepath;
@@ -8450,11 +8462,11 @@ sub detect_format {
 sub detect_type {
   my ($file) = @_;
 
-  if ($file =~ /wok$/i) {
+  if ($file =~ /wok(?:\.ascii)$/i) {
     return 'wok';
-  } elsif ($file =~ /dwk$/i) {
+  } elsif ($file =~ /dwk(?:\.ascii)$/i) {
     return 'dwk';
-  } elsif ($file =~ /pwk$/i) {
+  } elsif ($file =~ /pwk(?:\.ascii)$/i) {
     return 'pwk';
   }
 
