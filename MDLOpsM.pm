@@ -8462,11 +8462,11 @@ sub detect_format {
 sub detect_type {
   my ($file) = @_;
 
-  if ($file =~ /wok(?:\.ascii)$/i) {
+  if ($file =~ /wok(?:\.ascii)?$/i) {
     return 'wok';
-  } elsif ($file =~ /dwk(?:\.ascii)$/i) {
+  } elsif ($file =~ /dwk(?:\.ascii)?$/i) {
     return 'dwk';
-  } elsif ($file =~ /pwk(?:\.ascii)$/i) {
+  } elsif ($file =~ /pwk(?:\.ascii)?$/i) {
     return 'pwk';
   }
 
@@ -8584,14 +8584,6 @@ sub readasciiwalkmesh {
     }
     if ($parsing->{vertices} &&
         $line =~ /(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/) {
-      # track vertices at a given position, by vertex index
-      my $vert_pos = sprintf('%.4g,%.4g,%.4g', $1, $2, $3);
-      if (!defined($extra->{verts_by_pos}{$vert_pos})) {
-        $extra->{verts_by_pos}{$vert_pos} = [];
-      }
-      $extra->{verts_by_pos}{$vert_pos} = [
-        @{$extra->{verts_by_pos}{$vert_pos}}, scalar(@{$walkmesh->{verts}})
-      ];
       # add the vertex to the list
       $walkmesh->{verts} = [
         @{$walkmesh->{verts}}, [ $1, $2, $3 ]
@@ -8675,6 +8667,54 @@ sub readasciiwalkmesh {
     }
   }
   # parsing finished, move face & material data into place
+
+  # weld the mesh
+  my $used_keys = {};
+  # map original vertex indices => new vertex indices
+  my $vert_index_map = {};
+  # boolean for whether welding action is needed
+  my $weld_needed = 0;
+  for my $vert_index (0..scalar(@{$walkmesh->{verts}}) - 1) {
+    # get xyz position as a single string for hash key
+    my $vert_pos = sprintf(
+      '%.4g,%.4g,%.4g',
+      @{$walkmesh->{verts}[$vert_index]}
+    );
+    if (defined($used_keys->{$vert_pos})) {
+      # this means there is a location with multiple vertices
+      $weld_needed = 1;
+      # set original vertex index = the one new vertex at same location
+      $vert_index_map->{$vert_index} = $used_keys->{$vert_pos};
+      next;
+    }
+    $vert_index_map->{$vert_index} = scalar(keys %{$used_keys});
+    $extra->{verts_by_pos}{$vert_pos} = [ scalar(keys %{$used_keys}) ];
+    $used_keys->{$vert_pos} = $vert_index;
+  }
+  if ($weld_needed) {
+    # take the original vert index => new vert index map,
+    # and translate it into a sorted, unique list of new vert indices
+    my $vert_index_map_inv = [
+      sort { $a <=> $b } values %{{
+        map { $vert_index_map->{$_} => $_ }
+        sort { $b <=> $a }
+        keys %{$vert_index_map}
+      }}
+    ];
+    # rewrite vertex indices in faces
+    for my $face_index (0..scalar(@{$face_data}) - 1) {
+      $face_data->[$face_index] = [
+        map { $vert_index_map->{$_} } @{$face_data->[$face_index]}[0..2],
+        $face_data->[$face_index][3]
+      ];
+    }
+    # rewrite vertices
+    $walkmesh->{verts} = [
+      @{$walkmesh->{verts}}[@{$vert_index_map_inv}]
+    ];
+  }
+  undef $used_keys;
+  undef $vert_index_map;
 
   # sort non-walk faces to the end of the list, then split off the types
   $face_data = [
@@ -8760,7 +8800,7 @@ sub readasciiwalkmesh {
   my $adjacency_matrix = {};
   for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
     if ($walkmesh->{types}[$index] == WOK_NONWALK) {
-      next;
+      last;
     }
     # map of global face number/index => adjacency list number/index
     # this structure would be necessary if we had walk faces mixed
@@ -8770,7 +8810,7 @@ sub readasciiwalkmesh {
   }
   for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
     if ($walkmesh->{types}[$index] == WOK_NONWALK) {
-     next;
+      last;
     }
     # get vertex positions for each face vertex, suitable as keys into verts_by_pos
     my $fv_pos = [
