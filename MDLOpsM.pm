@@ -224,6 +224,7 @@ use constant MDX_TEX2_VERTICES          => 0x00000008; # unconfirmed
 use constant MDX_TEX3_VERTICES          => 0x00000010; # unconfirmed
 use constant MDX_VERTEX_NORMALS         => 0x00000020;
 #use constant MDX_???                    => 0x00000040; # unknown
+use constant MDX_VERTEX_COLORS          => 0x00000040; # unconfirmed
 use constant MDX_TANGENT_SPACE          => 0x00000080;
 #use constant MDX_???                    => 0x00000100; # unknown
 #use constant MDX_???                    => 0x00000200; # unknown
@@ -249,6 +250,7 @@ $structs{'mdxrows'} = [
   { bitfield => MDX_TEX1_VERTICES,  num => 2, offset_i => 4,  offset => 'mdxtex1vertsloc',   data => 'tverts1' },
   { bitfield => MDX_TEX2_VERTICES,  num => 2, offset_i => 5,  offset => 'mdxtex2vertsloc',   data => 'tverts2' },
   { bitfield => MDX_TEX3_VERTICES,  num => 2, offset_i => 6,  offset => 'mdxtex3vertsloc',   data => 'tverts3' },
+  { bitfield => MDX_VERTEX_COLORS,  num => 3, offset_i => 2,  offset => 'mdxvertcolorsloc',  data => 'colors' },
   { bitfield => MDX_TANGENT_SPACE,  num => 9, offset_i => 7,  offset => 'mdxtanspaceloc',    data => 'tangentspace' },
   { bitfield => MDX_BONE_WEIGHTS,   num => 4, offset_i => -1, offset => 'mdxboneweightsloc', data => 'boneweights' },
   { bitfield => MDX_BONE_INDICES,   num => 4, offset_i => -1, offset => 'mdxboneindicesloc', data => 'boneindices' },
@@ -2026,6 +2028,8 @@ my $dothis = 0;
     $ref->{$node}{'mdxvertcoordsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[53];
     # offset to vertex normals in MDX row
     $ref->{$node}{'mdxvertnormalsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[54];
+    # offset to vertex colors in MDX row
+    $ref->{$node}{'mdxvertcolorsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[55];
     # offset to texture0 tvertices in MDX row
     $ref->{$node}{'mdxtex0vertsloc'} = $ref->{$node}{'subhead'}{'unpacked'}[56];
     # offset to texture1 tvertices in MDX row
@@ -4316,6 +4320,17 @@ sub readasciimdl {
       $model{'nodes'}{$nodenum}{"texindices$1"} = {};
       $task = "texindices$1";
       $count = 0;
+    } elsif ($innode && $line =~ /\s*colors\s+(\S*)/i) { # if in a node look for start of the extra texture vert indices
+      $model{'nodes'}{$nodenum}{"colorsnum"} = $1;
+      $model{'nodes'}{$nodenum}{"colors"} = [];
+      $model{'nodes'}{$nodenum}{'mdxdatabitmap'} |= MDX_VERTEX_COLORS;
+      $task = "colors";
+      $count = 0;
+    } elsif ($innode && $line =~ /\s*colorindices\s+(\S*)/i) { # if in a node look for start of the extra texture vert indices
+      $model{'nodes'}{$nodenum}{"colorindicesnum"} = $1;
+      $model{'nodes'}{$nodenum}{"colorindices"} = {};
+      $task = "colorindices";
+      $count = 0;
     } elsif ($innode && $line =~ /\s*[^t]saber_verts\s+(\S*)/i) {  # if in a node look for the start of the saber verts
       $model{'nodes'}{$nodenum}{'saber_vertsnum'} = $1;
       $task = "saber_verts";
@@ -4468,6 +4483,14 @@ sub readasciimdl {
       } elsif ($task eq "texindices3") { # read in the tvert indices for 4th texture
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
         $model{'nodes'}{$nodenum}{'texindices3'}{$count}  = [ $1, $2, $3 ];
+        $count++;
+      } elsif ($task eq "colors") { # read in the vertex colors
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'colors'}[$count]  = [ $1, $2, $3 ];
+        $count++;
+      } elsif ($task eq "colorindices") { # read in the vertex color indices
+        $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
+        $model{'nodes'}{$nodenum}{'colorindices'}{$count}  = [ $1, $2, $3 ];
         $count++;
       } elsif ($task eq "saber_verts" ) { # read in the verts1 saber data
         $line =~ /\s*(\S*)\s+(\S*)\s+(\S*)/;
@@ -4686,6 +4709,8 @@ sub readasciimdl {
       my $tverts2     = [];
       my $tverts3     = [];
       my $tvertsi     = {};
+      my $colors      = [];
+      my $colorsi     = {};
       my $Abones      = [];
       my $bones       = [];
       my $weights     = [];
@@ -4697,6 +4722,7 @@ sub readasciimdl {
       my $use_tverts1 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX1_VERTICES);
       my $use_tverts2 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX2_VERTICES);
       my $use_tverts3 = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_TEX3_VERTICES);
+      my $use_colors  = ($model{nodes}{$i}{'mdxdatabitmap'} & MDX_VERTEX_COLORS);
       # go through all faces, by face index
       for my $face_index (keys @{$model{'nodes'}{$i}{'Afaces'}}) {
         # construct a face structure that contains all the original ascii data,
@@ -4710,6 +4736,7 @@ sub readasciimdl {
           0, 0, 0, 0, # texture 2
           0, 0, 0, 0, # texture 3
           0, 0, 0, 0, # texture 4
+          0, 0, 0     # vertex colors
         ];
         if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
           # doesn't work because tverti is only accurate when geometry is already correct
@@ -4745,6 +4772,11 @@ sub readasciimdl {
             $face->[18] = $model{'nodes'}{$i}{'texindices3'}{$face_index}->[2];
           }
         }
+        if ($use_colors && defined($model{'nodes'}{$i}{'colorindices'})) {
+          $face->[20] = $model{'nodes'}{$i}{'colorindices'}{$face_index}->[0];
+          $face->[21] = $model{'nodes'}{$i}{'colorindices'}{$face_index}->[1];
+          $face->[22] = $model{'nodes'}{$i}{'colorindices'}{$face_index}->[2];
+        }
         # empty templates for this face's data
         my $new_Aface = '';
         my $new_Bface = [ 0, 0, 0, 0, int($face->[3]), -1, -1, -1, 0, 0, 0 ];
@@ -4757,6 +4789,7 @@ sub readasciimdl {
         my $face_tverts1 = [];
         my $face_tverts2 = [];
         my $face_tverts3 = [];
+        my $face_colors = [];
         if ($use_tverts) {
           $face_tverts = [
             @{$model{'nodes'}{$i}{tverts}}[@{$face}[4..6]]
@@ -4777,6 +4810,11 @@ sub readasciimdl {
             @{$model{'nodes'}{$i}{tverts3}}[@{$face}[16..18]]
           ];
         }
+        if ($use_colors) {
+          $face_colors = [
+            @{$model{'nodes'}{$i}{colors}}[@{$face}[20..22]]
+          ];
+        }
         # go through the 3 vertices of this face, by face vertex index
         for my $fv_index (0..2) {
           my $match_found = 0;
@@ -4787,6 +4825,7 @@ sub readasciimdl {
                 (!$use_tverts1 || vertex_equals($tverts1->[$index], $face_tverts1->[$fv_index], 4)) &&
                 (!$use_tverts2 || vertex_equals($tverts2->[$index], $face_tverts2->[$fv_index], 4)) &&
                 (!$use_tverts3 || vertex_equals($tverts3->[$index], $face_tverts3->[$fv_index], 4)) &&
+                (!$use_colors  || vertex_equals($colors->[$index], $face_colors->[$fv_index], 4)) &&
                 ($sgroups->[$index] & int($face->[3])) &&
                 vertex_equals($verts->[$index], $face_verts->[$fv_index], 4)) {
               # existing vertex matches on all criteria, use it
@@ -4798,6 +4837,9 @@ sub readasciimdl {
               $vertfaces->{$index} = [ @{$vertfaces->{$index}}, $face_index ];
               if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
                 $tvertsi->{$index} = $index;
+              }
+              if ($use_colors) {
+                $colorsi->{$index} = $index;
               }
               $match_found = 1;
               last;
@@ -4826,6 +4868,10 @@ sub readasciimdl {
           }
           if ($use_tverts || $use_tverts1 || $use_tverts2 || $use_tverts3) {
             $tvertsi->{$new_index} = $new_index;
+          }
+          if ($use_colors) {
+            $colors->[$new_index] = [ @{$face_colors->[$fv_index]} ];
+            $colorsi->{$new_index} = $new_index;
           }
           # vertex smooth group (used for comparison only, not in MDX)
           $sgroups->[$new_index] = int($face->[3]);
@@ -4913,6 +4959,10 @@ sub readasciimdl {
         }
         # remove the now-inaccurate list of uv indices per face
         delete $model{'nodes'}{$i}{'faceuvs'};
+      }
+      if ($use_colors) {
+        $model{'nodes'}{$i}{colors} = $colors;
+        $model{'nodes'}{$i}{colorindices} = $colorsi;
       }
       if ($use_dangly) {
         $model{'nodes'}{$i}{constraints} = $constraints;
@@ -5956,6 +6006,12 @@ sub writebinarymdl {
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$tv_ind][0]);
           $buffer .= pack("f",$model->{'nodes'}{$i}{'tverts3'}[$tv_ind][1]);
         }
+        if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_VERTEX_COLORS) {
+          $buffer .= pack('f*', @{$model->{'nodes'}{$i}{'colors'}[
+            defined($model->{'nodes'}{$i}{'colorindices'})
+              ? $model->{'nodes'}{$i}{'colorindices'}{$j} : $j
+          ]});
+        }
         # if this mesh has normal mapping, include the tangent space data
         if ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
           $buffer .= pack('f[9]', @{$model->{'nodes'}{$i}{'Btangentspace'}[$j]});
@@ -5982,25 +6038,23 @@ sub writebinarymdl {
       #$buffer = pack("f*",10000000, 10000000, 10000000, 0, 0, 0, 0, 0);
       if ($model->{'nodes'}{$i}{'nodetype'} & NODE_HAS_SKIN) {
         # more mysterious padding, this one for skin nodes only
-        $buffer .= pack("f*",1, 0, 0, 0, 0, 0, 0, 0);
+        $buffer .= pack("f*", 1, 0, 0, 0, 0, 0, 0, 0);
       }
-      $mdxsize += length($buffer);
-      print (BMDXOUT $buffer);
       # after padding to one row, we may need to pad further to maintain 16-byte alignment,
       # this is why MDX starting positions always end in 0 in vanilla models
       my $alignment_padding = (
-        (($model->{'nodes'}{$i}{'mdxdatasize'} % 16) + ($mdxsize % 16)) % 16
+        (16 - (($model->{'nodes'}{$i}{'mdxdatasize'} + $mdxsize) % 16)) % 16
       );
       if (length($alignment_padding)) {
         # the interior mod operation tells us how many bytes into a 16-byte row we are in
         # subtracting from 16 gives us the number of bytes we need to add,
         # divide by 4 to get the number of 4-byte floats we need
-        $buffer = pack(
+        $buffer .= pack(
           'f*', (0) x ($alignment_padding / 4)
         );
-        $mdxsize += length($buffer);
-        print (BMDXOUT $buffer);
       }
+      $mdxsize += length($buffer);
+      print (BMDXOUT $buffer);
     }
   }
   close BMDXOUT;
