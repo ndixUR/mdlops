@@ -1214,7 +1214,7 @@ print "merge: $sg_merging => $local_sg_matched\n";
             (grep {
               #$_ <= $sg_no and
               #scalar(@{[ @{$sgs->[$_]}{keys %{$groups}} ]})
-              scalar(grep {exists $groups->{$_}} keys $sgs->[$_])
+              scalar(grep {exists $groups->{$_}} keys %{$sgs->[$_]})
               #my $result = 0;
               #foreach (keys $sgs->[$_]) {
               #  if (exists $groups->{$_}) {
