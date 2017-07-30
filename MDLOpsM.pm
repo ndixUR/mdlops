@@ -3554,6 +3554,26 @@ sub normalize_vector {
   my ($vec) = @_;
 
   my $norm_vec = [ 1, 0, 0 ];
+
+  # tested this extra-accurate version but it does not help
+  #use Math::BigFloat;
+  #my ($v1, $v2, $v3) = (
+  #  Math::BigFloat->new($vec->[0]),
+  #  Math::BigFloat->new($vec->[1]),
+  #  Math::BigFloat->new($vec->[2]),
+  #);
+  #my $norm = Math::BigFloat->new(
+  #  $v1->bpow(2)->badd($v2->bpow(2))->badd($v3->bpow(2))
+  #);
+  #$norm = $norm->bsqrt();
+  #if (!$norm->is_zero()) {
+  #  $norm_vec = [ map { $_->bdiv($norm)->bround(7)->numify() } (
+  #    Math::BigFloat->new($vec->[0]),
+  #    Math::BigFloat->new($vec->[1]),
+  #    Math::BigFloat->new($vec->[2]),
+  #  ) ];
+  #}
+
   my $norm = sqrt($vec->[0]**2 + $vec->[1]**2 + $vec->[2]**2);
   if ($norm) {
     $norm_vec = [ map { $_ / $norm } @{$vec} ];
@@ -5562,79 +5582,27 @@ sub readasciimdl {
             my $meshA = $i;
             my $faceA = -1;
             my $sgA   = -1;
-            for my $pos_data (@{$position_data}) {
-                if ($pos_data->{mesh} == $i && $pos_data->{vertex} == $work) {
-                    # found match
-                    if (scalar(@{$pos_data->{faces}})) {
-                        $faceA = $pos_data->{faces}[0];
-                        if ($meshA == 62) {
-                          #printf("vert:%u faceA:%u\n", $work, $faceA);
-                        }
-                    }
-                }
+            if (defined($model{'nodes'}{$i}{vertfaces}{$work})) {
+                $faceA = (
+                    map { @{$_->{faces}} }
+                    grep { $_->{mesh} == $i && $_->{vertex} == $work }
+                    @{$position_data}
+                )[0];
             }
             if ($faceA == -1) {
                 $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 1, 0, 0 ];
                 next;
             }
             $sgA = $model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4];
-            my $weight_factor = $options->{weight_by_area} ? $faceareas{$meshA}{$faceA} : 1;
-            my ($av1, $av2, $av3) = (
-                $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[8]],
-                $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[9]],
-                $model{'nodes'}{$meshA}{'verts'}[$model{'nodes'}{$meshA}{'Bfaces'}[$faceA]->[10]]
-            );
-            if ($options->{weight_by_angle} &&
-                vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av1))
-            {
-                $weight_factor *= compute_vertex_angle($av1, $av2, $av3);
-            }
-            elsif ($options->{weight_by_angle} &&
-                   vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av2))
-            {
-                $weight_factor *= compute_vertex_angle($av2, $av1, $av3);
-            }
-            elsif ($options->{weight_by_angle} &&
-                   vertex_equals($model{'nodes'}{$i}{'verts'}[$work], $av3))
-            {
-                $weight_factor *= compute_vertex_angle($av3, $av1, $av2);
-            }
-            if (!$options->{use_weights}) {
-                $weight_factor = 1;
-            }
-            if ($options->{use_weights} &&
-                $model{'nodes'}{$i}{'nodetype'} & NODE_HAS_AABB) {
-              # not using angle weight for aabb vertex normals
-              $weight_factor = $options->{weight_by_area} ? $faceareas{$meshA}{$faceA} : 1;
-            }
-            $model{'nodes'}{$i}{'vertexnormals'}{$work} = [
-                map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facenormals'}[$faceA]}
-                #map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'rawfacenormals'}[$faceA]}
-            ];
-            # initialize tangent space vectors with value from chosen face vectors
-            if (defined($model{'nodes'}{$meshA}{'facetangents'}) &&
-                defined($model{'nodes'}{$meshA}{'facetangents'}[$faceA])) {
-                $model{'nodes'}{$i}{'vertextangents'}[$work] = [
-                    map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facetangents'}[$faceA]}
-                ];
-                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [
-                    map { $_ * $weight_factor } @{$model{'nodes'}{$meshA}{'facebitangents'}[$faceA]}
-                ];
-                # this is where we store the final numbers, store them now in case the calculations get skipped
-                $model{'nodes'}{$i}{'Btangentspace'}[$work] = [
-                    @{$model{'nodes'}{$i}{'vertexbitangents'}[$work]},
-                    @{$model{'nodes'}{$i}{'vertextangents'}[$work]},
-                    @{$model{'nodes'}{$i}{'vertexnormals'}{$work}}
-                ];
+            $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 0.0, 0.0, 0.0 ];
+            if ($model{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
+                $model{'nodes'}{$i}{'vertextangents'}[$work] = [ 0.0, 0.0, 0.0 ];
+                $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ 0.0, 0.0, 0.0 ];
             }
             for my $pos_data (@{$position_data}) {
                 my $meshB = $pos_data->{mesh};
                 for my $faceB (@{$pos_data->{faces}}) {
-                    # skip self (test face index and node index!)
-                    if ($meshB == $meshA && $faceB == $faceA) {
-                        $printall and print "skip self\n";
-                        next;
-                    }
+                    my $is_self = ($meshA == $meshB && $faceA == $faceB);
                     # don't let rendering geometry influence non-rendering, and vice versa
                     if ($model{'nodes'}{$meshA}{'render'} != $model{'nodes'}{$meshB}{'render'}) {
                         $printall and print "skip visibility mismatch\n";
@@ -5651,20 +5619,13 @@ sub readasciimdl {
                     }
                     # don't let influence of geometry from different smooth groups accumulate into the vertex normal
                     # TODO resolve smooth group numbers vs. surface IDs...
-                    if (!($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] & $sgA)) {
+                    if (!($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] & $sgA) && !$is_self) {
                         $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
                         next;
                     }
-                    if ($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH &&
-                        $options->{use_crease_angle} &&
+                    if ($options->{use_crease_angle} &&
                         compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
                                              $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0) > $options->{crease_angle}) {
-#                      acos($model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[0] *
-#                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] +
-#                           $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[1] *
-#                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] +
-#                           $model{'nodes'}{$meshA}{'facenormals'}[$faceA]->[2] *
-#                           $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2]) > pi / 3){
                         if ($model{'nodes'}{$meshA}{'render'}) {
                         # it is not at all clear what this should be yet
                             $printall and printf(
@@ -5674,17 +5635,18 @@ sub readasciimdl {
                                                      $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0)
                             );
                         }
-                        #next;
                     }
                     my $area = $options->{weight_by_area} ? $faceareas{$meshB}{$faceB} : 1;
                     # initialize angle to 1 in case no vertices match somehow
                     my $angle = $options->{weight_by_angle} ? -1 : 1;
+
                     # store faceB vertices in listrefs $bv1-3
                     my ($bv1, $bv2, $bv3) = (
                         $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8]],
                         $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9]],
                         $model{'nodes'}{$meshB}{transform}{'verts'}[$model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10]]
                     );
+
                     if ($options->{weight_by_angle} &&
                         vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv1, 4))
                     {
@@ -5706,16 +5668,6 @@ sub readasciimdl {
                         # we would lower precision and retry.
                         printf "skip %u bad %u face: %u\n", $meshA, $meshB, $faceB;
                         next;
-                    }
-                    # honor the use_weights boolean to override weights calculations
-                    # to 1 & 1 until they can be verified correct
-                    if (!$options->{use_weights}) {
-                        $area = 1;
-                        $angle = 1;
-                    }
-                    if ($model{'nodes'}{$meshA}{'nodetype'} & NODE_HAS_AABB) {
-                        # never use angle weighted calculation for aabb...
-                        $angle = 1;
                     }
                     # apply angle & area weight to faceB surface normal and
                     # accumulate the x, y, and z components of the vertex normal vector
