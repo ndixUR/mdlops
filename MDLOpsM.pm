@@ -5830,7 +5830,7 @@ sub writebinarymdl {
       # after padding to one row, we may need to pad further to maintain 16-byte alignment,
       # this is why MDX starting positions always end in 0 in vanilla models
       my $alignment_padding = (
-        (16 - (($model->{'nodes'}{$i}{'mdxdatasize'} + $mdxsize) % 16)) % 16
+        (($model->{'nodes'}{$i}{'mdxdatasize'} % 16) + ($mdxsize % 16)) % 16
       );
       if (length($alignment_padding)) {
         # the interior mod operation tells us how many bytes into a 16-byte row we are in
