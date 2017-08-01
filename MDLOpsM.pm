@@ -1,7 +1,7 @@
 #! perl
 #
 ###########################################################
-# mdlops.pl version 0.7alpha
+# MDLOpsM.pm version 1.0.0
 # Copyright (C) 2004 Chuck Chargin Jr. (cchargin@comcast.net)
 #
 # (With some changes by JdNoa (jdnoa@hotmail.com) between
@@ -67,6 +67,19 @@
 #			    Reworked calculations of face normals
 #			    Reworked calculations of vertex normals
 #
+# Summer, 2017:         Version 1.0.0
+#                           Reworked calculations of face, vertex normals, plane distances, adjacent faces
+#                           Added tangent space calculations
+#                           Added emitter and finished light node support
+#                           Added walkmesh support (DWK/PWK/WOK)
+#                           Added lightsaber mesh support and conversion
+#                           Added bezier controller support and fixed existing controller list
+#                           Added normalization of vertex data into MDX form
+#                           Added detection of real smoothgroups
+#                           Added reference node support
+#                           Fixed replacer for many cases
+#                           Many more small fixes and features
+#
 ##########################################################
 # MUCH MUCH MUCH thanks to Torlack for his NWN MDL info!
 # without that this script could not exist!
@@ -97,7 +110,7 @@ BEGIN {
   our @EXPORT = qw( modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
   our @ISA = qw(Exporter);
   use vars qw($VERSION);
-  $VERSION = '0.8.0';
+  $VERSION = '1.0.0';
 }
 
 #use Time::HiRes qw(usleep ualarm gettimeofday tv_interval);
