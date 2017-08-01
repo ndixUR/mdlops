@@ -77,6 +77,7 @@
 #                           Added normalization of vertex data into MDX form
 #                           Added detection of real smoothgroups
 #                           Added reference node support
+#                           Added super model node number construction
 #                           Fixed replacer for many cases
 #                           Many more small fixes and features
 #
@@ -107,7 +108,7 @@ package MDLOpsM;
 
 BEGIN {
   use Exporter;
-  our @EXPORT = qw( modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
+  our @EXPORT = qw(modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
   our @ISA = qw(Exporter);
   use vars qw($VERSION);
   $VERSION = '1.0.0';
@@ -117,7 +118,6 @@ BEGIN {
 use Time::HiRes qw(gettimeofday tv_interval);
 use strict;
 use Math::Trig;       # quaternions? I have to convert quaternions?
-use List::Util qw(reduce);
 
 
 # add helpful debug library from perl core
@@ -218,7 +218,7 @@ $structs{'darray'}[8] = {loc => 92, num => 93, size =>  4, dnum =>   2, name => 
 $structs{'darray'}[9] = {loc => 79, num => 80, size => 16, dnum =>   1, name => "constraints+", tmplt => "f[4]"};
 $structs{'darray'}[10]= {loc => 79, num => -1, size => 40, dnum =>   6, name => "aabb",         tmplt => "ffffffllll"};
 
-our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'trimesh' => 33,
+our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'reference' => 17, 'trimesh' => 33,
                    'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'lightsaber' => 2081);
 
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
@@ -731,7 +731,7 @@ sub readbinarymdl
             }
         }
         #use Time::HiRes qw(gettimeofday);
-        printf "index edges %u\n", ((scalar keys %{$face_map}) - 0) * 3;
+        #printf "index edges %u\n", ((scalar keys %{$face_map}) - 0) * 3;
         #my $t0 = [gettimeofday];
         for my $edge_index (0..((scalar keys %{$face_map}) - 0) * 3 - 1) {
             my $face_index = int($edge_index / 3);
@@ -782,7 +782,7 @@ sub readbinarymdl
             #  print Dumper($face_edges);die;
             #}
         }
-        print "indexed edges\n";
+        #print "indexed edges\n";
     }
     if ($options->{compute_smoothgroups}) {
         # construct list of patches per mesh, patch is connected faces
@@ -920,7 +920,7 @@ sub readbinarymdl
             #$testnorm = &$patch_normal($pos_data);
             #$testnorm = normalize_vector($testnorm);
             my $base_score = score_vector(normalize_vector($testnorm), $vertnorm);
-            print $base_score . "\n";
+            #print "base score: $base_score\n";
             if (!vertex_equals(normalize_vector($testnorm), $vertnorm, 4) && $base_score > 0.001) {
 #              print Dumper($testnorm);
 #              print Dumper($vertnorm);
@@ -968,7 +968,7 @@ sub readbinarymdl
               }
               #keys %{$othernorms};
               if (!$matched) {
-                print "NO MATCH $pos_data->{mesh} $pos_data->{vertex}\n";
+                #print "NO MATCH $pos_data->{mesh} $pos_data->{vertex}\n";
               }
               #print Dumper($subtestnorm);
               #print Dumper(normalize_vector($subtestnorm));
@@ -1032,7 +1032,7 @@ sub readbinarymdl
       my $poly_stack = [];
       my $poly_prev = 0;
       my $totpoly = scalar keys %{$face_edges};
-      print "tot $totpoly\n";
+      #print "tot $totpoly\n";
       my $edge_borders = [];
       my $tot_group = 0;
       my $count = 0;
@@ -1053,7 +1053,7 @@ sub readbinarymdl
         if (!defined($poly) || $poly == $totpoly - 1) {
           last;
         }
-        print "poly3 $poly $totpoly\n";
+        #print "poly $poly / $totpoly\n";
         $poly_group_id = 3;
         $poly_prev = $poly + 1;
         $poly_groups->[$poly] = $poly_group_id;
@@ -1063,7 +1063,7 @@ sub readbinarymdl
         while ($ps_curr_idx != $ps_end_idx) {
           my ($mp, $ml, $j, $map_ele);
           $poly = $poly_stack->[$ps_curr_idx++];
-          print "while poly $poly $ps_curr_idx $ps_end_idx\n";
+          #print "while poly $poly $ps_curr_idx $ps_end_idx\n";
           #assert
           $mp = $face_edges->{$face_map->{$poly}};
           #my $me_idx;
@@ -1072,7 +1072,7 @@ sub readbinarymdl
             #print "me: $me_idx\n";
             $map_ele = $edge_faces->[$me_idx];
             if (!boundary_check($protogroups, $me_idx)) {
-              print "not boundary $me_idx\n";
+              #print "not boundary $me_idx\n";
               for my $p (@{$map_ele}) {
                 #print "p $p $poly_group_id $ps_end_idx\n";
                 my $pi = $face_map_inv->{$p};
@@ -1083,7 +1083,7 @@ sub readbinarymdl
               }
             } else {
               #if (scalar grep { $_ == $me_idx } @{$edge_borders}) {
-              print "yes boundary $me_idx\n";
+              #print "yes boundary $me_idx\n";
                 for my $p (@{$map_ele}) {
                   my $pi = $face_map_inv->{$p};
                   my $bit = $poly_groups->[$pi];
@@ -1107,14 +1107,14 @@ sub readbinarymdl
           $tot_group = $gid_bit;
         }
         for my $p (@{$poly_stack}) {
-          print "$p $poly_groups->[$p] => $poly_group_id\n";
+          #print "$p $poly_groups->[$p] => $poly_group_id\n";
           $poly_groups->[$p] = $poly_group_id;
         }
       }
       $tot_group++;
 
       #print Dumper($poly_groups);
-      printf "tot group $tot_group %u\n", scalar(@{$poly_groups});
+      #printf "tot group $tot_group %u\n", scalar(@{$poly_groups});
 
       for my $face_index (0..scalar(@{$poly_groups}) - 1) {
         my ($mesh, $face) = split(/\./, $face_map->{$face_index});
@@ -3295,40 +3295,42 @@ sub writeasciimdl {
 
         # loop though this animations controllers
         foreach $temp (keys %{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}} ) {
-          if ($temp != 42) {
-            my $controllername = getcontrollername($model, $temp, $node);
-
-            my $keytype = '';
-            if (defined($model->{'anims'}{$i}{'nodes'}{$node}{'controllers'}{'bezier'}{$temp})) {
-              $keytype = 'bezier';
-            }
-
-            if ($controllername ne "") {
-              printf(MODELOUT "    %s%skey\n", $controllername, !$options->{convert_bezier} ? $keytype : '');
-            } else {
-              if ($temp != 0) {
-                print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
-              }
-              printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
-            }
-            foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
-              # convert bezier controller data to linear, not a true conversion,
-              # we are just dropping the control points, as has been done historically
-              if ($options->{convert_bezier} && $keytype eq 'bezier') {
-                # split into an array
-                $_ = [ split(/\s+/, $_) ];
-                if (scalar(@{$_}) > 8) {
-                  # remove last 6 items from array, which are the bezier control points
-                  $_ = join(' ', @{$_}[0..scalar(@{$_}) - 7]);
-                } else {
-                  # malformed data, should have had 1 time, 1+ data, and 6 control point
-                  $_ = join(' ', @{$_});
-                }
-              }
-              printf(MODELOUT "      %s\n", $_);
-            }
-            print(MODELOUT "    endlist\n");
+          if ($temp == 42) {
+            # can't imagine what the point of this was...
+            next;
           }
+          my $controllername = getcontrollername($model, $temp, $node);
+
+          my $keytype = '';
+          if (defined($model->{'anims'}{$i}{'nodes'}{$node}{'controllers'}{'bezier'}{$temp})) {
+            $keytype = 'bezier';
+          }
+
+          if ($controllername ne "") {
+            printf(MODELOUT "    %s%skey\n", $controllername, !$options->{convert_bezier} ? $keytype : '');
+          } else {
+            if ($temp != 0) {
+              print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
+            }
+            printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
+          }
+          foreach ( @{$model->{'anims'}{$i}{'nodes'}{$node}{'Acontrollers'}{$temp}} ) {
+            # convert bezier controller data to linear, not a true conversion,
+            # we are just dropping the control points, as has been done historically
+            if ($options->{convert_bezier} && $keytype eq 'bezier') {
+              # split into an array
+              $_ = [ split(/\s+/, $_) ];
+              if (scalar(@{$_}) > 8) {
+                # remove last 6 items from array, which are the bezier control points
+                $_ = join(' ', @{$_}[0..scalar(@{$_}) - 7]);
+              } else {
+                # malformed data, should have had 1 time, 1+ data, and 6 control point
+                $_ = join(' ', @{$_});
+              }
+            }
+            printf(MODELOUT "      %s\n", $_);
+          }
+          print(MODELOUT "    endlist\n");
         } # foreach $temp
         print(MODELOUT "  endnode\n");
       } # foreach $node
@@ -3436,17 +3438,19 @@ sub normalize_vector {
 # compute angle as radians between vectors vec1 and vec2
 #
 sub compute_vector_angle {
-  my ($vec1, $vec2, $normalized) = @_;
-  my (@v1, @v2);
+  my ($v1, $v2) = @_;
+  #my ($vec1, $vec2, $normalized) = @_;
+  #my (@v1, @v2);
   my $angle;
 
   #@v1 = !$normalized ? @{normalize_vector($vec1)} : @{$vec1};
   #@v2 = !$normalized ? @{normalize_vector($vec2)} : @{$vec2};
-  @v1 = @{$vec1};
-  @v2 = @{$vec2};
+  #@v1 = @{$vec1};
+  #@v2 = @{$vec2};
 
   # angle = acos(v1 dot v2 / |v1||v2|)
-  my $dot_product = $v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2];
+  #my $dot_product = $v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2];
+  my $dot_product = $v1->[0] * $v2->[0] + $v1->[1] * $v2->[1] + $v1->[2] * $v2->[2];
   # v1 and v2 are normalized, so angle = acos(v1 dot v2)
   #$angle = acos(
   #  ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]) /
@@ -3456,8 +3460,8 @@ sub compute_vector_angle {
   #$angle = acos($dot_product);
   $angle = acos(
     $dot_product /
-    (sqrt($v1[0]**2 + $v1[1]**2 + $v1[2]**2) *
-     sqrt($v2[0]**2 + $v2[1]**2 + $v2[2]**2))
+    (sqrt($v1->[0]**2 + $v1->[1]**2 + $v1->[2]**2) *
+     sqrt($v2->[0]**2 + $v2->[1]**2 + $v2->[2]**2))
   );
   #if ($dot_product < 0) {
     # obtuse angle
@@ -3791,7 +3795,6 @@ sub readasciimdl {
     'numBranches', 'controlptsmoothing', 'xgrid', 'ygrid', 'spawntype',
     'update', 'render', 'blend', 'texture', 'chunkname',
     'twosidedtex', 'loop', 'renderorder', 'm_bFrameBlending', 'm_sDepthTextureName',
-    #'m_bUnknown1', 'm_lUnknown2'
   ];
   # emitter flags
   my $emitter_flags = {
@@ -4424,11 +4427,10 @@ sub readasciimdl {
 
   #$model{'nodes'}{'truenodenum'} = $nodenum;
   
-  # if this model has a super model then open the original model
-  # and set the supernodes on the working model
-  $model{'largestsupernode'} = 0;
+  # set the supernodes on the working model
   print ( lc($model{'supermodel'}) . "|" . $supercheck . "\n") if $printall;
   if (lc($model{'supermodel'}) ne "null" && $supercheck == 1 && -f $pathonly . $model{'supermodel'} . '.mdl') {
+    # if this model has a super model then open the super model
     print("Loading binary supermodel: " . $pathonly . $model{'supermodel'} . ".mdl\n");
     $supermodel = &readbinarymdl(
       $pathonly . $model{'supermodel'} . ".mdl",
@@ -4451,6 +4453,8 @@ sub readasciimdl {
     print("super model is version: " . modelversion($pathonly . $model{'supermodel'} . ".mdl") . "\n");
   }
   elsif (lc($model{'supermodel'}) ne "null" && $supercheck == 1) {
+    # if this model has a super model then open the original model
+    printf("Supermodel not found: %s%s.mdl\n", $pathonly, $model{'supermodel'});
     print("Loading original binary model: " . $pathonly . $model{'name'} . ".mdl\n");
     #$supermodel = &readbinarymdl($pathonly . $model{'supermodel'} . ".mdl", 0);
     #$supermodel = &readbinarymdl($pathonly . $model{'name'} . ".mdl", 0, modelversion($pathonly . $model{'name'} . ".mdl"));
@@ -4461,9 +4465,6 @@ sub readasciimdl {
     );
     foreach (keys %{$supermodel->{'nodes'}} ) {
       if ($_ eq "truenodenum") {next;}
-      if ($supermodel->{'nodes'}{$_}{'supernode'} > $model{'largestsupernode'}) {
-        $model{'largestsupernode'} = $supermodel->{'nodes'}{$_}{'supernode'};
-      }
       if ( defined( $nodeindex{ lc( $supermodel->{'partnames'}[$_] ) } ) ) {
         #if ($supermodel->{'nodes'}{$_}{'nodetype'} == NODE_SKIN) {
         #  $model{'nodes'}{$nodeindex{lc($supermodel->{'partnames'}[$_])}}{'qbones'}{'unpacked'} = [ @{$supermodel->{'nodes'}{$_}{'qbones'}{'unpacked'}} ];
@@ -4860,17 +4861,18 @@ sub readasciimdl {
           $model{nodes}{$i}{nodetype} & NODE_HAS_AABB) {
         next;
       }
-      if (defined($model{'nodes'}{$i}{texindices1})) {
-        # has face index => tvert1 index, needs to be vert index => tvert1
-        my $tex_idxs = {};
-        for my $fidx (keys %{$model{'nodes'}{$i}{texindices1}}) {
-          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][8]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[0];
-          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][9]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[1];
-          $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][10]} = $model{'nodes'}{$i}{texindices1}{$fidx}->[2];
+      for my $idx_num (1..3) {
+        if (defined($model{'nodes'}{$i}{'texindices' . $idx_num})) {
+          # has face index => tvert1 index, needs to be vert index => tvert1
+          my $tex_idxs = {};
+          for my $fidx (keys %{$model{'nodes'}{$i}{'texindices' . $idx_num}}) {
+            $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][8]} = $model{'nodes'}{$i}{'texindices' . $idx_num}{$fidx}->[0];
+            $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][9]} = $model{'nodes'}{$i}{'texindices' . $idx_num}{$fidx}->[1];
+            $tex_idxs->{$model{'nodes'}{$i}{Bfaces}[$fidx][10]} = $model{'nodes'}{$i}{'texindices' . $idx_num}{$fidx}->[2];
+          }
+          $model{'nodes'}{$i}{'texindices' . $idx_num} = $tex_idxs;
         }
-        $model{'nodes'}{$i}{texindices1} = $tex_idxs;
       }
-      #XXX same for texindices2,3...
     }
   }
 
@@ -5480,14 +5482,14 @@ sub readasciimdl {
                     }
                     if ($options->{use_crease_angle} &&
                         compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
-                                             $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0) > $options->{crease_angle}) {
+                                             $model{'nodes'}{$meshB}{'facenormals'}[$faceB]) > $options->{crease_angle}) {
                         if ($model{'nodes'}{$meshA}{'render'}) {
                         # it is not at all clear what this should be yet
                             $printall and printf(
                                 "skipped %s accumulation \@%.4g,%.4g,%.4g with crease angle: % .7g\n",
                                 $model{'partnames'}[$meshA], @{$model{'nodes'}{$i}{'verts'}[$work]},
                                 compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
-                                                     $model{'nodes'}{$meshB}{'facenormals'}[$faceB], 0)
+                                                     $model{'nodes'}{$meshB}{'facenormals'}[$faceB])
                             );
                         }
                     }
@@ -9447,12 +9449,6 @@ print Dumper([ @{$unpacked}[2..13] ]);
         $walkmesh->{header}{open2_01} = [ @{$unpacked}[5..7] ];
       }
     }
-    #XXX THIS IS WRONG
-    # 'open1_01', 'open1_02', 'closed_01', 'closed_02'
-    #$walkmesh->{header}{closed_01} = [ @{$unpacked}[2..4] ];
-    #$walkmesh->{header}{closed_02} = [ @{$unpacked}[5..7] ];
-    #$walkmesh->{header}{open1_01} = [ @{$unpacked}[8..10] ];
-    #$walkmesh->{header}{open2_01} = [ @{$unpacked}[11..13] ];
   }
 
   # read each data type
