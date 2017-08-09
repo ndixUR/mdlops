@@ -9134,7 +9134,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
   my $left_adj = 1;
   my $right_adj = 0;
   my $negative_axis = 0;
-  if ($bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$split_axis] >=
+  if (0 && $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$split_axis] >=
       $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
     print "SPLIT " . scalar(@{$sorted->[0]}) . "\n";
     print Dumper($uniques);
@@ -9223,21 +9223,21 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
       }
     }
   }
-  print Dumper($balance);
-  print Dumper([ map { $_->[1] - $_->[0] } @{$balance} ]);
-  print Dumper([ map { scalar(@{$faces}) - $_->[1] - $_->[0] } @{$balance} ]);
-  for (0..2) {
-    print $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] . ' ';
-  }
-  print "\n";
-  for (0..2) {
-    print $bb->{size}[$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]. ' ';
-  }
-  print "\n";
+#  print Dumper($balance);
+#  print Dumper([ map { $_->[1] - $_->[0] } @{$balance} ]);
+#  print Dumper([ map { scalar(@{$faces}) - $_->[1] - $_->[0] } @{$balance} ]);
+#  for (0..2) {
+#    print $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
+#          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] . ' ';
+#  }
+#  print "\n";
+#  for (0..2) {
+#    print $bb->{size}[$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]. ' ';
+#  }
+#  print "\n";
   my $total_norms = [ 0, 0, 0 ];
   map { $total_norms->[0] += $_->[0]; $total_norms->[1] += $_->[1];$total_norms->[2] += $_->[2]; } values %{$norms};
-  print Dumper($total_norms);
+#  print Dumper($total_norms);
 
   my $translate_centroid = 0;
   while (!$found_split) {
@@ -9311,33 +9311,34 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
   $node->[9]  = aabb($walkmesh, [ @{$lists->{left}} ], $centroids, $split_axis);
   $node->[10] = aabb($walkmesh, [ @{$lists->{right}} ], $centroids, $split_axis);
 
-  my $bbdiff = [
-    [ map { $walkmesh->{aabbs}[$node->[9]][$_ + 3] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..2) ],
-    [ map { $walkmesh->{aabbs}[$node->[10]][$_ + 3] - $walkmesh->{aabbs}[$node->[10]][$_] } (0..2) ],
+#  my $bbdiff = [
+#    [ map { $walkmesh->{aabbs}[$node->[9]][$_ + 3] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..2) ],
+#    [ map { $walkmesh->{aabbs}[$node->[10]][$_ + 3] - $walkmesh->{aabbs}[$node->[10]][$_] } (0..2) ],
     #[ map { $walkmesh->{aabbs}[$node->[9]][$_] - $walkmesh->{aabbs}[$node->[9]][$_ + 3] } (0..2) ],
     #[ map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2) ],
-  ];
-  $bbdiff->[2] = [ map { $bbdiff->[0][$_] - $bbdiff->[1][$_] } (0..2) ];
-  printf(
-    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-    @{$bbdiff->[0]}
-  );
-  printf(
-    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-    @{$bbdiff->[1]}
-  );
-  printf(
-    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-    @{$bbdiff->[2]}
-  );
-  printf(
-    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-    map { $bb->{size}[$_] + $bbdiff->[2][$_] } (0..2)
-  );
-  printf(
-    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
-    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
-  );
+#  ];
+#  $bbdiff->[2] = [ map { $bbdiff->[0][$_] - $bbdiff->[1][$_] } (0..2) ];
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+#    @{$bbdiff->[0]}
+#  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+#    @{$bbdiff->[1]}
+#  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+#    @{$bbdiff->[2]}
+#  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
+#    map { $bb->{size}[$_] + $bbdiff->[2][$_] } (0..2)
+#  );
+#  printf(
+#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
+#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
+#  );
+
 #  printf(
 #    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
 #    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2)
