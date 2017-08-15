@@ -2012,8 +2012,8 @@ my $dothis = 0;
       $ref->{$node}{'saber1loc'} = $ref->{$node}{'subhead'}{'unpacked'}[79 + $uoffset];
       $ref->{$node}{'saber2loc'} = $ref->{$node}{'subhead'}{'unpacked'}[80 + $uoffset];
       $ref->{$node}{'saber3loc'} = $ref->{$node}{'subhead'}{'unpacked'}[81 + $uoffset];
-      $ref->{$node}{'saber_num1'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset]; # ???
-      $ref->{$node}{'saber_num2'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset]; # ???
+      $ref->{$node}{'inv_count1'} = $ref->{$node}{'subhead'}{'unpacked'}[82 + $uoffset]; # ???
+      $ref->{$node}{'inv_count2'} = $ref->{$node}{'subhead'}{'unpacked'}[83 + $uoffset]; # ???
     }
   } # if 97 or 33 or 289 or 2081
   
@@ -2128,7 +2128,13 @@ my $dothis = 0;
       }
    }
 
-   
+   # store the inverse mesh sequence counter from array3
+   if (defined($ref->{$node}{array3}) &&
+       defined($ref->{$node}{array3}{unpacked}) &&
+       scalar(@{$ref->{$node}{array3}{unpacked}})) {
+     $ref->{$node}{inv_count1} = $ref->{$node}{array3}{unpacked}[0];
+   }
+
    #prepare the faces list
    $ref->{$node}{vertfaces} = {};
    for (my $i = 0; $i < $ref->{$node}{'facesnum'}; $i++) {
@@ -3075,6 +3081,13 @@ sub writeasciimdl {
         MODELOUT "  tangentspace %u\n",
         ($model->{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) ? 1 : 0
       );
+      if (defined($model->{'nodes'}{$i}{inv_count2})) {
+        printf(MODELOUT "  inv_count %u %u\n",
+               $model->{'nodes'}{$i}{inv_count1},
+               $model->{'nodes'}{$i}{inv_count2});
+      } else {
+        printf(MODELOUT "  inv_count %u\n", $model->{'nodes'}{$i}{inv_count1});
+      }
     }
      
     # light node
@@ -4029,6 +4042,7 @@ sub readasciimdl {
         my $quo = int($model{'meshsequence'} / 100);
         my $mod = $model{'meshsequence'} % 100;
         $model{'nodes'}{$nodenum}{'array3'} = ((2 ** $quo) * 100) - ($t - ($mod ? $quo * 100 : 0)) - ($quo ? 0 : 1);
+        $model{'nodes'}{$nodenum}{'inv_count1'} = $model{'nodes'}{$nodenum}{'array3'};
         $model{'meshsequence'} += 1;
       }
       # number of textures will be added to as they are found in parsing
@@ -4051,6 +4065,12 @@ sub readasciimdl {
       #node index has the text node name (in lower case) as keys and node number as values
       $nodeindex{$nname_key} = $nodenum;
       $model{'nodeindex'}{$nname_key} = $nodenum;
+    } elsif ($innode && $line =~ /^\s*inv_count\s+(\S+)(?:\s+(\S+))?/i) { # inverted mesh sequence counter
+      $model{'nodes'}{$nodenum}{'array3'} = $1;
+      $model{'nodes'}{$nodenum}{'inv_count1'} = $1;
+      if (defined($2)) {
+        $model{'nodes'}{$nodenum}{'inv_count2'} = $2;
+      }
     } elsif ($innode && $line =~ /^\s*radius\s+(\S*)/i && $model{'nodes'}{$nodenum}{'nodetype'} != $nodelookup{'light'}) {
       $model{'radius'} = $1;
 
@@ -7021,7 +7041,11 @@ sub writebinarynode
             $totalbytes += length($buffer);
             print (BMDLOUT $buffer);
 
-            $buffer = pack('LL', 98, 97); # 87 - 98, 2 values between 1 and 4 apart
+            $buffer = pack(
+              'LL',
+              (defined($model->{'nodes'}{$i}{inv_count1}) ? $model->{'nodes'}{$i}{inv_count1} : 98),
+              (defined($model->{'nodes'}{$i}{inv_count2}) ? $model->{'nodes'}{$i}{inv_count2} : 97)
+            ); # 87 - 98, 2 values between 1 and 4 apart
             #$buffer .= pack('C[4]', 0, 0, 0, 0); # for lghtsbr and dblsbr
             #$buffer .= pack('C[4]', 235, 219, 57, 185); # for shrtsbr
             #$buffer .= pack('C[4]', -21, -37, 57, -71); # for shrtsbr (signed)
@@ -7171,7 +7195,7 @@ sub writebinarynode
         $model->{'nodes'}{$i}{'unknownlocation'} = tell(BMDLOUT);
         if ($model->{'nodes'}{$i}{'nodetype'} != NODE_SABER) {
             $totalbytes += 4;
-            print(BMDLOUT pack("L", $model->{'nodes'}{$i}{'array3'}));
+            print(BMDLOUT pack("L", $model->{'nodes'}{$i}{'inv_count1'}));
         }
 
         # write out the vert indices
