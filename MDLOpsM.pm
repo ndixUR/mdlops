@@ -803,9 +803,13 @@ sub readbinarymdl
         # for every vertex position
         # patch: mesh, vertex, smoothinggroups, faces, smoothedpatches, smoothinggroupnumbers
         my $patch_normal = sub {
-          my ($pos_data) = @_;
+          my ($pos_data, $mode) = @_;
           #print Dumper(keys %model);
           #print Dumper($pos_data);
+          if (!defined($mode)) {
+            # mode = area, angle, both, none
+            $mode = 'area';
+          }
           my $vertnorm = $model{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
           my $testnorm = [ 0.0, 0.0, 0.0 ];
           for my $face_index (@{$pos_data->{faces}}) {
@@ -818,18 +822,76 @@ sub readbinarymdl
 #                @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
 #              ]
 #            );
-            my $facearea = facearea(
-              @{$model{nodes}{$pos_data->{mesh}}{verts}}[
-                @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
-              ]
-            );
+            my $facearea = 1.0;
+            if ($mode eq 'area' || $mode eq 'both') {
+              $facearea = facearea(
+                @{$model{nodes}{$pos_data->{mesh}}{verts}}[
+                  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+                ]
+              );
+            }
+            my $angle = 1.0;
+            if ($mode eq 'angle' || $mode eq 'both') {
+              if (vertex_equals(
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+                ], 4
+              )) {
+                $angle = compute_vertex_angle(
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+                  ]
+                );
+              } elsif (vertex_equals(
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+                ], 4
+              )) {
+                $angle = compute_vertex_angle(
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+                  ]
+                );
+              } elsif (vertex_equals(
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+                ], 4
+              )) {
+                $angle = compute_vertex_angle(
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+                  ],
+                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+                  ]
+                );
+              }
+            }
             #print Dumper($facenorm);
             #print Dumper([
             #  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
             #]);
             #printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
             $testnorm = [ map {
-              $testnorm->[$_] += $facearea * $facenorm->[$_];
+              $testnorm->[$_] += ($facearea * $angle * $facenorm->[$_]);
             } (0..2) ];
             #print Dumper($testnorm);
           }
@@ -897,12 +959,14 @@ sub readbinarymdl
           }
           #print Dumper($face_by_pos->{$vert_key});
           my $norm_used = {};
-          $protogroups->{$vert_key} = [];
+          if (!defined($protogroups->{$vert_key})) {
+            $protogroups->{$vert_key} = [];
+          }
           my $patchnorms = [ map { &$patch_normal($_) } @{$face_by_pos->{$vert_key}} ];
           my $poskey_combos = [
             # make sure all is always first, even if it considered twice
             [ keys @{$face_by_pos->{$vert_key}} ],
-            combinations(keys @{$face_by_pos->{$vert_key}})
+            reverse combinations(keys @{$face_by_pos->{$vert_key}})
           ];
           for my $pos_key (keys @{$face_by_pos->{$vert_key}}) {
             if (defined($norm_used->{$pos_key})) {
@@ -968,7 +1032,8 @@ sub readbinarymdl
               }
               #keys %{$othernorms};
               if (!$matched) {
-                #print "NO MATCH $pos_data->{mesh} $pos_data->{vertex}\n";
+                #print "NO MATCH $vert_key $pos_key $pos_data->{mesh} $pos_data->{vertex}\n";
+                #print Dumper($face_by_pos->{$vert_key}[$pos_key]);
               }
               #print Dumper($subtestnorm);
               #print Dumper(normalize_vector($subtestnorm));
@@ -987,6 +1052,7 @@ sub readbinarymdl
               @{$protogroups->{$vert_key}}, [ @{$cur_group} ]
             );
             #];
+          #print "$vert_key: " . Dumper($protogroups->{$vert_key});
           }
           #print Dumper($protogroups);
           #print Dumper([
@@ -1820,7 +1886,7 @@ my $dothis = 0;
     $ref->{$node}{'inherit_part'} = ($ref->{$node}{'emitterflags'} & 0x0400) ? 1 : 0;
     # the following are complete guesses
     $ref->{$node}{'depth_texture'} = ($ref->{$node}{'emitterflags'} & 0x0800) ? 1 : 0;
-    $ref->{$node}{'EmitterFlag13'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
+    $ref->{$node}{'emitterflag13'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
     #$ref->{$node}{'renderorder'} = ($ref->{$node}{'emitterflags'} & 0x1000) ? 1 : 0;
   }
   # subheader flag data snagged from http://nwn-j3d.cvs.sourceforge.net/nwn-j3d/nwn/c-src/mdl2ascii.cpp?revision=1.31&view=markup
@@ -3102,7 +3168,7 @@ sub writeasciimdl {
       print(MODELOUT "  splat " . $model->{'nodes'}{$i}{'splat'} . "\n");
       print(MODELOUT "  inherit_part " . $model->{'nodes'}{$i}{'inherit_part'} . "\n");
       print(MODELOUT "  depth_texture " . $model->{'nodes'}{$i}{'depth_texture'} . "\n");
-      print(MODELOUT "  EmitterFlag13 " . $model->{'nodes'}{$i}{'EmitterFlag13'} . "\n");
+      print(MODELOUT "  emitterflag13 " . $model->{'nodes'}{$i}{'emitterflag13'} . "\n");
     
       # controllers
       while(($controller, $controllername) = each %{$controllernames{+NODE_HAS_EMITTER}}) {
@@ -3439,18 +3505,13 @@ sub normalize_vector {
 #
 sub compute_vector_angle {
   my ($v1, $v2) = @_;
-  #my ($vec1, $vec2, $normalized) = @_;
-  #my (@v1, @v2);
-  my $angle;
+  my $angle = 0.0;
 
-  #@v1 = !$normalized ? @{normalize_vector($vec1)} : @{$vec1};
-  #@v2 = !$normalized ? @{normalize_vector($vec2)} : @{$vec2};
-  #@v1 = @{$vec1};
-  #@v2 = @{$vec2};
-
-  # angle = acos(v1 dot v2 / |v1||v2|)
-  #my $dot_product = $v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2];
   my $dot_product = $v1->[0] * $v2->[0] + $v1->[1] * $v2->[1] + $v1->[2] * $v2->[2];
+  my $vector_lengths = (
+    sqrt($v1->[0]**2 + $v1->[1]**2 + $v1->[2]**2) *
+    sqrt($v2->[0]**2 + $v2->[1]**2 + $v2->[2]**2)
+  );
   # v1 and v2 are normalized, so angle = acos(v1 dot v2)
   #$angle = acos(
   #  ($v1[0] * $v2[0] + $v1[1] * $v2[1] + $v1[2] * $v2[2]) /
@@ -3458,11 +3519,11 @@ sub compute_vector_angle {
   #   sqrt($v2[0]**2 + $v2[1]**2 + $v2[2]**2))
   #);
   #$angle = acos($dot_product);
-  $angle = acos(
-    $dot_product /
-    (sqrt($v1->[0]**2 + $v1->[1]**2 + $v1->[2]**2) *
-     sqrt($v2->[0]**2 + $v2->[1]**2 + $v2->[2]**2))
-  );
+  if ($vector_lengths > 0.0) {
+    $angle = acos(
+      $dot_product / $vector_lengths
+    );
+  }
   #if ($dot_product < 0) {
     # obtuse angle
   #  $angle = (2 * pi) - $angle;
@@ -3487,24 +3548,10 @@ sub compute_vector_angle {
 #
 sub compute_vertex_angle {
   my ($lp, $rp1, $rp2) = @_;
-  my (@v1, @v2, @v3) = ([0, 0, 0], [0, 0, 0], [0, 0, 0]);
-  my $angle;
-  # point 1, the local point around which angle is calculated
-  my @pt1 = @{$lp};
-  # point 2, comparison, the first remote point describing an edge
-  my @cpt2 = @{$rp1};
-  # point 3, comparison, the second remote point describing an edge
-  my @cpt3 = @{$rp2};
-#use Data::Dumper;
-#print Dumper($lp, $rp1, $rp2);
+  my (@v1, @v2);
 
-  $v1[0] = $pt1[0] - $cpt2[0];
-  $v1[1] = $pt1[1] - $cpt2[1];
-  $v1[2] = $pt1[2] - $cpt2[2];
-
-  $v2[0] = $pt1[0] - $cpt3[0];
-  $v2[1] = $pt1[1] - $cpt3[1];
-  $v2[2] = $pt1[2] - $cpt3[2];
+  @v1 = map { $rp1->[$_] - $lp->[$_] } (0..2);
+  @v2 = map { $rp2->[$_] - $lp->[$_] } (0..2);
 
   return compute_vector_angle(\@v1, \@v2);
 }
@@ -3759,7 +3806,10 @@ sub readasciimdl {
   if (!defined($options->{crease_angle}) ||
       $options->{crease_angle} < 0 ||
       $options->{crease_angle} > 2 * pi) {
-    $options->{crease_angle} = pi / 2;
+    # 45 degrees
+    #$options->{crease_angle} = pi / 4.0;
+    # 60 degrees
+    $options->{crease_angle} = pi / 3.0;
   }
   # produce vertex data required by the engine based on the faces layout,
   # undo unnecessary doubling of vertices, add required doubling of vertices,
@@ -3810,7 +3860,7 @@ sub readasciimdl {
     splat               => 0x0200,
     inherit_part        => 0x0400,
     depth_texture       => 0x0800,
-    EmitterFlag13       => 0x1000
+    emitterflag13       => 0x1000
   };
   # prepare emitter regex matches, all properties and flags are handled alike
   my $emitter_prop_match = join('|', @{$emitter_properties});
@@ -5456,6 +5506,8 @@ sub readasciimdl {
                 $model{'nodes'}{$i}{'vertextangents'}[$work] = [ 0.0, 0.0, 0.0 ];
                 $model{'nodes'}{$i}{'vertexbitangents'}[$work] = [ 0.0, 0.0, 0.0 ];
             }
+            # set to true when vertex normal gets a non-zero value
+            my $vertnorm_initialized = 0;
             for my $pos_data (@{$position_data}) {
                 my $meshB = $pos_data->{mesh};
                 for my $faceB (@{$pos_data->{faces}}) {
@@ -5480,17 +5532,20 @@ sub readasciimdl {
                         $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
                         next;
                     }
-                    if ($options->{use_crease_angle} &&
-                        compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
+                    if ($options->{use_crease_angle} && $vertnorm_initialized &&
+                        #compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
+                        compute_vector_angle($model{'nodes'}{$i}{'vertexnormals'}{$work},
                                              $model{'nodes'}{$meshB}{'facenormals'}[$faceB]) > $options->{crease_angle}) {
                         if ($model{'nodes'}{$meshA}{'render'}) {
-                        # it is not at all clear what this should be yet
+                            # crease angle to use can vary per-model,
+                            # when it is even desireable
                             $printall and printf(
                                 "skipped %s accumulation \@%.4g,%.4g,%.4g with crease angle: % .7g\n",
                                 $model{'partnames'}[$meshA], @{$model{'nodes'}{$i}{'verts'}[$work]},
-                                compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
+                                compute_vector_angle($model{'nodes'}{$i}{'vertexnormals'}{$work},
                                                      $model{'nodes'}{$meshB}{'facenormals'}[$faceB])
                             );
+                            next;
                         }
                     }
                     my $area = $options->{weight_by_area} ? $faceareas{$meshB}{$faceB} : 1;
@@ -5526,6 +5581,8 @@ sub readasciimdl {
                         printf "skip %u bad %u face: %u\n", $meshA, $meshB, $faceB;
                         next;
                     }
+                    # about to populate the vertex normal (maybe initially)
+                    $vertnorm_initialized = 1;
                     # apply angle & area weight to faceB surface normal and
                     # accumulate the x, y, and z components of the vertex normal vector
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += (
