@@ -4450,24 +4450,28 @@ sub readasciimdl {
         $count++;
       } elsif ($task eq "weights") { # read in the bone weights
         $line =~ /\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)\s*(\S*)/;
-        $model{'nodes'}{$nodenum}{'Abones'}[$count] = "$1 $2";
-        $model{'nodes'}{$nodenum}{'bones'}[$count][0] = $1;
-        $model{'nodes'}{$nodenum}{'weights'}[$count][0] = $2;
-        if ($3 ne "") {
-          $model{'nodes'}{$nodenum}{'Abones'}[$count] .= " $3 $4";
-          $model{'nodes'}{$nodenum}{'bones'}[$count][1] = $3;
-          $model{'nodes'}{$nodenum}{'weights'}[$count][1] = $4;
+        # use a temporary hash to ease some of the following sorted classification
+        my $bone_hash = {};
+        $bone_hash->{$1} = $2;
+        if ($3 ne '') {
+          $bone_hash->{$3} = $4;
           if ($5 ne "") {
-            $model{'nodes'}{$nodenum}{'Abones'}[$count] .= " $5 $6";
-            $model{'nodes'}{$nodenum}{'bones'}[$count][2] = $5;
-            $model{'nodes'}{$nodenum}{'weights'}[$count][2] = $6;
+            $bone_hash->{$5} = $6;
             if ($7 ne "") {
-              $model{'nodes'}{$nodenum}{'Abones'}[$count] .= " $7 $8";
-              $model{'nodes'}{$nodenum}{'bones'}[$count][3] = $7;
-              $model{'nodes'}{$nodenum}{'weights'}[$count][3] = $8;
+              $bone_hash->{$7} = $8;
             }
           }
         }
+        # putting the weights into sorted order here makes validation easier
+        $model{'nodes'}{$nodenum}{'Abones'}[$count] = join(
+          ' ', map { $_, $bone_hash->{$_} } sort keys %{$bone_hash}
+        );
+        $model{'nodes'}{$nodenum}{'bones'}[$count] = [
+          sort keys %{$bone_hash}
+        ];
+        $model{'nodes'}{$nodenum}{'weights'}[$count] = [
+          map { $bone_hash->{$_} } sort keys %{$bone_hash}
+        ];
         $count++;
       } elsif ($task eq "constraints") { # read in the constraints
         $line =~ /\s*(\S*)/;
@@ -4624,7 +4628,8 @@ sub readasciimdl {
         $v2->[0] * ($v3->[1] - $v1->[1]) +
         $v3->[0] * ($v1->[1] - $v2->[1]),
       ];
-      $face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
+      #$face_normals = [ @{$face_normals}, normalize_vector($normal_vector) ];
+      push @{$face_normals}, normalize_vector($normal_vector);
     }
     my $index_pattern = [ 0, 1, (0) x 20, 2, 3, (2) x 20 ];
     #print Dumper($face_normals);
@@ -4773,6 +4778,11 @@ sub readasciimdl {
                 (!$use_tverts3 || vertex_equals($tverts3->[$index], $face_tverts3->[$fv_index], 4)) &&
                 (!$use_colors  || vertex_equals($colors->[$index], $face_colors->[$fv_index], 4)) &&
                 ($sgroups->[$index] & int($face->[3])) &&
+                # having different weights/constraints at the same location is
+                # pretty close to an error, but we let people make that mistake...
+                # removing the following 2 tests will prevent any weight/constraint mismatches
+                (!$use_skin || $Abones->[$index] eq $model{'nodes'}{$i}{Abones}[$face->[$fv_index]]) &&
+                (!$use_dangly || $constraints->[$index] == $model{'nodes'}{$i}{constraints}[$face->[$fv_index]]) &&
                 vertex_equals($verts->[$index], $face_verts->[$fv_index], 4)) {
               # existing vertex matches on all criteria, use it
               $new_Aface .= $index . ' ';
@@ -4828,7 +4838,8 @@ sub readasciimdl {
           if (!defined($vertfaces->{$new_index})) {
             $vertfaces->{$new_index} = [];
           }
-          $vertfaces->{$new_index} = [ @{$vertfaces->{$new_index}}, $face_index ];
+          #$vertfaces->{$new_index} = [ @{$vertfaces->{$new_index}}, $face_index ];
+          push @{$vertfaces->{$new_index}}, $face_index;
           # vertex dangly deformation data
           if ($use_dangly) {
             $constraints->[$new_index] = $model{'nodes'}{$i}{constraints}[$face->[$fv_index]];
@@ -4851,8 +4862,10 @@ sub readasciimdl {
           $face->[7]
         );
         # add the temporary face data to node's new faces structures
-        $Afaces = [ @{$Afaces}, $new_Aface ];
-        $Bfaces = [ @{$Bfaces}, $new_Bface ];
+        #$Afaces = [ @{$Afaces}, $new_Aface ];
+        push @{$Afaces}, $new_Aface;
+        #$Bfaces = [ @{$Bfaces}, $new_Bface ];
+        push @{$Bfaces}, $new_Bface;
       }
       #print Dumper($verts);
       #print Dumper(@{$Bfaces});
@@ -5026,6 +5039,11 @@ sub readasciimdl {
     # Loop through all of the model's nodes
     for (my $i = 0; $i < $nodenum; $i++)
     {
+      # It is theoretically possible to kind of need this,
+      # if you are relying on the old mdlops material ID as smoothgroup,
+      # however, it is probably more likely to cause issues than to help,
+      # so disable it by short-circuiting loop here:
+      last;
       # Only look at smooth groups if this is a mesh w/ faces
       # If non-power-of-2 smooth groups were encountered in this mesh,
       # leave smooth group numbers alone
@@ -5055,12 +5073,7 @@ sub readasciimdl {
       }
     }
 
-    #$model{calculations} = {
-    #  total_verts       => 0,
-    #  total_vert_sum    => [ 0.0, 0.0, 0.0 ]
-    #};
-    #$model{'bmin'} = [ 0.0, 0.0, 0.0 ];
-    #$model{'bmax'} = [ 0.0, 0.0, 0.0 ];
+    # Compute bounding box, average, radius
     for (my $i = 0; $i < $nodenum; $i ++)
     {
         # Skip non-mesh nodes
@@ -5094,29 +5107,11 @@ sub readasciimdl {
                 }
             }
         }
+        # compute node average from unique vertex positions,
+        # no doubles for multiple vertices sharing a position
         $model{'nodes'}{$i}{'average'} = [
             map { $vsum->[$_] / $used_verts->[$_] } (0..2)
         ];
-        # yeaaaah ... it's a little tougher to compute the model bbox
-        # we need to walk up the model node tree all the way to the root
-        # in order to get an accurate position translation
-        # compare our node bounding box against the running model bounding box
-        #foreach (0..2)
-        #{
-            # translate node bbox to model coordinates for calculation
-            #if (($model{'nodes'}{$i}{'bboxmin'}->[$_] +
-            #     $model{'nodes'}{$i}{'position'}->[$_]) < $model{'bmin'}->[$_]) {
-            #    $model{'bmin'}->[$_] = ($model{'nodes'}{$i}{'bboxmin'}->[$_] +
-            #                            $model{'nodes'}{$i}{'position'}->[$_]);
-            #}
-            #if (($model{'nodes'}{$i}{'bboxmax'}->[$_] +
-            #     $model{'nodes'}{$i}{'position'}->[$_]) > $model{'bmax'}->[$_]) {
-            #    $model{'bmax'}->[$_] = ($model{'nodes'}{$i}{'bboxmax'}->[$_] +
-            #                            $model{'nodes'}{$i}{'position'}->[$_]);
-            #}
-            #$model{calculations}->{total_vert_sum}[$_] += $vsum ->[$_];
-        #}
-        #$model{calculations}->{total_verts} += scalar(@{$model{'nodes'}{$i}{'verts'}});
         # compute node radius, it is the longest ray from average point to vertex
         $model{'nodes'}{$i}{'radius'} = 0.0;
         for my $vert (@{$model{'nodes'}{$i}{'verts'}}) {
@@ -5196,22 +5191,25 @@ sub readasciimdl {
                 $face_by_pos->{$vert_key} = [];
             }
             # append this vertex's data to the data list for this position
-            $face_by_pos->{$vert_key} = [
+            #$face_by_pos->{$vert_key} = [
+            push
                 @{$face_by_pos->{$vert_key}},
                 {
                     mesh  => $i,
                     meshname => $model{partnames}[$i],
-                    faces => [ @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ],
+                    #faces => [ @{$model{'nodes'}{$i}{'vertfaces'}{$work}} ],
+                    faces => $model{'nodes'}{$i}{'vertfaces'}{$work},
                     vertex => $work
-                }
-            ];
+                };
+            #];
         }
     }
 
     # Total surface area for each smooth group defined in the model,
     # smooth groups can be used as cross-mesh objects,
     # so we don't want this structure to be under a specific node
-    $model{'surfacearea_by_group'} = {};
+    # THIS IS NOW UNUSED, COMMENTED OUT
+    #$model{'surfacearea_by_group'} = {};
 
     # Calculate face surface areas and record surface area totals
     # Loop through all of the model's nodes
@@ -5248,19 +5246,20 @@ sub readasciimdl {
             # update the node-level total surface area, this might be a mesh header field
             $model{'nodes'}{$i}{'surfacearea'} += $area;
 
+            # THIS IS NOW UNUSED, COMMENTED OUT
             # initialize node-level smoothgroup surface area to 0 if first face in group
-            if (!defined($model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]})) {
-                $model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} = 0;
-            }
+            #if (!defined($model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]})) {
+            #    $model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} = 0;
+            #}
             # increase node-level total surface area for smoothgroup
-            $model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} += $area;
+            #$model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} += $area;
 
             # initialize total surface area for smoothgroup to 0 if first face in group
-            if (!defined($model{'surfacearea_by_group'}->{$face->[4]})) {
-                $model{'surfacearea_by_group'}->{$face->[4]} = 0;
-            }
+            #if (!defined($model{'surfacearea_by_group'}->{$face->[4]})) {
+            #    $model{'surfacearea_by_group'}->{$face->[4]} = 0;
+            #}
             # increase total surface area for smoothgroup
-            $model{'surfacearea_by_group'}->{$face->[4]} += $area;
+            #$model{'surfacearea_by_group'}->{$face->[4]} += $area;
         }
     }
 
@@ -5308,7 +5307,9 @@ sub readasciimdl {
                 $xpx = $p1y * ($p2z - $p3z) + $p2y * ($p3z - $p1z) + $p3y * ($p1z - $p2z);
                 $xpy = $p1z * ($p2x - $p3x) + $p2z * ($p3x - $p1x) + $p3z * ($p1x - $p2x);
                 $xpz = $p1x * ($p2y - $p3y) + $p2x * ($p3y - $p1y) + $p3x * ($p1y - $p2y);
-                $pd  = -$p1x * ($p2y * $p3z - $p3y * $p2z) - $p2x * ($p3y * $p1z - $p1y * $p3z) - $p3x * ($p1y * $p2z - $p2y * $p1z);
+                $pd  = -$p1x * ($p2y * $p3z - $p3y * $p2z) -
+                        $p2x * ($p3y * $p1z - $p1y * $p3z) -
+                        $p3x * ($p1y * $p2z - $p2y * $p1z);
 
 
                 #calculate the normalizing factor
@@ -5708,7 +5709,8 @@ sub readasciimdl {
                     if ($pos_data->{mesh} == $i &&
                         $pos_data->{vertex} == $model{'nodes'}{$i}{'Bfaces'}[$j][8 + $facevert]) {
                         # the connected faces for this vert
-                        $vfs->[$facevert] = [ @{$vfs->[$facevert]}, @{$pos_data->{faces}} ];
+                        #$vfs->[$facevert] = [ @{$vfs->[$facevert]}, @{$pos_data->{faces}} ];
+                        push @{$vfs->[$facevert]}, @{$pos_data->{faces}};
                         last;
                     }
                 }
@@ -5717,7 +5719,8 @@ sub readasciimdl {
                         if ($pos_data->{mesh} == $i &&
                             $pos_data->{vertex} != $model{'nodes'}{$i}{'Bfaces'}[$j][8 + $facevert]) {
                             # the connected faces for this vert
-                            $vfs->[$facevert] = [ @{$vfs->[$facevert]}, @{$pos_data->{faces}} ];
+                            #$vfs->[$facevert] = [ @{$vfs->[$facevert]}, @{$pos_data->{faces}} ];
+                            push @{$vfs->[$facevert]}, @{$pos_data->{faces}};
                         }
                     }
                 }
@@ -5794,15 +5797,25 @@ sub readasciimdl {
         #print( " $#{$model{'nodes'}{$i}{'bones'}[$j]} \n");
         $temp1 = "";
         $temp2 = "";
+        my $total = 0.0;
+        my $extra = 0.0;
+        map { $total += $_ } @{$model{'nodes'}{$i}{'weights'}[$j]};
+        if (abs(1.0 - $total) > 0.0001) {
+          $extra = (1.0 - $total) / scalar(@{$model{'nodes'}{$i}{'weights'}[$j]});
+          printf(
+            "Node: %s Vertex: %u has weights == %.4g but must be 1.0, ".
+            "%.4g will be added to each weight to make the total == 1.0\n",
+            $model{'partnames'}[$i], $j, $total, $extra
+          );
+        }
         for (my $k = 0; $k < 4; $k++) {
           if ($model{'nodes'}{$i}{'bones'}[$j][$k] ne "") {
             if ($model{'nodes'}{$i}{'node2index'}[$nodeindex{ lc($model{'nodes'}{$i}{'bones'}[$j][$k]) }] == -1) {
               $model{'nodes'}{$i}{'index2node'}[$work] = $nodeindex{ lc($model{'nodes'}{$i}{'bones'}[$j][$k]) };
               $model{'nodes'}{$i}{'node2index'}[$nodeindex{ lc($model{'nodes'}{$i}{'bones'}[$j][$k]) }] = $work++;
             }
-            $model{'nodes'}{$i}{'Bbones'}[$j][$k] = $model{'nodes'}{$i}{'weights'}[$j][$k];
+            $model{'nodes'}{$i}{'Bbones'}[$j][$k] = $model{'nodes'}{$i}{'weights'}[$j][$k] + $extra;
             $model{'nodes'}{$i}{'Bbones'}[$j][$k+4] = $model{'nodes'}{$i}{'node2index'}[$nodeindex{ lc($model{'nodes'}{$i}{'bones'}[$j][$k]) }];
-
           } else {
             $model{'nodes'}{$i}{'Bbones'}[$j][$k] = 0;
             $model{'nodes'}{$i}{'Bbones'}[$j][$k+4] = -1;
