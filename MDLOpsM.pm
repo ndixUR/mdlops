@@ -4343,11 +4343,12 @@ sub readasciimdl {
         if (defined($11)) {
           # magnusll's faces structure w/ the extra tvert indices but no extra matID
           $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $11";
+          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $11, -1, -1, -1, $1, $2, $3 ];
         } else {
           # normal/usual faces structure
           $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
+          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $8, -1, -1, -1, $1, $2, $3 ];
         }
-        $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $4, -1, -1, -1, $1, $2, $3 ];
 
         # temporary list of uvs associated with each face, deleted after vertex validation
         if (!defined($model{'nodes'}{$nodenum}{'faceuvs'})) {
