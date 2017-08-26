@@ -7441,10 +7441,9 @@ sub writebinarynode
 
   #fill in all the blanks we left behind
   # fill in header blanks
-  if ($model->{'nodes'}{$i}{'childcount'} != 0) {
-    seek(BMDLOUT, $model->{'nodes'}{$i}{'childarraypointer'}, 0);
-    print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'childarraylocation'} - 12));
-  }
+  seek(BMDLOUT, $model->{'nodes'}{$i}{'childarraypointer'}, 0);
+  print(BMDLOUT pack("l", $model->{'nodes'}{$i}{'childarraylocation'} - 12));
+
   # fill in common mesh stuff blanks
   if ($model->{'nodes'}{$i}{'nodetype'} == NODE_TRIMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_SKIN || $model->{'nodes'}{$i}{'nodetype'} == NODE_DANGLYMESH || $model->{'nodes'}{$i}{'nodetype'} == NODE_AABB) {
     seek(BMDLOUT, $model->{'nodes'}{$i}{'faceslocpointer'}, 0);
