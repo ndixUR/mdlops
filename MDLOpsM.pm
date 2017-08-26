@@ -118,6 +118,7 @@ BEGIN {
 use Time::HiRes qw(gettimeofday tv_interval);
 use strict;
 use Math::Trig;       # quaternions? I have to convert quaternions?
+use Scalar::Util qw(openhandle);
 
 
 # add helpful debug library from perl core
@@ -523,6 +524,12 @@ sub readbinarymdl
     if (!defined($options->{weld_model})) {
       $options->{weld_model} = 0;
     }
+    # read the mdx file
+    # default value is on (used for supermodel loading)
+    if (!defined($options->{use_mdx})) {
+      $options->{use_mdx} = 1;
+    }
+
 
     #extract just the name of the model
     $buffer =~ /(.*[\\\/])*(.*)\.mdl/i;
@@ -535,8 +542,10 @@ sub readbinarymdl
     open(MODELMDL, $filepath.".mdl") or die "can't open MDL file: $filepath\n";
     binmode(MODELMDL);
 
-    open(MODELMDX, $filepath.".mdx") or die "can't open MDX file\n";
-    binmode(MODELMDX);
+    if ($options->{use_mdx}) {
+      open(MODELMDX, $filepath.".mdx") or die "can't open MDX file\n";
+      binmode(MODELMDX);
+    }
 
     $model{'source'} = "binary";
     $model{'filepath+name'} = $filepath;
@@ -1359,8 +1368,9 @@ sub readbinarymdl
 
     #open(MODELHINT, ">", $filepath."-out-hint.txt") or die "can't open model hint file\n";
 
-  
-    close MODELMDX;
+    if ($options->{use_mdx}) {
+      close MODELMDX;
+    }
     close MODELMDL;
 
     return \%model;
@@ -2206,7 +2216,7 @@ my $dothis = 0;
   }
 
   #if we have a non-saber mesh node then we have MDX data to read in
-  if ( ($nodetype & NODE_HAS_MESH) && !($nodetype & NODE_HAS_SABER) && ($ref->{$node}{'vertcoordnum'} > 0) ) {
+  if (openhandle(*MODELMDX) && ($nodetype & NODE_HAS_MESH) && !($nodetype & NODE_HAS_SABER) && ($ref->{$node}{'vertcoordnum'} > 0) ) {
     $ref->{$node}{'verts'} = [];
     #we will be reading from the MDX, so no need to add 12 to addresses
     seek(MODELMDX, $ref->{$node}{'MDXdataloc'}, 0);
@@ -4509,7 +4519,7 @@ sub readasciimdl {
     $supermodel = &readbinarymdl(
       $pathonly . $model{'supermodel'} . ".mdl",
       0, modelversion($pathonly . $model{'supermodel'} . ".mdl"),
-      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0 }
+      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0, use_mdx => 0 }
     );
     &get_super_nodes(\%model, $supermodel, undef, undef, 0, 0);
     $model{totalnumnodes} += $model{'nodes'}{'truenodenum'};
@@ -4535,7 +4545,7 @@ sub readasciimdl {
     $supermodel = &readbinarymdl(
       $pathonly . $model{'name'} . ".mdl",
       0, modelversion($pathonly . $model{'name'} . ".mdl"),
-      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0 }
+      { extract_anims => 0, compute_smoothgroups => 0, weld_model => 0, use_mdx => 0 }
     );
     foreach (keys %{$supermodel->{'nodes'}} ) {
       if ($_ eq "truenodenum") {next;}
