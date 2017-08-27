@@ -223,7 +223,8 @@ our %nodelookup = ('dummy' => 1, 'light' => 3, 'emitter' => 5, 'reference' => 17
                    'skin' => 97, 'animmesh' => 161, 'danglymesh' => 289, 'aabb' => 545, 'lightsaber' => 2081);
 
 our %classification = ('Effect' => 0x01, 'Tile' => 0x02, 'Character' => 0x04,
-                       'Door' => 0x08, 'Lightsaber' => 0x10, 'Placeable' => 0x20, 'Other' => 0x00);
+                       'Door' => 0x08, 'Lightsaber' => 0x10, 'Placeable' => 0x20,
+                       'Flyer' => 0x40, 'Other' => 0x00);
 
 our %reversenode  = reverse %nodelookup;
 our %reverseclass = reverse %classification;
