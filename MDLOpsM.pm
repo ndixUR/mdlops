@@ -1351,21 +1351,31 @@ sub readbinarymdl
     }
 
     #write out the bitmaps file
-    open(BITMAPSOUT, ">", $filepath."-textures.txt") or die "can't open bitmaps out file\n";
     foreach (0..$model{'nodes'}{'truenodenum'} - 1)
     {
-        if (defined($model{'nodes'}{$_}{'bitmap'}) && lc($model{'nodes'}{$_}{'bitmap'}) ne "null")
+        if (defined($model{'nodes'}{$_}{'bitmap'}) &&
+            lc($model{'nodes'}{$_}{'bitmap'}) ne "null")
         {
             #print("$_:$model{'nodes'}{$_}{'bitmap'}\n");
             $bitmaps{lc($model{'nodes'}{$_}{'bitmap'})}++;
         }
     }
-
-    foreach (keys %bitmaps)
+    if (scalar(keys %bitmaps))
     {
-         print(BITMAPSOUT "$_\n");
+        my $tex_file = "$filepath-textures.txt";
+        if (open(BITMAPSOUT, ">", $tex_file))
+        {
+            foreach (keys %bitmaps)
+            {
+                 print(BITMAPSOUT "$_\n");
+            }
+            close BITMAPSOUT;
+        }
+        else
+        {
+            print "error: can't open textures out file: $tex_file\n";
+        }
     }
-    close BITMAPSOUT;
 
     #open(MODELHINT, ">", $filepath."-out-hint.txt") or die "can't open model hint file\n";
 
