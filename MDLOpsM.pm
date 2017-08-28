@@ -3416,6 +3416,11 @@ sub writeasciimdl {
           } else {
             if ($temp != 0) {
               print "didn't find controller $temp in node type $model->{'nodes'}{$node}{'nodetype'} \n";
+            } else {
+              # temp == 0, this is controller data whose controller has been deleted,
+              # the vanilla compiler seems to have created this situation
+              # relatively frequently, we are skipping such data
+              next;
             }
             printf(MODELOUT "    controller%u%skey\n", $temp, $keytype);
           }
