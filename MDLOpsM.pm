@@ -1626,6 +1626,8 @@ my $dothis = 0;
         # check for controller type 20 and column count 2:
         # special compressed quaternion, only read one value here
         if ($_->[0] == 20 && $_->[5] == 2) {
+          # a compressed quaternion is found, record that this models uses them
+          $model->{'compress_quaternions'} = 1;
           $template .= "L" x ($_->[2]);
         #} elsif ($_->[0] == 8 && ($_->[5] > 16)) {
         } elsif ($bezier) {
@@ -2963,6 +2965,9 @@ sub writeasciimdl {
   print(MODELOUT "classification $model->{'classification'}\n");
   print(MODELOUT "classification_unk1 $model->{'classification_unk1'}\n");
   printf(MODELOUT "ignorefog %u\n", $model->{'ignorefog'});
+  if (defined($model->{compress_quaternions})) {
+    printf(MODELOUT "compress_quaternions %u\n", $model->{'compress_quaternions'});
+  }
   print(MODELOUT "setanimationscale $model->{'animationscale'}\n\n");
   
   # track bumpmapped textures at the model level,
@@ -3907,6 +3912,7 @@ sub readasciimdl {
   $model{'numanims'} = 0;
   $model{'ignorefog'} = 0;
   $model{'animationscale'} = 0.971;
+  $model{'compress_quaternions'} = 0;
   
   # these values are for the trimesh counter sequence,
   # an odd inverted count the purpose of which is unknown to me
@@ -3930,6 +3936,8 @@ sub readasciimdl {
       $nodenum = 0;
     } elsif ($line =~ /\s*bumpmapped_texture\s+(\S*)/i) { # look for a model-wide bumpmapped texture
       $model{'bumpmapped_texture'}{lc $1} = 1;
+    } elsif ($line =~ /\s*compress_quaternions\s+(\S*)/i) { # look for model-wide quaternion compression
+      $model{'compress_quaternions'} = $1;
     } elsif ($line =~ /\s*newanim\s+(\S*)\s+(\S*)/i) { # look for the start of an animation
       $isanimation = 1; 
       $model{'anims'}{$animnum}{'name'} = $1;
@@ -3937,6 +3945,9 @@ sub readasciimdl {
       $model{'anims'}{$animnum}{'nodelist'} = [];
       $model{'anims'}{$animnum}{'eventtimes'} = [];
       $model{'anims'}{$animnum}{'eventnames'} = [];
+      # copy model-wide compress setting to animation, which acts as 'root'
+      # during animation post-processing
+      $model{'anims'}{$animnum}{'compress_quaternions'} = $model{'compress_quaternions'};
     } elsif ($line =~ /doneanim/i && $isanimation) { # look for the end of an animation
       $isanimation = 0;
       $animnum++;
@@ -6269,7 +6280,8 @@ sub postprocessnodes {
   # for orientation keyed controllers in animation,
   # compress and encode quaternions as 3 10-bit floats
   # into a single 32-bit float
-  if (0 && $anim && defined($node->{'Bcontrollers'}{20}) &&
+  if ($model->{'compress_quaternions'} && $anim &&
+      defined($node->{'Bcontrollers'}{20}) &&
       scalar(@{$node->{'Bcontrollers'}{20}{'values'}[0]}) == 4) {
       # encode compressed quaternions
       # decompress algorithm:
@@ -7267,6 +7279,7 @@ sub writebinarynode
 
     #write out the controllers and their data (if any)
     $model->{'nodes'}{$i}{'controllerdata'}{'unpacked'} = [];
+    my $raw_values = {};
     $count = 0;
     $buffer = "";
 
@@ -7369,7 +7382,23 @@ sub writebinarynode
             elsif ( $controller == 20 && $ga eq "ani" )
             {
                 if ($ccol == 1) {
-                    # this is a compressed quaternion encoded in a single float case
+                    # this is a compressed quaternion encoded in a single float case.
+                    # record controller data indices that will be treated as 'raw'
+                    # they cannot be treated as usual floats,
+                    # because compressed quaternions are not numbers in float range,
+                    # and encoding them as such later will produce incorrect bytes
+                    $raw_values = {
+                        %{$raw_values},
+                        map { $_ => 1 } (
+                            $valuestart..(
+                                $valuestart +
+                                ($model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'} *
+                                 $ccol) - 1
+                            )
+                        )
+                    };
+                    # the game engine wants to see '2' for number of columns,
+                    # it is not accurate, just a signal
                     $ccol = 2;
                 }
                 $buffer .= pack("LSSSSCCCC", $controller, 28, $model->{'nodes'}{$i}{'Bcontrollers'}{$controller}{'rows'},
@@ -7422,19 +7451,16 @@ sub writebinarynode
     $model->{'nodes'}{$i}{'controllerdatalocation'} = tell(BMDLOUT);
     $buffer = '';
     #$buffer = pack("f*", @{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}} );
-    # using compressed quaternions in animation makes the following hack necessary!!!
-    # basically, the compressed quaternion fits into 4 bytes, but it's not actually a float
-    # number. writing it out as a float _will_ cause it to be wrong.
-    foreach (@{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}}) {
-      #if (unpack('f', pack('f', $_)) == $_) {
-      #XXX hacks around perl's unfortunate numeric type detection
-      # the purpose of this is to not munge the compressed quaternion rotations used in animations
-      #XXX this still does not work, disabling it for now
-      #if (/\D/ || $_ == 1.0 || $_ == 0.0) {
-        $buffer .= pack('f', $_);
-      #} else {
-      #  $buffer .= pack('L', $_);
-      #}
+    #print Dumper($raw_values);
+    for my $data_index (keys @{$model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}}) {
+      # using compressed quaternions in animation makes the following test necessary.
+      # basically, the compressed quaternion fits into 4 bytes, but it's not actually a float
+      # number. writing it out as a float _will_ cause it to be wrong.
+      if (!defined($raw_values->{$data_index})) {
+        $buffer .= pack('f', $model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}[$data_index]);
+      } else {
+        $buffer .= pack('L', $model->{'nodes'}{$i}{'controllerdata'}{'unpacked'}[$data_index]);
+      }
     }
     $totalbytes += length($buffer);
     print (BMDLOUT $buffer);
