@@ -3513,7 +3513,7 @@ sub vertex_equals {
 sub normalize_vector {
   my ($vec) = @_;
 
-  my $norm_vec = [ 1, 0, 0 ];
+  my $norm_vec = [ 0, 0, 0 ];
 
   # tested this extra-accurate version but it does not help
   #use Math::BigFloat;
