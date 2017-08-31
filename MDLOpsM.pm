@@ -4370,11 +4370,11 @@ sub readasciimdl {
         if (defined($11)) {
           # magnusll's faces structure w/ the extra tvert indices but no extra matID
           $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $11";
-          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $11, -1, -1, -1, $1, $2, $3 ];
+          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $11, -1, -1, -1, $1, $2, $3, $4 ];
         } else {
           # normal/usual faces structure
           $model{'nodes'}{$nodenum}{'Afaces'}[$count] = "$1 $2 $3 $4 $5 $6 $7 $8";
-          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $8, -1, -1, -1, $1, $2, $3 ];
+          $model{'nodes'}{$nodenum}{'Bfaces'}[$count] = [0, 0, 0, 0, $8, -1, -1, -1, $1, $2, $3, $4 ];
         }
 
         # temporary list of uvs associated with each face, deleted after vertex validation
@@ -4720,7 +4720,7 @@ sub readasciimdl {
         #my $face = [ split(/\s+/, $model{'nodes'}{$i}{'Afaces'}[$face_index]) ];
         my $face = [
           @{$model{'nodes'}{$i}{'Bfaces'}[$face_index]}[8..10],
-          $model{'nodes'}{$i}{'Bfaces'}[$face_index][4],
+          $model{'nodes'}{$i}{'Bfaces'}[$face_index][11],
           0, 0, 0, 0, # texture 1
           0, 0, 0, 0, # texture 2
           0, 0, 0, 0, # texture 3
@@ -5072,45 +5072,6 @@ sub readasciimdl {
         }
     }
 
-    # Convert smooth group numbers
-    # Because we convert all smooth groups to 2^(n - 1), we should convert back here
-    # Loop through all of the model's nodes
-    for (my $i = 0; $i < $nodenum; $i++)
-    {
-      # It is theoretically possible to kind of need this,
-      # if you are relying on the old mdlops material ID as smoothgroup,
-      # however, it is probably more likely to cause issues than to help,
-      # so disable it by short-circuiting loop here:
-      last;
-      # Only look at smooth groups if this is a mesh w/ faces
-      # If non-power-of-2 smooth groups were encountered in this mesh,
-      # leave smooth group numbers alone
-      if (!($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) ||
-          !$model{'nodes'}{$i}{'sg_base2'} ||
-          !defined($model{'nodes'}{$i}{'Afaces'}) ||
-          !scalar(@{$model{'nodes'}{$i}{'Afaces'}})) {
-        next;
-      }
-      # Process the smooth groups in the ASCII face data
-      for my $f (@{$model{'nodes'}{$i}{'Afaces'}}) {
-        my $temp = [ split /\s+/, $model{'nodes'}{$i}{'Afaces'}[$f] ];
-        if ($temp->[3] < 1) {
-          next;
-        }
-        $temp->[3] = (log($temp->[3]) / log(2)) + 1;
-        $model{'nodes'}{$i}{'Afaces'}[$f] = join(' ', @{$temp});
-      }
-      # Process the smooth groups in the binary face data
-      foreach (@{$model{'nodes'}{$i}{'Bfaces'}}) {
-        my $sg = $_->[4];
-        if ($sg < 1) {
-          next;
-        }
-        $sg = (log($sg) / log(2)) + 1;
-        $_->[4] = $sg;
-      }
-    }
-
     # Compute bounding box, average, radius
     for (my $i = 0; $i < $nodenum; $i ++)
     {
@@ -5276,7 +5237,7 @@ sub readasciimdl {
                 $model{'nodes'}{$i}{'verts'}[$face->[10]]
             );
 
-            #print "Area: $area in $face->[4]\n";
+            #print "Area: $area in $face->[11]\n";
 
             # record the face area in the faceareas hash
             $faceareas{$i}{$_} = $area;
@@ -5286,18 +5247,18 @@ sub readasciimdl {
 
             # THIS IS NOW UNUSED, COMMENTED OUT
             # initialize node-level smoothgroup surface area to 0 if first face in group
-            #if (!defined($model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]})) {
-            #    $model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} = 0;
+            #if (!defined($model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[11]})) {
+            #    $model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[11]} = 0;
             #}
             # increase node-level total surface area for smoothgroup
-            #$model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[4]} += $area;
+            #$model{'nodes'}{$i}{'surfacearea_by_group'}->{$face->[11]} += $area;
 
             # initialize total surface area for smoothgroup to 0 if first face in group
-            #if (!defined($model{'surfacearea_by_group'}->{$face->[4]})) {
-            #    $model{'surfacearea_by_group'}->{$face->[4]} = 0;
+            #if (!defined($model{'surfacearea_by_group'}->{$face->[11]})) {
+            #    $model{'surfacearea_by_group'}->{$face->[11]} = 0;
             #}
             # increase total surface area for smoothgroup
-            #$model{'surfacearea_by_group'}->{$face->[4]} += $area;
+            #$model{'surfacearea_by_group'}->{$face->[11]} += $area;
         }
     }
 
@@ -5559,7 +5520,7 @@ sub readasciimdl {
                 $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 1, 0, 0 ];
                 next;
             }
-            $sgA = $model{'nodes'}{$i}{'Bfaces'}[$faceA]->[4];
+            $sgA = $model{'nodes'}{$i}{'Bfaces'}[$faceA]->[11];
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = [ 0.0, 0.0, 0.0 ];
             if ($model{'nodes'}{$i}{'mdxdatabitmap'} & MDX_TANGENT_SPACE) {
                 $model{'nodes'}{$i}{'vertextangents'}[$work] = [ 0.0, 0.0, 0.0 ];
@@ -5587,8 +5548,8 @@ sub readasciimdl {
                     }
                     # don't let influence of geometry from different smooth groups accumulate into the vertex normal
                     # TODO resolve smooth group numbers vs. surface IDs...
-                    if (!($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4] & $sgA) && !$is_self) {
-                        $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[4], $sgA);
+                    if (!($model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[11] & $sgA) && !$is_self) {
+                        $printall and printf("skip sg %u != %u\n", $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[11], $sgA);
                         next;
                     }
                     if ($options->{use_crease_angle} && $vertnorm_initialized &&
@@ -7212,7 +7173,7 @@ sub writebinarynode
         $model->{'nodes'}{$i}{'faceslocation'} = tell(BMDLOUT);
         foreach ( @{$model->{'nodes'}{$i}{'Bfaces'}} )
         {
-            $buffer .= pack("fffflssssss", @{$_} );
+            $buffer .= pack("fffflssssss", @{$_}[0..10] );
         }
         $totalbytes += length($buffer);
         print (BMDLOUT $buffer);
@@ -8091,7 +8052,7 @@ sub replaceraw {
   # replace the face array
   $buffer = "";
   foreach ( @{$asciimodel->{'nodes'}{$asciinode}{'Bfaces'}} ) {
-    $buffer .= pack("fffflssssss", @{$_} );
+    $buffer .= pack("fffflssssss", @{$_}[0..10] );
   }
   $binarymodel->{'nodes'}{$binarynode}{'faces'}{'raw'} = $buffer;
 
