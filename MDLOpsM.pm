@@ -399,15 +399,15 @@ $controllernames{+NODE_HAS_MESH}{100} = "selfillumcolor";
 sub modeltype
 {
     my ($filepath) = (@_);
-    my $buffer;
+    my ($fh, $buffer);
   
-    open(MODELMDL, $filepath) or die "can't open MDL file: $filepath\n";
-    binmode(MODELMDL);
-    seek(MODELMDL, 0, 0);
+    MDLOpsM::File::open(\$fh, '<', $filepath) or die "can't open MDL file: $filepath\n";
+    binmode($fh);
+    seek($fh, 0, 0);
 
     # read in the first 4 bytes of the file
-    read(MODELMDL, $buffer, 4);
-    close MODELMDL;
+    read($fh, $buffer, 4);
+    MDLOpsM::File::close($fh);
   
     # if the first 4 bytes of the file are nulls we have a binary model
     # else we have an ascii model
@@ -427,15 +427,15 @@ sub modeltype
 sub modelversion
 {
     my ($filepath) = (@_);
-    my $buffer;
+    my ($fh, $buffer);
   
-    open(MODELMDL, $filepath) or die "can't open MDL file: $filepath\n";
-    binmode(MODELMDL);
-    seek(MODELMDL, 12, 0);
+    MDLOpsM::File::open(\$fh, '<', $filepath) or die "can't open MDL file: $filepath\n";
+    binmode($fh);
+    seek($fh, 12, 0);
 
     # read in the first 4 bytes of the geometry header
-    read(MODELMDL, $buffer, 4);
-    close MODELMDL;
+    read($fh, $buffer, 4);
+    MDLOpsM::File::close($fh);
   
     if (unpack("l",$buffer) eq 4285200)
     {
@@ -9810,6 +9810,7 @@ BEGIN {
   @EXPORT = qw(open exists);
   @ISA = qw(Exporter);
 
+  use FileHandle;
   use Encode;
   $win32 = 1;
   eval 'use Win32API::File qw(:ALL);';
@@ -9826,11 +9827,13 @@ sub close {
   my ($fh) = @_;
 
   if ($win32) {
-    CloseHandle($win32_handles->{$fh});
-    delete $win32_handles->{$fh};
-  } else {
-    return close($fh);
+    my $fd = fileno($fh);
+    if (defined($win32_handles->{$fd})) {
+      CloseHandle($win32_handles->{$fd});
+      delete $win32_handles->{$fd};
+    }
   }
+  return close($fh);
 }
 
 sub open {
@@ -9859,16 +9862,17 @@ sub open {
       return 0;
     }
     # get perl filehandle for windows filehandle
-    my $perl_fh = 0;
+    my $perl_fh = FileHandle->new;
     if (OsFHandleOpen($perl_fh, $native_fh, $openmode)) {
       # someone has to hold this reference (or the file closes),
       # so why not do that here...
-      $win32_handles->{$perl_fh} = $native_fh;
+      my $fd = fileno($perl_fh);
+      $win32_handles->{$fd} = $native_fh;
       # set filehandle reference that was passed in
       ${$fh} = $perl_fh;
       return 1;
     } else {
-      #print "$!\n";
+      print "$!\n";
     }
   } else {
     #print "not win32: $filename\n";
