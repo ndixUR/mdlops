@@ -9791,3 +9791,105 @@ sub writebinarywalkmesh {
 }
 
 1;
+
+#^L
+###############################################################################
+# MDLOps File Operations,
+# exists to handle the funhouse that is perl with Unicode filenames on Windows
+###############################################################################
+package MDLOpsM::File;
+use strict;
+use warnings;
+# package conditionally includes Win32 constants so we must do this:
+no strict 'subs';
+
+BEGIN {
+  require Exporter;
+  use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION $win32);
+  $VERSION = '0.1.0';
+  @EXPORT = qw(open exists);
+  @ISA = qw(Exporter);
+
+  use Encode;
+  $win32 = 1;
+  eval 'use Win32API::File qw(:ALL);';
+  if ($@) {
+    $win32 = 0;
+  }
+}
+
+use Data::Dumper;
+
+our $win32_handles = {};
+
+sub close {
+  my ($fh) = @_;
+
+  if ($win32) {
+    CloseHandle($win32_handles->{$fh});
+    delete $win32_handles->{$fh};
+  } else {
+    return close($fh);
+  }
+}
+
+sub open {
+  my ($fh, $mode, $filename) = @_;
+  if ($win32) {
+    # win32 support for unicode wide characters in file/path names
+    # we are only supporting two mode profiles, the ones we use,
+    # read (must exist) or write (truncate if exist)
+    #my $winmode = FILE_READ_DATA;
+    my $winmode = FILE_GENERIC_READ;
+    my $uCreate = OPEN_EXISTING;
+    my $openmode = 'r';
+    if ($mode =~ />/) {
+      #print "write\n";
+      #$winmode = FILE_WRITE_DATA;
+      $winmode = FILE_GENERIC_WRITE;
+      $uCreate = TRUNCATE_EXISTING;
+      $openmode = 'w';
+    }
+    # create windows filehandle
+    my $native_fh = Win32API::File::CreateFileW(
+      encode('utf16-le', $filename . "\0"),
+      $winmode, 0, [], $uCreate, 0, []
+    );
+    if (!$native_fh) {
+      return 0;
+    }
+    # get perl filehandle for windows filehandle
+    my $perl_fh = 0;
+    if (OsFHandleOpen($perl_fh, $native_fh, $openmode)) {
+      # someone has to hold this reference (or the file closes),
+      # so why not do that here...
+      $win32_handles->{$perl_fh} = $native_fh;
+      # set filehandle reference that was passed in
+      ${$fh} = $perl_fh;
+      return 1;
+    } else {
+      #print "$!\n";
+    }
+  } else {
+    #print "not win32: $filename\n";
+    return open(${$fh}, $mode, $filename);
+  }
+
+  return 0;
+}
+
+sub exists {
+  my ($filename) = @_;
+
+  if (!$win32) {
+    return -e $filename;
+  }
+  my $fh = 0;
+  if (&open(\$fh, '<', $filename)) {
+    &close($fh);
+    return 1;
+  }
+  return 0;
+}
+
+1;
