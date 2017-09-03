@@ -540,11 +540,11 @@ sub readbinarymdl
     $buffer =~ /(.*)\.mdl/i;
     $filepath = $1;
 
-    open(MODELMDL, $filepath.".mdl") or die "can't open MDL file: $filepath\n";
+    MDLOpsM::File::open(\*MODELMDL, '<', $filepath.".mdl") or die "can't open MDL file: $filepath\n";
     binmode(MODELMDL);
 
     if ($options->{use_mdx}) {
-      open(MODELMDX, $filepath.".mdx") or die "can't open MDX file\n";
+      MDLOpsM::File::open(\*MODELMDX, '<', $filepath.".mdx") or die "can't open MDX file\n";
       binmode(MODELMDX);
     }
 
@@ -1363,13 +1363,13 @@ sub readbinarymdl
     if (scalar(keys %bitmaps))
     {
         my $tex_file = "$filepath-textures.txt";
-        if (open(BITMAPSOUT, ">", $tex_file))
+        if (MDLOpsM::File::open(\*BITMAPSOUT, '>', $tex_file))
         {
             foreach (keys %bitmaps)
             {
                  print(BITMAPSOUT "$_\n");
             }
-            close BITMAPSOUT;
+            MDLOpsM::File::close(*BITMAPSOUT);
         }
         else
         {
@@ -1380,9 +1380,9 @@ sub readbinarymdl
     #open(MODELHINT, ">", $filepath."-out-hint.txt") or die "can't open model hint file\n";
 
     if ($options->{use_mdx}) {
-      close MODELMDX;
+      MDLOpsM::File::close(*MODELMDX);
     }
-    close MODELMDL;
+    MDLOpsM::File::close(*MODELMDL);
 
     return \%model;
 }
@@ -9844,26 +9844,38 @@ sub open {
     # read (must exist) or write (truncate if exist)
     #my $winmode = FILE_READ_DATA;
     my $winmode = FILE_GENERIC_READ;
+    my $svShare = FILE_SHARE_READ;
     my $uCreate = OPEN_EXISTING;
+    my $uFlags = 0;
     my $openmode = 'r';
     if ($mode =~ />/) {
-      #print "write\n";
       #$winmode = FILE_WRITE_DATA;
+      #print "write_dat: $winmode\n";
       $winmode = FILE_GENERIC_WRITE;
-      $uCreate = TRUNCATE_EXISTING;
+      #print "write_generic: $winmode\n";
+      $svShare = FILE_SHARE_READ;
+      #$uCreate = TRUNCATE_EXISTING();
+      #print "trunc_ex: $uCreate\n";
+      $uCreate = OPEN_ALWAYS;
+      $uFlags = FILE_FLAG_WRITE_THROUGH;
       $openmode = 'w';
     }
     # create windows filehandle
     my $native_fh = Win32API::File::CreateFileW(
       encode('utf16-le', $filename . "\0"),
-      $winmode, 0, [], $uCreate, 0, []
+      $winmode, $svShare, [], $uCreate, $uFlags, []
     );
     if (!$native_fh) {
+      print "File Error: $^E\n";
       return 0;
     }
     # get perl filehandle for windows filehandle
     my $perl_fh = FileHandle->new;
     if (OsFHandleOpen($perl_fh, $native_fh, $openmode)) {
+      # make write handles autoflush
+      if ($openmode =~ /w/i) {
+        $perl_fh->autoflush(1);
+      }
       # someone has to hold this reference (or the file closes),
       # so why not do that here...
       my $fd = fileno($perl_fh);
@@ -9872,7 +9884,8 @@ sub open {
       ${$fh} = $perl_fh;
       return 1;
     } else {
-      print "$!\n";
+      print "File Error: $!\n";
+      CloseHandle($native_fh);
     }
   } else {
     #print "not win32: $filename\n";
