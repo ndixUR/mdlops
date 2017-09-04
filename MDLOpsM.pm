@@ -79,6 +79,7 @@
 #                           Added reference node support
 #                           Added super model node number construction
 #                           Fixed replacer for many cases
+#                           Unicode path/filename support
 #                           Many more small fixes and features
 #
 ##########################################################
@@ -2953,7 +2954,7 @@ sub writeasciimdl {
     $options->{use_ascii_extension} ? '.ascii' : ''
   );
 
-  open(MODELOUT, ">", $outfile) or die "can't open out file\n";
+  MDLOpsM::File::open(\*MODELOUT, '>', $outfile) or die "can't open out file\n";
   
   # write out the ascii mdl
   #write out the model header
@@ -3452,7 +3453,7 @@ sub writeasciimdl {
   
   printf(MODELOUT "\ndonemodel %s\n", $model->{'partnames'}[0]);
 
-  close MODELOUT;
+  MDLOpsM::File::close(*MODELOUT);
 }
 
 
@@ -3876,8 +3877,7 @@ sub readasciimdl {
   
   $buffer =~ /(.*)\.mdl/i;
   $filepath = $1;
-  open($ASCIIMDL, "$filepath.$extension") or die "can't open MDL file $filepath.$extension\n";
-
+  MDLOpsM::File::open(\$ASCIIMDL, '<', "$filepath.$extension") or die "can't open MDL file $filepath.$extension\n";
   $model{'source'} = "ascii";
   $model{'filepath+name'} = $filepath;
   $pathonly = substr($filepath, 0, length($filepath)-length($model{'filename'}));
@@ -4541,7 +4541,8 @@ sub readasciimdl {
   
   # set the supernodes on the working model
   print ( lc($model{'supermodel'}) . "|" . $supercheck . "\n") if $printall;
-  if (lc($model{'supermodel'}) ne "null" && $supercheck == 1 && -f $pathonly . $model{'supermodel'} . '.mdl') {
+  if (lc($model{'supermodel'}) ne "null" && $supercheck == 1 &&
+      MDLOpsM::File::exists($pathonly . $model{'supermodel'} . '.mdl')) {
     # if this model has a super model then open the super model
     print("Loading binary supermodel: " . $pathonly . $model{'supermodel'} . ".mdl\n");
     $supermodel = &readbinarymdl(
@@ -5824,7 +5825,7 @@ sub readasciimdl {
     }
   }
   print("\nDone reading ascii model: $file\n");
-  close $ASCIIMDL;
+  MDLOpsM::File::close($ASCIIMDL);
   return \%model;
 }
 
@@ -5853,9 +5854,9 @@ sub writebinarymdl {
   $filepath = $model->{'filepath+name'};
 
   $nodenum = $model->{'nodes'}{'truenodenum'};
-  open(BMDLOUT, ">", "$filepath-$version-bin.mdl") or die "can't open MDL file $filepath-$version-bin.mdl\n";
+  MDLOpsM::File::open(\*BMDLOUT, ">", "$filepath-$version-bin.mdl") or die "can't open MDL file $filepath-$version-bin.mdl\n";
   binmode(BMDLOUT);
-  open(BMDXOUT, ">", "$filepath-$version-bin.mdx") or die "can't open MDX file $filepath-$version-bin.mdx\n";
+  MDLOpsM::File::open(\*BMDXOUT, ">", "$filepath-$version-bin.mdx") or die "can't open MDX file $filepath-$version-bin.mdx\n";
   binmode(BMDXOUT);
  
   #write out MDX
@@ -5955,7 +5956,7 @@ sub writebinarymdl {
       print (BMDXOUT $buffer);
     }
   }
-  close BMDXOUT;
+  MDLOpsM::File::close(*BMDXOUT);
   #build the part names array
   #for (my $i = 0; $i < $nodenum; $i++) {
   # ignore nodenum here because we may have names without nodes
@@ -6168,7 +6169,7 @@ sub writebinarymdl {
 
   print("done with: $filepath\n");
 
-  close BMDLOUT;
+  MDLOpsM::File::close(*BMDLOUT);
 }
 
 #####################################################################
@@ -7548,9 +7549,9 @@ sub writerawbinarymdl {
   $filepath = $model->{'filepath+name'};
 
   $nodenum = $model->{'nodes'}{'truenodenum'};
-  open($BMDLOUT, ">", $filepath."-$version-r-bin.mdl") or die "can't open MDL file $filepath-$version-r-bin.mdl\n";
+  MDLOpsM::File::open(\$BMDLOUT, ">", $filepath."-$version-r-bin.mdl") or die "can't open MDL file $filepath-$version-r-bin.mdl\n";
   binmode($BMDLOUT);
-  open(BMDXOUT, ">", $filepath."-$version-r-bin.mdx") or die "can't open MDX file $filepath-$version-r-bin.mdx\n";
+  MDLOpsM::File::open(\*BMDXOUT, ">", $filepath."-$version-r-bin.mdx") or die "can't open MDX file $filepath-$version-r-bin.mdx\n";
   binmode(BMDXOUT);
  
   #write out MDX
@@ -7564,7 +7565,7 @@ sub writerawbinarymdl {
       print (BMDXOUT $buffer);
     }
   }
-  close BMDXOUT;
+  MDLOpsM::File::close(*BMDXOUT);
 
   #write out binary MDL
   #write out the file header
@@ -7658,7 +7659,7 @@ sub writerawbinarymdl {
   print("$file\n");
   print("done with: $filepath\n");
 
-  close $BMDLOUT;
+  MDLOpsM::File::close($BMDLOUT);
 }
 
 
@@ -8417,7 +8418,8 @@ sub detect_format {
 
   my ($fh, $test);
 
-  if (!open($fh, '<', $file)) {
+  if (!MDLOpsM::File::exists($file) ||
+      !MDLOpsM::File::open(\$fh, '<', $file)) {
     return undef;
   }
   my $is_binary = 0;
@@ -8425,7 +8427,7 @@ sub detect_format {
   if ($test =~ /^bwm v1.0$/i) {
     $is_binary = 1;
   }
-  close $fh;
+  MDLOpsM::File::close($fh);
   return $is_binary;
 }
 
@@ -8463,13 +8465,13 @@ sub readasciiwalkmesh {
     vertfaces => {}
   };
 
-  if (!-f $file ||
-      !open($fh, '<', $file)) {
+  if (!MDLOpsM::File::exists($file) ||
+      !MDLOpsM::File::open(\$fh, '<', $file)) {
     die sprintf('error: file does not exist or not readable: %s: %s', $file, $!);
   }
 
   $lines = [ <$fh> ];
-  close ($fh);
+  MDLOpsM::File::close($fh);
 
   my $parsing = {
     node => 0,
@@ -9498,8 +9500,8 @@ sub readbinarywalkmesh {
     types  => [],
   };
 
-  if (!-f $file ||
-      !open($fh, '<', $file)) {
+  if (!MDLOpsM::File::exists($file) ||
+      !MDLOpsM::File::open(\$fh, '<', $file)) {
     die sprintf('error: file does not exist or not readable: %s: %s', $file, $!);
   }
 
@@ -9583,7 +9585,7 @@ print Dumper([ @{$unpacked}[2..13] ]);
       ];
     }
   }
-  close ($fh);
+  MDLOpsM::File::close($fh);
 
 #print Dumper($walkmesh->{header});
 #print Dumper($walkmesh);
@@ -9600,7 +9602,7 @@ sub writeasciiwalkmesh {
 
   my ($fh);
 
-  if (!open($fh, '>', $file)) {
+  if (!MDLOpsM::File::open(\$fh, '>', $file)) {
     die sprintf('error: file not writable: %s', $!);
   }
 
@@ -9698,6 +9700,8 @@ sub writeasciiwalkmesh {
       );
     }
   }
+
+  MDLOpsM::File::close($fh);
 }
 
 ###############################################################################
@@ -9708,7 +9712,7 @@ sub writebinarywalkmesh {
 
   my ($fh);
 
-  if (!open($fh, '>', $file)) {
+  if (!MDLOpsM::File::open(\$fh, '>', $file)) {
     die sprintf('error: file not writable: %s', $!);
   }
 
@@ -9787,7 +9791,7 @@ sub writebinarywalkmesh {
   # write the perimeter edge count
   print($fh pack('l*', @{$walkmesh->{perimeters}}));
 
-  close ($fh);
+  MDLOpsM::File::close($fh);
 }
 
 1;
@@ -9813,6 +9817,7 @@ BEGIN {
   use FileHandle;
   use Encode;
   $win32 = 1;
+  #use Win32API::File qw(:ALL);
   eval 'use Win32API::File qw(:ALL);';
   if ($@) {
     $win32 = 0;
@@ -9827,6 +9832,7 @@ sub close {
   my ($fh) = @_;
 
   if ($win32) {
+    $fh->flush();
     my $fd = fileno($fh);
     if (defined($win32_handles->{$fd})) {
       CloseHandle($win32_handles->{$fd});
@@ -9837,7 +9843,7 @@ sub close {
 }
 
 sub open {
-  my ($fh, $mode, $filename) = @_;
+  my ($fh, $mode, $filename, $noerror) = @_;
   if ($win32) {
     # win32 support for unicode wide characters in file/path names
     # we are only supporting two mode profiles, the ones we use,
@@ -9856,8 +9862,12 @@ sub open {
       $svShare = FILE_SHARE_READ;
       #$uCreate = TRUNCATE_EXISTING();
       #print "trunc_ex: $uCreate\n";
-      $uCreate = OPEN_ALWAYS;
-      $uFlags = FILE_FLAG_WRITE_THROUGH;
+      #$uCreate = OPEN_ALWAYS;
+      $uCreate = CREATE_ALWAYS;
+      #print "trunc_ex: $uCreate\n";
+      # non-buffered IO on the windows native filehandle
+      #$uFlags = FILE_FLAG_WRITE_THROUGH;
+      $uFlags = 0;
       $openmode = 'w';
     }
     # create windows filehandle
@@ -9866,16 +9876,16 @@ sub open {
       $winmode, $svShare, [], $uCreate, $uFlags, []
     );
     if (!$native_fh) {
-      print "File Error: $^E\n";
+      !$noerror and print "File Error: $filename $^E\n";
       return 0;
     }
     # get perl filehandle for windows filehandle
     my $perl_fh = FileHandle->new;
     if (OsFHandleOpen($perl_fh, $native_fh, $openmode)) {
-      # make write handles autoflush
-      if ($openmode =~ /w/i) {
-        $perl_fh->autoflush(1);
-      }
+      # make write handles autoflush, non-buffered IO
+      #if ($openmode =~ /w/i) {
+      #  $perl_fh->autoflush(1);
+      #}
       # someone has to hold this reference (or the file closes),
       # so why not do that here...
       my $fd = fileno($perl_fh);
@@ -9884,7 +9894,7 @@ sub open {
       ${$fh} = $perl_fh;
       return 1;
     } else {
-      print "File Error: $!\n";
+      !$noerror and print "File Error: $filename $!\n";
       CloseHandle($native_fh);
     }
   } else {
@@ -9899,10 +9909,12 @@ sub exists {
   my ($filename) = @_;
 
   if (!$win32) {
-    return -e $filename;
+    #print "not win32\n";
+    return -f $filename;
   }
+  #print "$filename\n";
   my $fh = 0;
-  if (&open(\$fh, '<', $filename)) {
+  if (&open(\$fh, '<', $filename, 1)) {
     &close($fh);
     return 1;
   }
