@@ -8448,6 +8448,21 @@ sub detect_type {
 ###############################################################################
 #
 ###############################################################################
+sub non_walk {
+  my ($material) = @_;
+
+  if ($material == WOK_NONWALK ||
+      $material == WOK_OBSCURING ||
+      $material == WOK_TRANSPARENT) {
+    return 1;
+  }
+
+  return 0;
+}
+
+###############################################################################
+#
+###############################################################################
 sub readasciiwalkmesh {
   my ($file, $options) = @_;
 
@@ -8690,8 +8705,8 @@ sub readasciiwalkmesh {
 
   # sort non-walk faces to the end of the list, then split off the types
   $face_data = [
-    (grep { $_->[3] != WOK_NONWALK } @{$face_data}),
-    (grep { $_->[3] == WOK_NONWALK } @{$face_data})
+    (grep { !&non_walk($_->[3]) } @{$face_data}),
+    (grep { &non_walk($_->[3]) } @{$face_data})
   ];
   #print Dumper($face_data);die;
   for my $face (@{$face_data}) {
@@ -8771,7 +8786,7 @@ sub readasciiwalkmesh {
   $walkmesh->{adjacent_faces} = [];
   my $adjacency_matrix = {};
   for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
-    if ($walkmesh->{types}[$index] == WOK_NONWALK) {
+    if (&non_walk($walkmesh->{types}[$index])) {
       last;
     }
     # map of global face number/index => adjacency list number/index
@@ -8781,7 +8796,7 @@ sub readasciiwalkmesh {
     $adjacency_matrix->{$index} = scalar(keys(%{$adjacency_matrix}));
   }
   for my $index (0..scalar(@{$walkmesh->{faces}}) - 1) {
-    if ($walkmesh->{types}[$index] == WOK_NONWALK) {
+    if (&non_walk($walkmesh->{types}[$index])) {
       last;
     }
     # get vertex positions for each face vertex, suitable as keys into verts_by_pos
@@ -8794,13 +8809,13 @@ sub readasciiwalkmesh {
     # constrain list to only walkable faces
     my $vfs = [
       { map { $_ => 1 }
-        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+        grep { !&non_walk($walkmesh->{types}[$_]) && $_ != $index }
           map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[0]}}} },
       { map { $_ => 1 }
-        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+        grep { !&non_walk($walkmesh->{types}[$_]) && $_ != $index }
           map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[1]}}} },
       { map { $_ => 1 }
-        grep { $walkmesh->{types}[$_] != WOK_NONWALK && $_ != $index }
+        grep { !&non_walk($walkmesh->{types}[$_]) && $_ != $index }
           map { @{$_} } @{$extra->{vertfaces}}{@{$extra->{verts_by_pos}{$fv_pos->[2]}}} },
     ];
 #    my $vfs = [
