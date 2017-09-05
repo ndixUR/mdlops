@@ -8453,7 +8453,12 @@ sub non_walk {
 
   if ($material == WOK_NONWALK ||
       $material == WOK_OBSCURING ||
-      $material == WOK_TRANSPARENT) {
+      $material == WOK_SNOW ||
+      $material == WOK_TRANSPARENT ||
+      $material == WOK_DEEPWATER ||
+      $material == WOK_BOTTOMLESSPIT ||
+      # following is logical, but unused in vanilla
+      $material == WOK_LAVA) {
     return 1;
   }
 
@@ -9551,7 +9556,7 @@ sub readbinarywalkmesh {
   $walkmesh->{header}{perimeter_num}    = $unpacked->[31]; # 4B values
   $walkmesh->{header}{perimeter_pos}    = $unpacked->[32];
 
-print Dumper([ @{$unpacked}[2..13] ]);
+#print Dumper([ @{$unpacked}[2..13] ]);
   $walkmesh->{header}{type_readable} = detect_type($file);
   if ($walkmesh->{header}{type_readable} eq 'pwk') {
     # read the use01 and use02 points
