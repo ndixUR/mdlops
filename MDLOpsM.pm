@@ -2161,6 +2161,8 @@ my $dothis = 0;
 
    #prepare the faces list
    $ref->{$node}{vertfaces} = {};
+   # tvert indices per face
+   $ref->{$node}{texindices} = [];
    for (my $i = 0; $i < $ref->{$node}{'facesnum'}; $i++) {
       $temp = ($i * 11);
       $ref->{$node}{'Afaces'}[$i] = $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
@@ -2181,6 +2183,10 @@ my $dothis = 0;
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 8];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 9];
       $ref->{$node}{'Afaces'}[$i] .=" ".$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 10];
+      # store texture indices as a separate thing for convenience later
+      $ref->{$node}{texindices}[$i] = [
+        @{$ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}}[$temp + 8..$temp + 10]
+      ];
       if ($nodetype & NODE_HAS_AABB) {
         # surface/material ID is important/meaningful for AABB nodes
         $ref->{$node}{'Afaces'}[$i] .= sprintf(' %u', $ref->{$node}{$structs{'darray'}[0]{'name'}}{'unpacked'}[$temp + 4]);
@@ -3297,6 +3303,10 @@ sub writeasciimdl {
         foreach ( @{$model->{'nodes'}{$i}{'tverts1'}} ) {
           printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
+        printf(MODELOUT "  texindices1 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
+          printf(MODELOUT "    %u %u %u\n", @{$_});
+        }
       }
       if (length($model->{'nodes'}{$i}{'texture0'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts2'}})) {
@@ -3305,6 +3315,10 @@ sub writeasciimdl {
         foreach ( @{$model->{'nodes'}{$i}{'tverts2'}} ) {
           printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
         }
+        printf(MODELOUT "  texindices2 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
+          printf(MODELOUT "    %u %u %u\n", @{$_});
+        }
       }
       if (length($model->{'nodes'}{$i}{'texture1'}) &&
           scalar(@{$model->{'nodes'}{$i}{'tverts3'}})) {
@@ -3312,6 +3326,10 @@ sub writeasciimdl {
         printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
           printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
+        }
+        printf(MODELOUT "  texindices3 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
+        foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
+          printf(MODELOUT "    %u %u %u\n", @{$_});
         }
       }
       if ($nodetype & NODE_HAS_SABER) {
