@@ -149,7 +149,7 @@ use constant NODEINDEX => 2;
 our %structs;
 $structs{'fileheader'} =  {loc =>   0, num =>  3, size =>  4, dnum => 1, name => "file_header",  tmplt => "lll"};
 $structs{'geoheader'} =   {loc =>  12, num =>  1, size => 80, dnum => 1, name => "geo_header",   tmplt => "llZ[32]lllllllllCCCC"};
-$structs{'modelheader'} = {loc =>  92, num =>  1, size => 88, dnum => 1, name => "model_header", tmplt => "CCCClllllffffffffZ[32]"};
+$structs{'modelheader'} = {loc =>  92, num =>  1, size => 92, dnum => 1, name => "model_header", tmplt => "CCCClllllffffffffZ[32]L"};
 $structs{'nameheader'} =  {loc => 180, num =>  1, size => 28, dnum => 1, name => "name_header",  tmplt => "lllllll"};
 $structs{'nameindexes'} = {loc =>   4, num =>  5, size =>  4, dnum => 1, name => "name_indexes", tmplt => "l*"};
 $structs{'names'} =       {loc =>  -1, num => -1, size => -1, dnum => 1, name => "names",        tmplt => "Z*"};
@@ -587,6 +587,7 @@ sub readbinarymdl
     $model{'radius'} = $model{'modelheader'}{'unpacked'}[15];
     $model{'animationscale'} = $model{'modelheader'}{'unpacked'}[16];
     $model{'supermodel'} = $model{'modelheader'}{'unpacked'}[17];
+    $model{'node1'} = $model{'modelheader'}{'unpacked'}[18];
   
   #$structs{'modelheader'} = {loc =>  92, num =>  1, size => 88, dnum => 1, name => "model_header", tmplt => "CCCClllllffffffffZ[32]"};
 
@@ -638,6 +639,13 @@ sub readbinarymdl
     # $tree, $parent, $startnode, $model, $version
 
     $temp = getnodes('nodes', undef, $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
+
+    # test whether model root node points at "first" node
+    if ($model{node1} != $model{rootnode}) {
+      # model root node points to a subnode in the hierarchy, this is a head model
+      $model{headlink} = 1;
+    }
+    printf "%u %u\n", $model{'node1'}, $model{'rootnode'} if $printall;
 
     #$options->{compute_smoothgroups} = 1;
     #$options->{weld_model} = 1;
@@ -2975,6 +2983,9 @@ sub writeasciimdl {
   if (defined($model->{compress_quaternions})) {
     printf(MODELOUT "compress_quaternions %u\n", $model->{'compress_quaternions'});
   }
+  if (defined($model->{'headlink'}) && $model->{'headlink'}) {
+    printf(MODELOUT "headlink %u\n", $model->{'headlink'});
+  }
   print(MODELOUT "setanimationscale $model->{'animationscale'}\n\n");
   
   # track bumpmapped textures at the model level,
@@ -3959,6 +3970,8 @@ sub readasciimdl {
       $nodenum = 0;
     } elsif ($line =~ /\s*bumpmapped_texture\s+(\S*)/i) { # look for a model-wide bumpmapped texture
       $model{'bumpmapped_texture'}{lc $1} = 1;
+    } elsif ($line =~ /^\s*headlink\s+(\S*)/i) { # look for model-wide headfix
+      $model{'headlink'} = $1;
     } elsif ($line =~ /\s*compress_quaternions\s+(\S*)/i) { # look for model-wide quaternion compression
       $model{'compress_quaternions'} = $1;
     } elsif ($line =~ /\s*newanim\s+(\S*)\s+(\S*)/i) { # look for the start of an animation
@@ -6157,7 +6170,8 @@ sub writebinarymdl {
   $totalbytes = writebinarynode($model, 0, $totalbytes, $version, "geometry");
 
   # VarsityPuppet's headfixer method:
-  if ($options->{headfix}) {
+  if ($options->{headfix} ||
+      (defined($model->{headlink}) && $model->{headlink})) {
       # head models want the root node pointer in the names header to point at neck_g,
       # not the actual root node, so adjust the nh_nodestart value here w/
       # the location of neck_g
