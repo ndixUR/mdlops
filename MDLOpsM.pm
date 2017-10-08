@@ -4236,7 +4236,7 @@ sub readasciimdl {
     } elsif ($innode && $line =~ /\s*shininess\s+(\S*)/i) {  # if in a node look for the shininess property
       # shininess numbers are not used, have no place in binary models
       $model{'nodes'}{$nodenum}{'shininess'} = $1;
-    } elsif ($line =~ /^\s*names\s+(\S+)/i) {
+    } elsif ($line =~ /^\s*name\s+(\S+)/i) {
       # this is the MDLedit approach to walkmesh nodes that get removed,
       # for now, try just inserting them into the names list,
       # it's not going to help with part number mapping, but we'll see
