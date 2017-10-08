@@ -8474,7 +8474,8 @@ sub non_walk {
       $material == WOK_SNOW ||
       $material == WOK_TRANSPARENT ||
       $material == WOK_DEEPWATER ||
-      $material == WOK_BOTTOMLESSPIT ||
+      # bottomless pit is actually walkable in 104pera.wok
+      #$material == WOK_BOTTOMLESSPIT ||
       # following is logical, but unused in vanilla
       $material == WOK_LAVA) {
     return 1;
