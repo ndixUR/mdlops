@@ -5112,7 +5112,7 @@ sub readasciimdl {
         {
             next;
         }
-        my $used_vpos  = [ {}, {}, {} ];
+        my $used_vpos  = {};
         my $used_verts = [ 0, 0, 0 ];
         my $vsum = [ 0.0, 0.0, 0.0 ];
         # note: changed these to 0 values on further study of vanilla models
@@ -5122,6 +5122,7 @@ sub readasciimdl {
         $model{'nodes'}{$i}{'bboxmax'} = [ 0.0, 0.0, 0.0 ];
         for my $vert (@{$model{'nodes'}{$i}{'verts'}})
         {
+            my $vert_key = sprintf('%.4g,%.4g,%.4g', @{$vert});
             foreach (0..2)
             {
                 if ($vert->[$_] < $model{'nodes'}{$i}{'bboxmin'}->[$_]) {
@@ -5131,11 +5132,16 @@ sub readasciimdl {
                 #printf("%g > %g\n", $vert->[$_], $model{'nodes'}{$i}{'bboxmax'}->[$_]);
                     $model{'nodes'}{$i}{'bboxmax'}->[$_] = $vert->[$_];
                 }
-                if (!defined($used_vpos->[$_]{sprintf('%.5g', $vert->[$_])})) {
-                    $used_vpos->[$_]{sprintf('%.5g', $vert->[$_])} = 1;
-                    $used_verts->[$_] += 1;
-                    $vsum->[$_] += $vert->[$_];
-                }
+            }
+            if (defined($used_vpos->{$vert_key}))
+            {
+                next;
+            }
+            foreach (0..2)
+            {
+                $used_vpos->{$vert_key} = 1;
+                $used_verts->[$_] += 1;
+                $vsum->[$_] += $vert->[$_];
             }
         }
         # compute node average from unique vertex positions,
