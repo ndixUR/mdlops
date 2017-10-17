@@ -4848,7 +4848,7 @@ sub readasciimdl {
         }
         # empty templates for this face's data
         my $new_Aface = '';
-        my $new_Bface = [ 0, 0, 0, 0, int($face->[3]), -1, -1, -1, 0, 0, 0 ];
+        my $new_Bface = [ 0, 0, 0, 0, int($face->[3]), -1, -1, -1, 0, 0, 0, int($face->[3]) ];
         # retain the face's vertex positions in easier to use structure
         my $face_verts = [
           @{$model{'nodes'}{$i}{verts}}[@{$face}[0..2]]
