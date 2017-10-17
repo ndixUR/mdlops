@@ -638,6 +638,10 @@ sub readbinarymdl
     $model{'nodes'}{'truenodenum'} = 0;
     # $tree, $parent, $startnode, $model, $version
 
+    # pre-walk geometry nodes to get node order, may differ from name order
+    getnodeorder(\%model, $model{'geoheader'}{'unpacked'}[ROOTNODE]);
+    #print Dumper($model{order2nameindex});
+
     $temp = getnodes('nodes', undef, $model{'geoheader'}{'unpacked'}[ROOTNODE], \%model, $version);
 
     # test whether model root node points at "first" node
@@ -1477,6 +1481,47 @@ sub writeaabb
 
 #####################################################################
 # called only by readbinarymdl
+# a recursive sub to read in geometry node order, required by skin nodes
+sub getnodeorder {
+  my ($model, $startnode) = @_;
+  my ($buffer, $unpacked);
+
+  # initialize order list on first iteration
+  if (!defined($model->{order2nameindex})) {
+    $model->{order2nameindex} = [];
+  }
+
+  # adjust starting offset to factor in file header
+  $startnode += 12;
+
+  # read node header: node name index, 'part number'
+  seek(MODELMDL, $startnode + 4, 0);
+  read(MODELMDL, $buffer, 4);
+  my $name_index = unpack('S', $buffer);
+  push @{$model->{order2nameindex}}, $name_index;
+
+  # read node header: child array info
+  seek(MODELMDL, $startnode + 44, 0);
+  read(MODELMDL, $buffer, 8);
+  my ($child_array_offset, $child_array_length) = unpack('LL', $buffer);
+  printf "order map %u => %u\n",
+         scalar(@{$model->{order2nameindex}}) - 1, $name_index if $printall;
+  print "child array $child_array_length\@$child_array_offset\n" if $printall;
+
+  # read node header: child array offset values
+  seek(MODELMDL, $child_array_offset + 12, 0);
+  read(MODELMDL, $buffer, $child_array_length * 4);
+  my $child_offsets = [ unpack('L*', $buffer) ];
+
+  # recursively call on each child
+  foreach (@{$child_offsets}) {
+    getnodeorder($model, $_);
+  }
+}
+
+
+#####################################################################
+# called only by readbinarymdl
 # a recursive sub to read in geometry and animation nodes
 sub getnodes {
   my ($tree, $parent, $startnode, $model, $version) = (@_);
@@ -2230,9 +2275,12 @@ my $dothis = 0;
   if ($nodetype & NODE_HAS_SKIN) {
     $temp = $ref->{$node}{'subhead'}{'unpacked'}[$structs{'darray'}[5]{'num'} + $uoffset];
     for (my $i = 0; $i < $temp; $i++) {
-      $ref->{$node}{'node2index'}[$i] = $ref->{$node}{'bonemap'}{'unpacked'}[$i];
-      if ($ref->{$node}{'node2index'}[$i] != -1) {
-        $ref->{$node}{'index2node'}[ $ref->{$node}{'bonemap'}{'unpacked'}[$i] ] = $i;
+      # bonemap uses node order, not the numbers stored in node header,
+      # which are, apparently, more like 'name index'
+      my $node_order_index = $model->{order2nameindex}[$i];
+      $ref->{$node}{'node2index'}[$node_order_index] = $ref->{$node}{'bonemap'}{'unpacked'}[$i];
+      if ($ref->{$node}{'node2index'}[$node_order_index] != -1) {
+        $ref->{$node}{'index2node'}[ $ref->{$node}{'bonemap'}{'unpacked'}[$i] ] = $node_order_index;
       }
     }
   }
