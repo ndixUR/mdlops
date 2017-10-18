@@ -2479,6 +2479,7 @@ sub convert_saber_to_trimesh {
   ];
   # for some inexplicable reason, this breaks when you do it in one statement,
   # so i broke up blade1 & blade2 vert translation into two statements. wtf?
+  # i think it was a lack of parenthesis wrapping on the map clauses
   $meshnode->{verts} = [
     @{$meshnode->{verts}},
     @{$sabernode->{verts}}[88..91],
