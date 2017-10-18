@@ -8763,7 +8763,8 @@ sub readasciiwalkmesh {
       # this means there is a location with multiple vertices
       $weld_needed = 1;
       # set original vertex index = the one new vertex at same location
-      $vert_index_map->{$vert_index} = $used_keys->{$vert_pos};
+      # also take into account that the new vert might be a redirection
+      $vert_index_map->{$vert_index} = $vert_index_map->{$used_keys->{$vert_pos}};
       next;
     }
     $vert_index_map->{$vert_index} = scalar(keys %{$used_keys});
@@ -8783,7 +8784,7 @@ sub readasciiwalkmesh {
     # rewrite vertex indices in faces
     for my $face_index (0..scalar(@{$face_data}) - 1) {
       $face_data->[$face_index] = [
-        map { $vert_index_map->{$_} } @{$face_data->[$face_index]}[0..2],
+        (map { $vert_index_map->{$_} } @{$face_data->[$face_index]}[0..2]),
         $face_data->[$face_index][3]
       ];
     }
