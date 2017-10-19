@@ -9062,7 +9062,7 @@ sub aabb {
   if (!scalar(@{$faces})) {
     return -1;
   }
-  print "\n";
+#  print "\n";
 
   # 0-base array index of this tree node
   my $tree_index = scalar(@{$walkmesh->{aabbs}});
@@ -9141,9 +9141,9 @@ sub aabb {
 #  print Dumper($walkmesh->{plane_distances}[$a]);
 #}
 #die;
-if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
-  print Dumper($faces);
-}
+#if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
+#  print Dumper($faces);
+#}
 #if (scalar(grep { $_ == 16 || $_ == 41 } @{$faces}) >= 2) {
 #  print Dumper($faces);
 #}
@@ -9205,7 +9205,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
       #{ return 1 }
       #return $b <=> $a;
       #return $a <=> $b;
-      print "FALLTHROUGH x $a $b\n";
+#      print "FALLTHROUGH x $a $b\n";
       return 0;
     } @{$faces} ],
     [ sort {
@@ -9262,7 +9262,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
       #{ return 1 }
       #return $b <=> $a;
       #return $a <=> $b;
-      print "FALLTHROUGH y $a $b\n";
+#      print "FALLTHROUGH y $a $b\n";
       return 0;
     } @{$faces} ],
     [ sort {
@@ -9304,7 +9304,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
       #{ return 1 }
       #return $b <=> $a;
       #return $a <=> $b;
-      print "FALLTHROUGH z $a $b\n";
+#      print "FALLTHROUGH z $a $b\n";
       return 0;
     } @{$faces} ],
   ];
@@ -9313,11 +9313,11 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
   #if ($tree_index == 136) {
   #print Dumper($bb->{max});
   #print Dumper($bb->{min});
-  print Dumper($bb->{size});
-  print "area:\n";
-  print Dumper($bb->{area});
+#  print Dumper($bb->{size});
+#  print "area:\n";
+#  print Dumper($bb->{area});
   #}
-  print "$tree_index split: $split_axis, parentsplit: $parent_split\n";
+  print "$tree_index split: $split_axis, parentsplit: $parent_split\n" if $printall;
 
   # this part doesn't really make sense w/ median aabb construction (i think)
   #my $change_axis = 1;
@@ -9330,9 +9330,9 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
   my $uniques = [
     {}, {}, {}
   ];
-  print Dumper($sorted);
+#  print Dumper($sorted);
   for my $ind (@{$sorted->[$split_axis]}) {
-    print "$ind\n";
+#    print "$ind\n";
     foreach (0..2) {
       #printf("%.4g\n", $bb->{centroids}[$sorted->[$_][$ind]][$_]);
       $uniques->[$_]{sprintf('%.4g', $bb->{centroids}[$ind][$_])} = 1;
@@ -9348,20 +9348,21 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
   my $tested_axes = 1;
   my $median_index_pos = int(scalar(@{$sorted->[0]}) / 2);
   #print Dumper($sorted);
-  printf "split index: %u\n", $sorted->[$split_axis][$median_index_pos];
+#  printf "split index: %u\n", $sorted->[$split_axis][$median_index_pos];
   my $left_adj = 1;
   my $right_adj = 0;
   my $negative_axis = 0;
   if (0 && $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$split_axis] >=
       $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
-    print "SPLIT " . scalar(@{$sorted->[0]}) . "\n";
-    print Dumper($uniques);
+#    print "SPLIT " . scalar(@{$sorted->[0]}) . "\n";
+#    print Dumper($uniques);
     #print Dumper([@{$bb->{centroids}}[16,41,20]]);
     #$sorted->[$split_axis] = [ reverse @{$sorted->[$split_axis]} ];
     #$median_index_pos -= 1;
 
-    print Dumper([@{$norms}{@{$sorted->[$split_axis]}}]);
+#    print Dumper([@{$norms}{@{$sorted->[$split_axis]}}]);
     for (0..2) {
+        last;
         printf(
           "NOPE, %.7g - %.7g = %.7g\n",
           $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_],
@@ -9471,7 +9472,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
         $translation = &face_normal(
           @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}]
         )->[$split_axis_index];
-        print "$translation\n";
+        print "translated centroid by: $translation\n" if $printall;
       }
       if ($split_axis < 3) {
         $left_side = ($bb->{centroids}[$index][$split_axis_index] + $translation < $bb_median->[$split_axis_index] ? 1 : 0);
@@ -9493,7 +9494,7 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
     $node->[8] = 2**$split_axis;
     if (scalar(@{$lists->{left}}) && scalar(@{$lists->{right}})) {
       $found_split = 1;
-      print "found split, $tested_axes tries: $split_axis\n";
+      print "found split, $tested_axes tries: $split_axis\n" if $printall;
     } else {
       $tested_axes += 1;
       if ($split_axis == 2 || $split_axis == 5) {
@@ -9511,15 +9512,15 @@ if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
         # point in opposite directions though,
         # so it's intended to be a double-sided kind of thing,
         # let's try using normal combination to tie-break.
-        print Dumper($faces);
-        print Dumper(@{$bb->{centroids}}[@{$faces}]);
-        print Dumper(@{$walkmesh->{faces}}[@{$faces}]);
-        print Dumper(@{$walkmesh->{verts}}[65..70]);
-        print Dumper($bb_median);
+        #print Dumper($faces);
+        #print Dumper(@{$bb->{centroids}}[@{$faces}]);
+        #print Dumper(@{$walkmesh->{faces}}[@{$faces}]);
+        #print Dumper(@{$walkmesh->{verts}}[65..70]);
+        #print Dumper($bb_median);
         # compute face normals for 36 & 37
         # 36 = (65, 66, 67), 37 = (68, 69, 70)
-        print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[36]}]));
-        print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[37]}]));
+        #print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[36]}]));
+        #print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[37]}]));
         return $tree_index;
       }
     }
