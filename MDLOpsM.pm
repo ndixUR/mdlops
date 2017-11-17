@@ -1086,7 +1086,7 @@ sub readbinarymdl
         }
 
       sub boundary_check {
-        my ($pgs, $edge_idx) = @_;
+        my ($pgs, $edge_idx, $edge_faces) = @_;
         #print "edge boundary: $edge_idx\n";
         my $ef = $edge_faces->[$edge_idx];
         if (scalar @{$ef} < 2) { return 1; }
@@ -1160,7 +1160,7 @@ sub readbinarymdl
           for my $me_idx (@{$mp}) {
             #print "me: $me_idx\n";
             $map_ele = $edge_faces->[$me_idx];
-            if (!boundary_check($protogroups, $me_idx)) {
+            if (!boundary_check($protogroups, $me_idx, $edge_faces)) {
               #print "not boundary $me_idx\n";
               for my $p (@{$map_ele}) {
                 #print "p $p $poly_group_id $ps_end_idx\n";
