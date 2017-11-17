@@ -3353,7 +3353,7 @@ sub writeasciimdl {
         #printf(MODELOUT "  tverts %u\n", $model->{'nodes'}{$i}{'vertcoordnum'});
         printf(MODELOUT "  tverts %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts'}} ) {
-          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
       }
       if (length($model->{'nodes'}{$i}{'bitmap2'}) &&
@@ -3361,7 +3361,7 @@ sub writeasciimdl {
         # write out tverts1, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts1 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts1'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts1'}} ) {
-          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
         printf(MODELOUT "  texindices1 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
         foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
@@ -3373,7 +3373,7 @@ sub writeasciimdl {
         # write out tverts2, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts2 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts2'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts2'}} ) {
-          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
         printf(MODELOUT "  texindices2 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
         foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
@@ -3385,7 +3385,7 @@ sub writeasciimdl {
         # write out tverts3, nwmax would require these to be 3 coordinate numbers
         printf(MODELOUT "  tverts3 %u\n", scalar(@{$model->{'nodes'}{$i}{'tverts3'}}));
         foreach ( @{$model->{'nodes'}{$i}{'tverts3'}} ) {
-          printf(MODELOUT "    % .7g % .7g 0.0\n", $_->[0], $_->[1]);
+          printf(MODELOUT "    % .7g % .7g\n", $_->[0], $_->[1]);
         }
         printf(MODELOUT "  texindices3 %u\n", scalar(@{$model->{'nodes'}{$i}{'texindices'}}));
         foreach ( @{$model->{'nodes'}{$i}{'texindices'}} ) {
