@@ -9053,6 +9053,36 @@ sub readasciiwalkmesh {
 }
 
 ###############################################################################
+# Unstable sorting algorithm used by AABB tree construction to produce results
+# closer to vanilla.
+#
+###############################################################################
+sub face_shell_sort {
+  my ($index, $faces, $centroids) = @_;
+  # a is list of indexes we want to sort based on centroids[a][index] value comparison
+  my @a = @{$faces};
+  my ($h, $i, $j, $k);
+
+  for ($h = @a; $h = int $h / 2;) {
+  #for ($h = @a; $h = int $h / 1.5;) {
+    #print "$h\n";
+    for my $i ($h .. scalar(@a) - 1) {
+      my $j = $i;
+      my $temp = $a[$i]; # temp is indices h..end
+      #while ($j >= $h && $centroids->[$a[$j - $h]][$index] >= $centroids->[$temp][$index]) {
+      while ($j >= $h && $centroids->[$a[$j - $h]][$index] > $centroids->[$temp][$index]) {
+        $a[$j] = $a[$j - $h];
+        $j -= $h;
+      }
+      $a[$j] = $temp;
+    }
+  }
+
+  return @a;
+}
+
+###############################################################################
+# AABB tree construction from face list, for creating binary walkmesh
 #
 ###############################################################################
 sub aabb {
@@ -9078,7 +9108,6 @@ sub aabb {
         # add values to face centroid
         map { $face_centroid->[$_] += $vertex->[$_] } (0..2);
       }
-      # face centroid?
       $face_centroid = [ map { $_ / 3 } @{$face_centroid} ];
       $centroids = [ @{$centroids}, [ @{$face_centroid} ] ];
     }
@@ -9122,36 +9151,15 @@ sub aabb {
     return $tree_index;
   }
 
-#for my $index (14,17,39,40) {
-#  print "index: $index\n";
-#  print Dumper($walkmesh->{faces}[$index]);
-#  print Dumper($norms->{$index});
-#  print Dumper($bb->{centroids}[$index]);
-#  print Dumper($walkmesh->{plane_distances}[$a]);
-#}
-#  print Dumper($walkmesh->{plane_distances});
-#die;
-#for my $index (16,41,20) {
-#for my $index (115,54) {
-#  print "index: $index\n";
-#  print Dumper($walkmesh->{faces}[$index]);
-#  print Dumper([ @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}] ]);
-#  print Dumper($norms->{$index});
-#  print Dumper($bb->{centroids}[$index]);
-#  print Dumper($walkmesh->{plane_distances}[$a]);
-#}
-#die;
-#if (scalar(grep { $_ == 115 || $_ == 54 } @{$faces}) >= 2) {
-#  print Dumper($faces);
-#}
-#if (scalar(grep { $_ == 16 || $_ == 41 } @{$faces}) >= 2) {
-#  print Dumper($faces);
-#}
-
   # use bounding box size to determine axis upon which to divide the tree
+  # also referred to as extents in center-extents representation
   $bb->{size} = [ map { $bb->{max}[$_] - $bb->{min}[$_] } (0..2) ];
-  $bb->{area} = [ map { my $d1 = ($_ + 1) % 3; my $d2 = ($_ + 2) % 3; $bb->{size}[$d1] * $bb->{size}[$d2] } (0..2) ];
-  my $split_axis = 0;
+
+  $parent_split = defined($parent_split) ? $parent_split : 0;
+  my $split_axis = $parent_split;
+  if ($bb->{size}[0] > 0.0) {
+    $split_axis = 0;
+  }
   if ($bb->{size}[1] > $bb->{size}[0]) {
     $split_axis = 1;
   }
@@ -9159,413 +9167,191 @@ sub aabb {
       $bb->{size}[2] > $bb->{size}[0]) {
     $split_axis = 2;
   }
+
+  $printall and print
+    "$tree_index " .
+    join(', ', @{$bb->{min}}). "  " .
+    join(', ', @{$bb->{max}}). "  " .
+    join(', ', @{$bb->{size}}). "\n";
+
   # sort centroids for median selection
   my $sorted = [
-    [ sort {
-      if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
-      { return -1 }
-      elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
-      { return 1 }
-  #    if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][1])
-  #    { return -1 }
-  #    elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][1])
-  #    { return 1 }
-  #    if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][2])
-  #    { return -1 }
-  #    elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][2])
-  #    { return 1 }
-#      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
-#      { return 1 }
-#      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
-#      { return 1 }
-#      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
-#      { return -1 }
-#      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
-#      { return 1 }
-#      if ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-#      if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-
-#      if ($norms->{$a}[0] < $norms->{$b}[0])
-#      { return 1 }
-#      if ($norms->{$a}[0] > $norms->{$b}[0])
-#      { return 1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
-      #{ return -1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
-      #{ return 1 }
-      #return $b <=> $a;
-      #return $a <=> $b;
-#      print "FALLTHROUGH x $a $b\n";
-      return 0;
-    } @{$faces} ],
-    [ sort {
+    sort {
       #if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
       #{ return -1 }
       #elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
       #{ return 1 }
-      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
+      if ($bb->{centroids}[$a][$split_axis] < $bb->{centroids}[$b][$split_axis])
       { return -1 }
-      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
+      elsif ($bb->{centroids}[$a][$split_axis] > $bb->{centroids}[$b][$split_axis])
       { return 1 }
-  #    if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-  #    { return -1 }
-  #    elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-  #    { return 1 }
-  #    if ($bb->{centroids}[$a][1] + $norms->{$a}[1] < $bb->{centroids}[$b][1] + $norms->{$b}[1])
-  #    { return -1 }
-  #    elsif ($bb->{centroids}[$a][1] + $norms->{$a}[1] > $bb->{centroids}[$b][1] + $norms->{$b}[1])
-  #    { return 1 }
-#      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
-#      { return 1 }
-# the following is 13 => 28 on 303narc
-      if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
-      { return -1 }
-      elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
-      { return 1 }
-  #    if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
-   #   { return -1 }
-   #   elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
-   #   { return 1 }
-      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
-      { return -1 }
-      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
-      { return 1 }
-# the following is 13 => 25 on 303narc
-#      if ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-#      if ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][2] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][2] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-#
-#      if ($norms->{$a}[1] < $norms->{$b}[1])
-#      { return 1 }
-#      if ($norms->{$a}[1] > $norms->{$b}[1])
-#      { return -1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
+#      my $sum_a = 0.0;
+#      map { $sum_a += $bb->{centroids}[$a][$_] } (0..2);
+#      my $sum_b = 0.0;
+#      map { $sum_b += $bb->{centroids}[$b][$_] } (0..2);
+#      if ($sum_a > $sum_b) { return -1; }
+#      if ($sum_a < $sum_b) { return 1; }
+      #if ($bb->{centroids}[$a][$parent_split] < $bb->{centroids}[$b][$parent_split])
       #{ return -1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
+      #elsif ($bb->{centroids}[$a][$parent_split] > $bb->{centroids}[$b][$parent_split])
       #{ return 1 }
       #return $b <=> $a;
-      #return $a <=> $b;
-#      print "FALLTHROUGH y $a $b\n";
       return 0;
-    } @{$faces} ],
-    [ sort {
-      if ($bb->{centroids}[$a][2] < $bb->{centroids}[$b][2])
-      { return -1 }
-      elsif ($bb->{centroids}[$a][2] > $bb->{centroids}[$b][2])
-      { return 1 }
-#      if ($bb->{centroids}[$a][1] * $bb->{centroids}[$a][0] < $bb->{centroids}[$b][1] * $bb->{centroids}[$b][0])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][1] * $bb->{centroids}[$a][0] > $bb->{centroids}[$b][1] * $bb->{centroids}[$b][0])
-#      { return 1 }
-      if ($bb->{centroids}[$a][1] < $bb->{centroids}[$b][1])
-      { return -1 }
-      elsif ($bb->{centroids}[$a][1] > $bb->{centroids}[$b][1])
-      { return 1 }
-   #   if ($bb->{centroids}[$a][0] < $bb->{centroids}[$b][0])
-   #   { return -1 }
-   #   elsif ($bb->{centroids}[$a][0] > $bb->{centroids}[$b][0])
-   #   { return 1 }
-#      if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
-#      { return -1 }
-#      if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
-#      { return 1 }
-#      if ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][1] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][1] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-#      if ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] < $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
-#      { return -1 }
-#      elsif ($bb->{centroids}[$a][0] + $walkmesh->{plane_distances}[$a] > $bb->{centroids}[$b][0] + $walkmesh->{plane_distances}[$b])
-#      { return 1 }
-#      if ($norms->{$a}[2] < $norms->{$b}[2])
-#      { return 1 }
-#      if ($norms->{$a}[2] > $norms->{$b}[2])
-#      { return -1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) < abs($walkmesh->{plane_distances}[$b]))
-      #{ return -1 }
-      #if (abs($walkmesh->{plane_distances}[$a]) > abs($walkmesh->{plane_distances}[$b]))
-      #{ return 1 }
-      #return $b <=> $a;
-      #return $a <=> $b;
-#      print "FALLTHROUGH z $a $b\n";
-      return 0;
-    } @{$faces} ],
+    } @{$faces},
   ];
 
-  #if ($tree_index == 26) {
-  #if ($tree_index == 136) {
-  #print Dumper($bb->{max});
-  #print Dumper($bb->{min});
-#  print Dumper($bb->{size});
-#  print "area:\n";
-#  print Dumper($bb->{area});
-  #}
+  $printall and print
+    "$tree_index " .
+    "$split_axis " .
+    join(',', @{$sorted}[0..int(scalar(@{$sorted}) / 2) - 1]).
+    "  |  ".
+    join(',', @{$sorted}[int(scalar(@{$sorted}) / 2)..scalar(@{$sorted}) - 1]).
+    "\n";
+
+  #$sorted = [ face_shell_sort($split_axis, $sorted, $bb->{centroids}) ];
+  #$sorted = [ face_shell_sort($split_axis, [ sort @{$faces} ], $bb->{centroids}) ];
+  $sorted = [ face_shell_sort($split_axis, $faces, $bb->{centroids}) ];
+
+  $printall and print
+    "$tree_index " .
+    "$split_axis " .
+    join(',', @{$sorted}[0..int(scalar(@{$sorted}) / 2) - 1]).
+    "  |  ".
+    join(',', @{$sorted}[int(scalar(@{$sorted}) / 2)..scalar(@{$sorted}) - 1]).
+    "\n";
+
   print "$tree_index split: $split_axis, parentsplit: $parent_split\n" if $printall;
 
-  # this part doesn't really make sense w/ median aabb construction (i think)
-  #my $change_axis = 1;
-  #for my $index (@{$faces}) {
-  #  $change_axis = $change_axis && ($bb->{centroids}[$index][$split_axis] == $bb->{avg}[$split_axis]) ? 1 : 0;
-  #}
-  #if ($change_axis) {
-  #  $split_axis += ($split_axis == 2 ? -2 : 1);
-  #}
-  my $uniques = [
-    {}, {}, {}
-  ];
-#  print Dumper($sorted);
-  for my $ind (@{$sorted->[$split_axis]}) {
-#    print "$ind\n";
-    foreach (0..2) {
-      #printf("%.4g\n", $bb->{centroids}[$sorted->[$_][$ind]][$_]);
-      $uniques->[$_]{sprintf('%.4g', $bb->{centroids}[$ind][$_])} = 1;
-    }
-  }
-  #print Dumper($uniques);
-  #die;
   my $lists = {
     left  => [],
     right => [],
   };
   my $found_split = 0;
   my $tested_axes = 1;
-  my $median_index_pos = int(scalar(@{$sorted->[0]}) / 2);
+  my $median_index_pos = int(scalar(@{$sorted}) / 2);
   #print Dumper($sorted);
-#  printf "split index: %u\n", $sorted->[$split_axis][$median_index_pos];
+#  printf "split index: %u\n", $sorted[$median_index_pos];
   my $left_adj = 1;
   my $right_adj = 0;
   my $negative_axis = 0;
-  if (0 && $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$split_axis] >=
-      $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
-#    print "SPLIT " . scalar(@{$sorted->[0]}) . "\n";
-#    print Dumper($uniques);
-    #print Dumper([@{$bb->{centroids}}[16,41,20]]);
-    #$sorted->[$split_axis] = [ reverse @{$sorted->[$split_axis]} ];
-    #$median_index_pos -= 1;
 
-#    print Dumper([@{$norms}{@{$sorted->[$split_axis]}}]);
-    for (0..2) {
-        last;
-        printf(
-          "NOPE, %.7g - %.7g = %.7g\n",
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_],
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_],
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]
-        );
-        printf(
-          "YES, %.7g - %.7g = %.7g\n",
-          $norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_],
-          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_],
-          $norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_] -
-          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_],
-        );
-      if ($bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] >
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
-        printf "YES, %.7g\n", $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_];
-      }
-      if ($norms->{$sorted->[$split_axis][$median_index_pos - 1]}[$_] -
-          $norms->{$sorted->[$split_axis][$median_index_pos]}[$_] >
-          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$split_axis]) {
-        print "YUP\n";
-#        $negative_axis = $_ + 3;
-#        my $temp = $sorted->[$split_axis][$median_index_pos - 1];
-#        $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
-#        $sorted->[$split_axis][$median_index_pos] = $temp;
-      }
+  $lists->{left} = [ @{$sorted}[0..$median_index_pos - 1] ];
+  $lists->{right} = [ @{$sorted}[$median_index_pos..scalar(@{$sorted}) - 1] ];
+  #$lists->{left} = [ @{$sorted}[0..$median_index_pos - $left_adj] ];
+  #$lists->{right} = [ @{$sorted}[$median_index_pos+$right_adj..scalar(@{$sorted}) - 1] ];
+
+  my $left_bbmin = [  1000.0,  1000.0,  1000.0 ];
+  my $left_bbmax = [ -1000.0, -1000.0, -1000.0 ];
+  my $right_bbmin = [  1000.0,  1000.0,  1000.0 ];
+  my $right_bbmax = [ -1000.0, -1000.0, -1000.0 ];
+  for my $index (@{$lists->{left}}) {
+    my $face = $walkmesh->{faces}[$index];
+    for my $vert (@{$face}) {
+      my $vertex = $walkmesh->{verts}[$vert];
+      # get maximum vertex value for x, y, z
+      $left_bbmin = [ map { $left_bbmin->[$_] > $vertex->[$_] ? $vertex->[$_] : $left_bbmin->[$_] } (0..2) ];
+      $left_bbmax = [ map { $left_bbmax->[$_] < $vertex->[$_] ? $vertex->[$_] : $left_bbmax->[$_] } (0..2) ];
     }
-
-#if (scalar(@{$sorted->[0]}) == 3) {
-#if (scalar(grep { $_ == 16 || $_ == 41 } @{$faces}) == 2) {
-#      my $temp = $sorted->[$split_axis][$median_index_pos - 1];
-#      $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
-#      $sorted->[$split_axis][$median_index_pos] = $temp;
-#}
-
-    #$left_adj = 0;
-    #$right_adj = 1;
-#      my $temp = $sorted->[$split_axis][$median_index_pos - 1];
-#      $sorted->[$split_axis][$median_index_pos - 1] = $sorted->[$split_axis][$median_index_pos];
-#      $sorted->[$split_axis][$median_index_pos] = $temp;
-#    }
   }
-  $lists->{left} = [ @{$sorted->[$split_axis]}[0..$median_index_pos - $left_adj] ];
-  $lists->{right} = [ @{$sorted->[$split_axis]}[$median_index_pos+$right_adj..scalar(@{$sorted->[$split_axis]}) - 1] ];
+  for my $index (@{$lists->{right}}) {
+    my $face = $walkmesh->{faces}[$index];
+    for my $vert (@{$face}) {
+      my $vertex = $walkmesh->{verts}[$vert];
+      # get maximum vertex value for x, y, z
+     $right_bbmin = [ map { $right_bbmin->[$_] > $vertex->[$_] ? $vertex->[$_] : $right_bbmin->[$_] } (0..2) ];
+     $right_bbmax = [ map { $right_bbmax->[$_] < $vertex->[$_] ? $vertex->[$_] : $right_bbmax->[$_] } (0..2) ];
+    }
+  }
+  my $result = [ map { (($right_bbmax->[$_] + $right_bbmin->[$_]) / 2.0) - (($left_bbmin->[$_] + $left_bbmax->[$_]) / 2.0) } (0..2) ];
+  #my $result = [ map { ($right_bbmax->[$_] - $left_bbmax->[$_]) + ($right_bbmin->[$_] - $left_bbmin->[$_]) } (0..2) ];
+  #my $result = [ map { $right_bbmax->[$_] - $left_bbmax->[$_] } (0..2) ];
+  my $max = 0.0;
+  $printall and print "cdiff " . Dumper($result);
+
+  $printall and print
+    "$tree_index " .
+    "left: " .
+    join(', ', @{$left_bbmin}) .
+    join(', ', @{$left_bbmax}) .
+    join(', ', map {$left_bbmax->[$_] - $left_bbmin->[$_]} (0..2) ) .
+    "\n";
+  $printall and print
+    "$tree_index " .
+    "right: " .
+    join(', ', @{$right_bbmin}) .
+    join(', ', @{$right_bbmax}) .
+    join(', ', map {$right_bbmax->[$_] - $right_bbmin->[$_]} (0..2) ) .
+    "\n";
+  $split_axis = $parent_split;
+  $printall and print "$tree_index parent:$parent_split, computed: $node->[8]\n";
+  foreach (0..2) {
+    if (abs($result->[$_]) > $max) {
+      $split_axis = $_;
+      $max = abs($result->[$_]);
+    }
+  }
+  $printall and print "$tree_index parent:$parent_split, computed: $node->[8]\n";
+#  if ($max == 0.0 && scalar(@{$lists->{left}}) && scalar(@{$lists->{right}})) {
+#    $result = [ map { $bb->{centroids}[$lists->{right}[0]][$_] - $bb->{centroids}[$lists->{left}[scalar(@{$lists->{left}}) - 1]][$_] } (0..2) ];
+#    foreach (0..2) {
+#      if (abs($result->[$_]) > $max) {
+#        $split_axis = $_;
+#        $max = abs($result->[$_]);
+#      }
+#    }
+#  }
+  if ($max > 0.0 && $result->[$split_axis] < 0.0) {
+    $negative_axis = $split_axis + 3;
+  }
   $node->[8] = 2**($negative_axis ? $negative_axis : $split_axis);
+  $printall and print "$tree_index parent:$parent_split, computed: $node->[8]\n";
   #printf "%u %u %u\n", scalar(@{$lists->{left}}), scalar(@{$lists->{right}}), $median_index_pos;
   #print Dumper($lists);
   $found_split = 1;
-  #die;
 
-  my $balance = [
-    [ 0, 0 ],
-    [ 0, 0 ],
-    [ 0, 0 ],
-    [ 0, 0 ],
-    [ 0, 0 ],
-    [ 0, 0 ],
-  ];
-  for my $test_axis (0..5) {
-    my $split_face = $sorted->[$split_axis][$median_index_pos];
-    if ($test_axis >= 3) {
-      $split_face = (reverse $sorted->[$split_axis])[$median_index_pos];
-    }
-    my $test_datum = $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$test_axis % 3];
-    #print "$test_datum\n";
-    for my $index (@{$faces}) {
-      if ($test_axis < 3 && $bb->{centroids}[$index][$test_axis % 3] < $test_datum) {
-        $balance->[$test_axis][0] += 1;
-      } elsif ($test_axis < 3 && $bb->{centroids}[$index][$test_axis % 3] > $test_datum) {
-        $balance->[$test_axis][1] += 1;
-      }
-      if ($test_axis >= 3 && $bb->{centroids}[$index][$test_axis % 3] > $test_datum) {
-        $balance->[$test_axis][0] += 1;
-      } elsif ($test_axis >= 3 && $bb->{centroids}[$index][$test_axis % 3] < $test_datum) {
-        $balance->[$test_axis][1] += 1;
-      }
-    }
-  }
-#  print Dumper($balance);
-#  print Dumper([ map { $_->[1] - $_->[0] } @{$balance} ]);
-#  print Dumper([ map { scalar(@{$faces}) - $_->[1] - $_->[0] } @{$balance} ]);
-#  for (0..2) {
-#    print $bb->{centroids}[$sorted->[$split_axis][$median_index_pos - 1]][$_] -
-#          $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_] . ' ';
-#  }
-#  print "\n";
-#  for (0..2) {
-#    print $bb->{size}[$_] - $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]][$_]. ' ';
-#  }
-#  print "\n";
   my $total_norms = [ 0, 0, 0 ];
   map { $total_norms->[0] += $_->[0]; $total_norms->[1] += $_->[1];$total_norms->[2] += $_->[2]; } values %{$norms};
 #  print Dumper($total_norms);
-
-  my $translate_centroid = 0;
-  while (!$found_split) {
-    $lists->{left}      = [];
-    $lists->{right}     = [];
-    my $left_side       = 1;
-    my $split_axis_index = $split_axis % 3;
-    my $bb_median = $bb->{centroids}[$sorted->[$split_axis][$median_index_pos]];
-    for my $index (@{$faces}) {
-      #printf("%s %s\n", $bb->{centroids}[$index][$split_axis], $bb_median->[$split_axis]);
-      my $translation = 0.0;
-      if ($translate_centroid) {
-        $translation = &face_normal(
-          @{$walkmesh->{verts}}[@{$walkmesh->{faces}[$index]}]
-        )->[$split_axis_index];
-        print "translated centroid by: $translation\n" if $printall;
-      }
-      if ($split_axis < 3) {
-        $left_side = ($bb->{centroids}[$index][$split_axis_index] + $translation < $bb_median->[$split_axis_index] ? 1 : 0);
-      } else {
-        $left_side = ($bb->{centroids}[$index][$split_axis_index] + $translation > $bb_median->[$split_axis_index] ? 1 : 0);
-      }
-      if ($left_side) {
-        $lists->{left} = [
-          @{$lists->{left}}, $index
-        ];
-      } else {
-        $lists->{right} = [
-          @{$lists->{right}}, $index
-        ];
-      }
-    }
-    #print Dumper($lists);
-    # this works for most significant plane in all of the non-8/16/32 cases
-    $node->[8] = 2**$split_axis;
-    if (scalar(@{$lists->{left}}) && scalar(@{$lists->{right}})) {
-      $found_split = 1;
-      print "found split, $tested_axes tries: $split_axis\n" if $printall;
-    } else {
-      $tested_axes += 1;
-      if ($split_axis == 2 || $split_axis == 5) {
-        $sorted->[0] = [ reverse @{$sorted->[0]} ];
-        $sorted->[1] = [ reverse @{$sorted->[1]} ];
-        $sorted->[2] = [ reverse @{$sorted->[2]} ];
-      }
-      $split_axis += ($split_axis == 5 ? -5 : 1);
-      if ($tested_axes == 6) {
-        $translate_centroid = 1;
-      } elsif ($tested_axes >= 12) {
-        printf("WARNING: Error generating aabb tree...\n");
-        # this happens when the bounding box centroid for multiple faces is the same,
-        # in vanilla models, this happens. all the times i've seen it, the face normals
-        # point in opposite directions though,
-        # so it's intended to be a double-sided kind of thing,
-        # let's try using normal combination to tie-break.
-        #print Dumper($faces);
-        #print Dumper(@{$bb->{centroids}}[@{$faces}]);
-        #print Dumper(@{$walkmesh->{faces}}[@{$faces}]);
-        #print Dumper(@{$walkmesh->{verts}}[65..70]);
-        #print Dumper($bb_median);
-        # compute face normals for 36 & 37
-        # 36 = (65, 66, 67), 37 = (68, 69, 70)
-        #print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[36]}]));
-        #print Dumper(&face_normal(@{$walkmesh->{verts}}[@{$walkmesh->{faces}[37]}]));
-        return $tree_index;
-      }
-    }
-  }
 
   # recurse left and right, store returned child indices
   $node->[9]  = aabb($walkmesh, [ @{$lists->{left}} ], $centroids, $split_axis);
   $node->[10] = aabb($walkmesh, [ @{$lists->{right}} ], $centroids, $split_axis);
 
-#  my $bbdiff = [
-#    [ map { $walkmesh->{aabbs}[$node->[9]][$_ + 3] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..2) ],
-#    [ map { $walkmesh->{aabbs}[$node->[10]][$_ + 3] - $walkmesh->{aabbs}[$node->[10]][$_] } (0..2) ],
-    #[ map { $walkmesh->{aabbs}[$node->[9]][$_] - $walkmesh->{aabbs}[$node->[9]][$_ + 3] } (0..2) ],
-    #[ map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2) ],
-#  ];
-#  $bbdiff->[2] = [ map { $bbdiff->[0][$_] - $bbdiff->[1][$_] } (0..2) ];
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-#    @{$bbdiff->[0]}
-#  );
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-#    @{$bbdiff->[1]}
-#  );
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-#    @{$bbdiff->[2]}
-#  );
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g\n", $tree_index,
-#    map { $bb->{size}[$_] + $bbdiff->[2][$_] } (0..2)
-#  );
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
-#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
-#  );
-
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
-#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[10]][$_ + 3] } (0..2)
-#  );
-#  printf(
-#    "index: %s, %.7g,%.7g,%.7g, %.7g,%.7g,%.7g\n", $tree_index,
-#    map { $walkmesh->{aabbs}[$node->[10]][$_] - $walkmesh->{aabbs}[$node->[9]][$_] } (0..5)
-#  );
+  my $left_idx = $node->[9];
+  while ($left_idx != -1) {
+    if ($walkmesh->{aabbs}[$left_idx][9] == -1) {
+      last;
+    }
+    $left_idx = $walkmesh->{aabbs}[$left_idx][9];
+  }
+  my $right_idx = $node->[10];
+  while ($right_idx != -1) {
+    if ($walkmesh->{aabbs}[$right_idx][10] == -1) {
+      last;
+    }
+    $right_idx = $walkmesh->{aabbs}[$right_idx][10];
+  }
+  if ($right_idx != -1 && $left_idx != -1) {
+    #print "$left_idx $right_idx\n";
+    #my $result = [ map { $walkmesh->{aabbs}[$right_idx][$_] - $walkmesh->{aabbs}[$left_idx][$_] } (3..5) ];
+    my $result = [ map { ($walkmesh->{aabbs}[$right_idx][$_ + 3] - $walkmesh->{aabbs}[$left_idx][$_ + 3]) +
+                         ($walkmesh->{aabbs}[$right_idx][$_] - $walkmesh->{aabbs}[$left_idx][$_]) } (0..2) ];
+    my $max = 0.0;
+    #print "maxdiff ";
+    #print Dumper($result);
+    foreach (0..2) {
+      if (abs($result->[$_]) > $max) {
+        $split_axis = $_;
+        $max = abs($result->[$_]);
+      }
+    }
+    if ($result->[$split_axis] < 0.0) {
+      $negative_axis = $split_axis + 3;
+    }
+    $printall and print "$tree_index $node->[8] " . (2**($negative_axis ? $negative_axis : $split_axis))  . "\n";
+    #$node->[8] = 2**($negative_axis ? $negative_axis : $split_axis);
+    # does not seem to work as hoped... + ~20 wrong planes
+  }
 
   return $tree_index;
 }
