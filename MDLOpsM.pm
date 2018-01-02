@@ -1767,25 +1767,21 @@ my $dothis = 0;
         $temp = $quatVals[1];
 
         # extract q.x
-        $quatVals[1] = (1.0 - (($temp & 0x7ff) / 1023));
+        $quatVals[1] = (-1.0 + ((($temp & 0x7ff) / 2046.0) / 0.5));
 
         # extract q.y
-        $quatVals[2] = (1.0 - ((($temp >> 11) & 0x7ff) / 1023));
+        $quatVals[2] = (-1.0 + (((($temp >> 11) & 0x7ff) / 2046.0) / 0.5));
 
         # extract q.z
-        $quatVals[3] = (1.0 - (($temp >> 22) / 511));
+        $quatVals[3] = (-1.0 + ((($temp >> 22) / 1022.0) / 0.5));
 
         # calculate q.w
+        # q.x^2 + q.y^2 + q.z^2 + q.w^2 = 1 for normalized quaternions
+        # only normalized quaternions can be compressed
         $temp = ($quatVals[1] * $quatVals[1]) + ($quatVals[2] * $quatVals[2]) + ($quatVals[3] * $quatVals[3]);
         if ($temp < 1.0) {
-          $quatVals[4] = -sqrt(1.0 - $temp);
+          $quatVals[4] = sqrt(1.0 - $temp);
         } else {
-          # this is for normalizing, I think?
-          $temp = sqrt($temp);
-
-          $quatVals[1] = $quatVals[1] / $temp;
-          $quatVals[2] = $quatVals[2] / $temp;
-          $quatVals[3] = $quatVals[3] / $temp;
           $quatVals[4] = 0.0;
         }
       } # if (@quatVals == 2) {
@@ -6371,18 +6367,20 @@ sub postprocessnodes {
           #      $_ * $f;
           #    } @{$_} ];
           #}
+          # odyssey engine wants positive scalar component
+          if ($_->[3] < 0.0) {
+            # invert scalar and vector components
+            $_ = [
+              map { -1.0 * $_ } @{$_}
+            ];
+          }
 
           my ($qx, $qy, $qz) = @{$_}[0..2];
-          #print Dumper($_);
-          $_->[0] = ((1.0 - $qz) * 511);
-          #print Dumper($_);
-          $_->[0] = $_->[0] << 11;
-          #print Dumper($_);
-          $_->[0] |= ((1.0 - $qy) * 1023) & 0x7ff;
-          $_->[0] = $_->[0] << 11;
-          #print Dumper($_);
-          $_->[0] |= ((1.0 - $qx) * 1023) & 0x7ff;
-          #print Dumper($_);
+          my ($cx, $cy, $cz);
+          $cz = int(((1.0 + $qz) * 1022.0) * 0.5);
+          $cy = int(((1.0 + $qy) * 2046.0) * 0.5);
+          $cx = int(((1.0 + $qx) * 2046.0) * 0.5);
+          $_->[0] = $cx | ($cy << 11) | ($cz << 22);
 
           # remove elements 2,3,4 and reduce the total quantity of controller data on the node
           delete $_->[1];
