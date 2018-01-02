@@ -4192,7 +4192,7 @@ sub readasciimdl {
       }
       $ref->{$nodenum}{'parent'} = $1;
       #translate the parents text name into the parents node number
-      $ref->{$nodenum}{'parentnodenum'} = $nodeindex{lc($1)};
+      $ref->{$nodenum}{'parentnodenum'} = defined($nodeindex{lc($1)}) ? $nodeindex{lc($1)} : -1;
       if ($ref->{$nodenum}{'parentnodenum'} != -1) {
         #record what position in the parents child list this node is in
         $ref->{$nodenum}{'childposition'} = $ref->{ $ref->{$nodenum}{'parentnodenum'} }{'childcount'};
