@@ -5196,7 +5196,7 @@ sub readasciimdl {
         # compute node average from unique vertex positions,
         # no doubles for multiple vertices sharing a position
         $model{'nodes'}{$i}{'average'} = [
-            map { $vsum->[$_] / $used_verts->[$_] } (0..2)
+            map { $used_verts->[$_] ? $vsum->[$_] / $used_verts->[$_] : 0.0 } (0..2)
         ];
         # compute node radius, it is the longest ray from average point to vertex
         $model{'nodes'}{$i}{'radius'} = 0.0;
