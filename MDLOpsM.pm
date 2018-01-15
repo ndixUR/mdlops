@@ -8453,6 +8453,10 @@ BEGIN {
     },
     filler => "
   orientation 1.0 0.0 0.0 0.0
+  bitmap NULL
+",
+    filler_old => "
+  orientation 1.0 0.0 0.0 0.0
   wirecolor 0.694118 0.580392 0.101961
   multimaterial 20
     Dirt
@@ -9556,10 +9560,11 @@ sub writeasciiwalkmesh {
   } else {
     # write out wok or pwk
     printf(
-      $fh "node trimesh %s_wg%s\n" .
-      "  parent %s\n  position % .7g % .7g % .7g%s",
-      uc $options->{model}, uc $options->{extension},
+      $fh "node trimesh %s_wg\n" .
+      "  parent %s%s\n  position % .7g % .7g % .7g%s",
       $options->{model},
+      $options->{model},
+      ($options->{extension} eq 'pwk' ? '_' . $options->{extension} : ''),
       @{$walkmesh->{header}{position}},
       $info->{filler}
     );
@@ -9598,9 +9603,10 @@ sub writeasciiwalkmesh {
       }
       printf(
         $fh "node dummy %s\n" .
-        "  parent %s\n  position % .7g % .7g % .7g\n" .
+        "  parent %s_%s\n  position % .7g % .7g % .7g\n" .
         "endnode\n",
-        'pwk_' . $hook, $options->{model},
+        'pwk_' . $hook,
+        $options->{model}, $options->{extension},
         @{$walkmesh->{header}{$hook}}
       );
     }
