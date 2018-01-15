@@ -496,8 +496,205 @@ sub facenormal
   }
   return ($pd, $normal);
 }
-##############################################################
 
+
+##############################################################
+# calculate a patch's vertex normal vector
+#
+sub patchnormal {
+  my ($model, $pos_data, $mode) = @_;
+  #print Dumper(keys %model);
+  #print Dumper($pos_data);
+  if (!defined($mode)) {
+    # mode = area, angle, both, none
+    $mode = 'area';
+  }
+  my $vertnorm = $model->{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
+  my $testnorm = [ 0.0, 0.0, 0.0 ];
+  for my $face_index (@{$pos_data->{faces}}) {
+    # this one is normalized...
+    my $facenorm = [
+      @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2]
+    ];
+#            my $facenorm = facenormal(
+#              @{$model->{nodes}{$pos_data->{mesh}}{verts}}[
+#                @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+#              ]
+#            );
+    my $facearea = 1.0;
+    if ($mode eq 'area' || $mode eq 'both') {
+      $facearea = facearea(
+        @{$model->{nodes}{$pos_data->{mesh}}{verts}}[
+          @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+        ]
+      );
+    }
+    my $angle = 1.0;
+    if ($mode eq 'angle' || $mode eq 'both') {
+      if (vertex_equals(
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+          $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+        ], 4
+      )) {
+        $angle = compute_vertex_angle(
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+          ]
+        );
+      } elsif (vertex_equals(
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+          $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+        ], 4
+      )) {
+        $angle = compute_vertex_angle(
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+          ]
+        );
+      } elsif (vertex_equals(
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
+        $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+          $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+        ], 4
+      )) {
+        $angle = compute_vertex_angle(
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
+          ],
+          $model->{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
+            $model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
+          ]
+        );
+      }
+    }
+    #print Dumper($facenorm);
+    #print Dumper([
+    #  @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
+    #]);
+    #printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
+    $testnorm = [ map {
+      $testnorm->[$_] += ($facearea * $angle * $facenorm->[$_]);
+    } (0..2) ];
+    #print Dumper($testnorm);
+  }
+  #print "final norm for group:\n";
+  #$testnorm = normalize_vector($testnorm);
+  return $testnorm;
+}
+
+
+##############################################################
+# test whether a particular edge bounds a smoothing island
+#
+sub boundary_check {
+  my ($pgs, $edge_idx, $edge_faces, $edge_endpoints) = @_;
+  #print "edge boundary: $edge_idx\n";
+  my $ef = $edge_faces->[$edge_idx];
+  if (scalar @{$ef} < 2) { return 1; }
+  my $ep = $edge_endpoints->[$edge_idx];
+  #print Dumper($ef);
+  #print Dumper($ep->[0]);
+  #print Dumper($ep->[1]);
+  #print Dumper($pgs->{$ep->[0]});
+  #print Dumper($pgs->{$ep->[1]});
+  if ((!defined($pgs->{$ep->[0]}) || scalar @{$pgs->{$ep->[0]}} < 2) &&
+      (!defined($pgs->{$ep->[1]}) || scalar @{$pgs->{$ep->[1]}} < 2)) { return 0; }
+  my ($ega, $egb) = ([], []);
+  defined($pgs->{$ep->[0]}) and $ega = [ @{$pgs->{$ep->[0]}} ];
+  defined($pgs->{$ep->[1]}) and $egb = [ @{$pgs->{$ep->[1]}} ];
+  #print "ega ".Dumper($ega);
+  #print Dumper([
+  #  grep { scalar(grep { $ef->[0] == $_ } @{$ega->[$_]}) ||
+  #         scalar(grep { $ef->[1] == $_ } @{$ega->[$_]}) } keys @{$ega}
+  #]);
+  if (scalar(
+    grep { scalar(grep { $ef->[0] == $_ } @{$ega->[$_]}) ||
+           scalar(grep { $ef->[1] == $_ } @{$ega->[$_]}) } keys @{$ega}
+  ) > 1) { return 1; }
+  if (scalar(
+    grep { scalar(grep { $ef->[0] == $_ } @{$egb->[$_]}) ||
+           scalar(grep { $ef->[1] == $_ } @{$egb->[$_]}) } keys @{$egb}
+  ) > 1) { return 1; }
+  return 0;
+}
+
+
+##############################################################
+# based on Math::Subsets::List
+# but different because it just returns a set of combinations
+# so we can actually return/next out of it reasonably
+sub combinations {
+  my $l = 0;
+  my @p = ();
+  my @P = @_;
+  my $n = scalar(@P);
+  my $list = [];
+
+  # limit of 12 here is semi-reasonable for a precomputed factorial list
+  # 12 takes < 1 second, 14 takes 12 seconds, more...
+  if ($n > 16) {
+    print "Truncated $n! combinations needed...\n";
+    $n = 16;
+  }
+
+  my $p; $p = sub {
+    if ($l < $n) {
+      ++$l;
+      &$p();
+      push @p, $P[$l-1];
+      &$p();
+      pop @p;
+      --$l
+    } elsif (scalar(@p)) {
+      #print "$l \n";
+      #print "p @p\n";
+      #$list = [ @{$list}, [ @p ] ];
+      push(@{$list}, [ @p ]);
+    }
+    return $list;
+  };
+  $list = &$p;
+  $p = undef;
+
+  return @{$list};
+}
+
+
+##############################################################
+# reduce vector diff to single float score
+sub score_vector {
+  my ($test_vector, $ref_vector) = @_;
+  my $score = 0.0;
+  my $work = [ 0.0 x scalar(@{$ref_vector}) ];
+  for my $test_key (0..scalar(@{$ref_vector}) - 1) {
+    if (!defined($test_vector->[$test_key])) {
+      last;
+    }
+    $work->[$test_key] = abs($ref_vector->[$test_key] - $test_vector->[$test_key]);
+  }
+  map { $score += $_ } @{$work};
+  return $score;
+}
+
+
+##############################################################
 #read in a binary model
 #
 sub readbinarymdl
@@ -825,155 +1022,6 @@ sub readbinarymdl
         #}
         # for every vertex position
         # patch: mesh, vertex, smoothinggroups, faces, smoothedpatches, smoothinggroupnumbers
-        my $patch_normal = sub {
-          my ($pos_data, $mode) = @_;
-          #print Dumper(keys %model);
-          #print Dumper($pos_data);
-          if (!defined($mode)) {
-            # mode = area, angle, both, none
-            $mode = 'area';
-          }
-          my $vertnorm = $model{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
-          my $testnorm = [ 0.0, 0.0, 0.0 ];
-          for my $face_index (@{$pos_data->{faces}}) {
-            # this one is normalized...
-            my $facenorm = [
-              @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2]
-            ];
-#            my $facenorm = facenormal(
-#              @{$model{nodes}{$pos_data->{mesh}}{verts}}[
-#                @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
-#              ]
-#            );
-            my $facearea = 1.0;
-            if ($mode eq 'area' || $mode eq 'both') {
-              $facearea = facearea(
-                @{$model{nodes}{$pos_data->{mesh}}{verts}}[
-                  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
-                ]
-              );
-            }
-            my $angle = 1.0;
-            if ($mode eq 'angle' || $mode eq 'both') {
-              if (vertex_equals(
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
-                ], 4
-              )) {
-                $angle = compute_vertex_angle(
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
-                  ]
-                );
-              } elsif (vertex_equals(
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
-                ], 4
-              )) {
-                $angle = compute_vertex_angle(
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
-                  ]
-                );
-              } elsif (vertex_equals(
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[$pos_data->{vertex}],
-                $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                  $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
-                ], 4
-              )) {
-                $angle = compute_vertex_angle(
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][10]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][8]
-                  ],
-                  $model{'nodes'}{$pos_data->{mesh}}{transform}{'verts'}[
-                    $model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index][9]
-                  ]
-                );
-              }
-            }
-            #print Dumper($facenorm);
-            #print Dumper([
-            #  @{$model{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
-            #]);
-            #printf("mesh %u face %u area %.5g\n", $pos_data->{mesh}, $face_index, $facearea);
-            $testnorm = [ map {
-              $testnorm->[$_] += ($facearea * $angle * $facenorm->[$_]);
-            } (0..2) ];
-            #print Dumper($testnorm);
-          }
-          #print "final norm for group:\n";
-          #$testnorm = normalize_vector($testnorm);
-          return $testnorm;
-        };
-        sub score_vector {
-          my ($test_vector, $ref_vector) = @_;
-          my $score = 0.0;
-          my $work = [ 0.0 x scalar(@{$ref_vector}) ];
-          for my $test_key (0..scalar(@{$ref_vector}) - 1) {
-            if (!defined($test_vector->[$test_key])) {
-              last;
-            }
-            $work->[$test_key] = abs($ref_vector->[$test_key] - $test_vector->[$test_key]);
-          }
-          map { $score += $_ } @{$work};
-          return $score;
-        }
-        # based on Math::Subsets::List
-        # but different because it just returns a set of combinations
-        # so we can actually return/next out of it reasonably
-        sub combinations {
-          my $l = 0;
-          my @p = ();
-          my @P = @_;
-          my $n = scalar(@P);
-          my $list = [];
-
-          # limit of 12 here is semi-reasonable for a precomputed factorial list
-          # 12 takes < 1 second, 14 takes 12 seconds, more...
-          if ($n > 16) {
-            print "Truncated $n! combinations needed...\n";
-            $n = 16;
-          }
-
-          my $p; $p = sub {
-            if ($l < $n) {
-              ++$l;
-              &$p();
-              push @p, $P[$l-1];
-              &$p();
-              pop @p;
-              --$l
-            } elsif (scalar(@p)) {
-              #print "$l \n";
-              #print "p @p\n";
-              #$list = [ @{$list}, [ @p ] ];
-              push(@{$list}, [ @p ]);
-            }
-            return $list;
-          };
-          $list = &$p;
-          $p = undef;
-
-          return @{$list};
-        };
-
         my $protogroups = {};
         for my $vert_key (keys %{$face_by_pos}) {
           if (scalar(@{$face_by_pos->{$vert_key}}) == 1) {
@@ -985,7 +1033,7 @@ sub readbinarymdl
           if (!defined($protogroups->{$vert_key})) {
             $protogroups->{$vert_key} = [];
           }
-          my $patchnorms = [ map { &$patch_normal($_) } @{$face_by_pos->{$vert_key}} ];
+          my $patchnorms = [ map { &patchnormal(\%model, $_) } @{$face_by_pos->{$vert_key}} ];
           my $poskey_combos = [
             # make sure all is always first, even if it considered twice
             [ keys @{$face_by_pos->{$vert_key}} ],
@@ -1085,38 +1133,6 @@ sub readbinarymdl
           #]);
         }
 
-      sub boundary_check {
-        my ($pgs, $edge_idx, $edge_faces) = @_;
-        #print "edge boundary: $edge_idx\n";
-        my $ef = $edge_faces->[$edge_idx];
-        if (scalar @{$ef} < 2) { return 1; }
-        my $ep = $edge_endpoints->[$edge_idx];
-        #print Dumper($ef);
-        #print Dumper($ep->[0]);
-        #print Dumper($ep->[1]);
-        #print Dumper($pgs->{$ep->[0]});
-        #print Dumper($pgs->{$ep->[1]});
-        if ((!defined($pgs->{$ep->[0]}) || scalar @{$pgs->{$ep->[0]}} < 2) &&
-            (!defined($pgs->{$ep->[1]}) || scalar @{$pgs->{$ep->[1]}} < 2)) { return 0; }
-        my ($ega, $egb) = ([], []);
-        defined($pgs->{$ep->[0]}) and $ega = [ @{$pgs->{$ep->[0]}} ];
-        defined($pgs->{$ep->[1]}) and $egb = [ @{$pgs->{$ep->[1]}} ];
-        #print "ega ".Dumper($ega);
-        #print Dumper([
-        #  grep { scalar(grep { $ef->[0] == $_ } @{$ega->[$_]}) ||
-        #         scalar(grep { $ef->[1] == $_ } @{$ega->[$_]}) } keys @{$ega}
-        #]);
-        if (scalar(
-          grep { scalar(grep { $ef->[0] == $_ } @{$ega->[$_]}) ||
-                 scalar(grep { $ef->[1] == $_ } @{$ega->[$_]}) } keys @{$ega}
-        ) > 1) { return 1; }
-        if (scalar(
-          grep { scalar(grep { $ef->[0] == $_ } @{$egb->[$_]}) ||
-                 scalar(grep { $ef->[1] == $_ } @{$egb->[$_]}) } keys @{$egb}
-        ) > 1) { return 1; }
-        return 0;
-      }
-
       my $poly_groups = [];
       my $poly_stack = [];
       my $poly_prev = 0;
@@ -1160,7 +1176,7 @@ sub readbinarymdl
           for my $me_idx (@{$mp}) {
             #print "me: $me_idx\n";
             $map_ele = $edge_faces->[$me_idx];
-            if (!boundary_check($protogroups, $me_idx, $edge_faces)) {
+            if (!boundary_check($protogroups, $me_idx, $edge_faces, $edge_endpoints)) {
               #print "not boundary $me_idx\n";
               for my $p (@{$map_ele}) {
                 #print "p $p $poly_group_id $ps_end_idx\n";
