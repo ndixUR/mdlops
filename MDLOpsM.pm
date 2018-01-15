@@ -8668,7 +8668,7 @@ sub readasciiwalkmesh {
     # get vertices
     if (!$parsing->{vertices} &&
         $line =~ /(?:^|\s+)verts\s+(\d+)/) {
-      $parsing->{vertices} = $1;
+      $parsing->{vertices} = int($1);
       next;
     }
     if ($parsing->{vertices} &&
@@ -8683,7 +8683,7 @@ sub readasciiwalkmesh {
     # get faces and types (material)
     if (!$parsing->{faces} &&
         $line =~ /(?:^|\s+)faces\s+(\d+)/) {
-      $parsing->{faces} = $1;
+      $parsing->{faces} = int($1);
       next;
     }
     if ($parsing->{faces} &&
