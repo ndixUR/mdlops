@@ -9629,11 +9629,10 @@ sub writebinarywalkmesh {
   print($fh pack('L', $walkmesh->{header}{type}));
   if ($walkmesh->{header}{type}) {
     # wok file
-    print($fh pack('f[12]', 0 x 13));
+    print($fh pack('f[12]', 0 x 12));
   } elsif ($walkmesh->{header}{type_readable} eq 'pwk') {
     # pwk file
     print($fh pack('f[12]',
-      0,
       defined($walkmesh->{header}{use01}) ? @{$walkmesh->{header}{use01}} : (0, 0, 0),
       defined($walkmesh->{header}{use02}) ? @{$walkmesh->{header}{use02}} : (0, 0, 0),
       0 x 6
@@ -9641,7 +9640,6 @@ sub writebinarywalkmesh {
   } elsif ($walkmesh->{header}{type_readable} eq 'dwk') {
     # dwk file
     print($fh pack('f[12]',
-      0,
       defined($walkmesh->{header}{points}) ? @{$walkmesh->{header}{points}} : (0 x 12),
     ));
   }
