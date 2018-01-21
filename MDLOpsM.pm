@@ -1,7 +1,7 @@
 #! perl
 #
 ###########################################################
-# MDLOpsM.pm version 1.0.0
+# MDLOpsM.pm version 1.0.1
 # Copyright (C) 2004 Chuck Chargin Jr. (cchargin@comcast.net)
 #
 # (With some changes by JdNoa (jdnoa@hotmail.com) between
@@ -82,6 +82,13 @@
 #                           Unicode path/filename support
 #                           Many more small fixes and features
 #
+# January, 2017:        Version 1.0.1
+#                           Fixed compression and decompression of quaternions
+#                           Fixed axis-angle to quaternion conversion
+#                           Fixed walkmesh use point encoding, off-by-one
+#                           Fixed ascii walkmesh node naming
+#                           Fixed walkmesh compatibility with mdledit/kmax
+#
 ##########################################################
 # MUCH MUCH MUCH thanks to Torlack for his NWN MDL info!
 # without that this script could not exist!
@@ -112,7 +119,7 @@ BEGIN {
   our @EXPORT = qw(modeltype readbinarymdl writeasciimdl readasciimdl writebinarymdl buildtree writerawbinarymdl replaceraw modelversion);
   our @ISA = qw(Exporter);
   use vars qw($VERSION);
-  $VERSION = '1.0.0';
+  $VERSION = '1.0.1';
 }
 
 #use Time::HiRes qw(usleep ualarm gettimeofday tv_interval);
