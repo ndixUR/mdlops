@@ -8672,7 +8672,7 @@ sub readasciiwalkmesh {
       next;
     }
     # get position
-    if ($line =~ /(?:^|\s+)position\s+(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/i) {
+    if ($line =~ /(?:^|\s+)position\s+([-e.\d]+)\s+([-e.\d]+)\s+([-e.\d]+)/i) {
       $walkmesh->{header}{position} = [ $1, $2, $3 ];
       next;
     }
@@ -8683,7 +8683,7 @@ sub readasciiwalkmesh {
       next;
     }
     if ($parsing->{vertices} &&
-        $line =~ /(-?[.\d]+)\s+(-?[.\d]+)\s+(-?[.\d]+)/) {
+        $line =~ /([-e.\d]+)\s+([-e.\d]+)\s+([-e.\d]+)/i) {
       # add the vertex to the list
       $walkmesh->{verts} = [
         @{$walkmesh->{verts}}, [ $1, $2, $3 ]
