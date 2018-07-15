@@ -516,13 +516,19 @@ sub patchnormal {
     # mode = area, angle, both, none
     $mode = 'area';
   }
-  my $vertnorm = $model->{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}];
+  # translate to world space orientation
+  my $vertnorm = &quaternion_apply(
+    $model->{nodes}{$pos_data->{mesh}}{transform}{orientation},
+    $model->{nodes}{$pos_data->{mesh}}{vertexnormals}[$pos_data->{vertex}]
+  );
   my $testnorm = [ 0.0, 0.0, 0.0 ];
   for my $face_index (@{$pos_data->{faces}}) {
     # this one is normalized...
-    my $facenorm = [
+    # translate to world space orientation
+    my $facenorm = &quaternion_apply(
+      $model->{nodes}{$pos_data->{mesh}}{transform}{orientation},
       @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2]
-    ];
+    );
 #            my $facenorm = facenormal(
 #              @{$model->{nodes}{$pos_data->{mesh}}{verts}}[
 #                @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[8..10]
@@ -5376,6 +5382,7 @@ sub readasciimdl {
             next;
         }
         $model{nodes}{$i}{rawfacenormals} = [];
+        $model{nodes}{$i}{worldfacenormals} = [];
 
         # If the node has a mesh and isn't a saber, calculate the face plane normals and plane distances
         if (($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_MESH) && !($model{'nodes'}{$i}{'nodetype'} & NODE_HAS_SABER))
@@ -5420,6 +5427,10 @@ sub readasciimdl {
                 # Check for $norm being 0 to prevent illegal division by 0...
                 $model{'nodes'}{$i}{'rawfacenormals'}[$count] = [ $xpx, $xpy, $xpz ];
                 $model{'nodes'}{$i}{'facenormals'}[$count] = normalize_vector([ $xpx, $xpy, $xpz ]);
+                $model{'nodes'}{$i}{'worldfacenormals'}[$count] = &quaternion_apply(
+                  $model{'nodes'}{$i}{transform}{orientation},
+                  $model{'nodes'}{$i}{'facenormals'}[$count]
+                );
 
                 if ($norm != 0)
                 {
@@ -5656,7 +5667,7 @@ sub readasciimdl {
                     if ($options->{use_crease_angle} && $vertnorm_initialized &&
                         #compute_vector_angle($model{'nodes'}{$meshA}{'facenormals'}[$faceA],
                         compute_vector_angle($model{'nodes'}{$i}{'vertexnormals'}{$work},
-                                             $model{'nodes'}{$meshB}{'facenormals'}[$faceB]) > $options->{crease_angle}) {
+                                             $model{'nodes'}{$meshB}{'worldfacenormals'}[$faceB]) > $options->{crease_angle}) {
                         if ($model{'nodes'}{$meshA}{'render'}) {
                             # crease angle to use can vary per-model,
                             # when it is even desireable
@@ -5664,7 +5675,7 @@ sub readasciimdl {
                                 "skipped %s accumulation \@%.4g,%.4g,%.4g with crease angle: % .7g\n",
                                 $model{'partnames'}[$meshA], @{$model{'nodes'}{$i}{'verts'}[$work]},
                                 compute_vector_angle($model{'nodes'}{$i}{'vertexnormals'}{$work},
-                                                     $model{'nodes'}{$meshB}{'facenormals'}[$faceB])
+                                                     $model{'nodes'}{$meshB}{'worldfacenormals'}[$faceB])
                             );
                             next;
                         }
@@ -5684,16 +5695,31 @@ sub readasciimdl {
                         vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv1, 4))
                     {
                         $angle = compute_vertex_angle($bv1, $bv2, $bv3);
+                        printf(
+                          "mesh %s face %u vert %u (%.3f,%.3f,%.3f) angle %f\n",
+                          $model{'partnames'}[$meshB], $faceB, $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[8],
+                          @{$bv1}, $angle
+                        ) if $printall;
                     }
                     elsif ($options->{weight_by_angle} &&
                            vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv2, 4))
                     {
                         $angle = compute_vertex_angle($bv2, $bv1, $bv3);
+                        printf(
+                          "mesh %s face %u vert %u (%.3f,%.3f,%.3f) angle %f\n",
+                          $model{'partnames'}[$meshB], $faceB, $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[9],
+                          @{$bv2}, $angle
+                        ) if $printall;
                     }
                     elsif ($options->{weight_by_angle} &&
                            vertex_equals($model{'nodes'}{$i}{transform}{'verts'}[$work], $bv3, 4))
                     {
                         $angle = compute_vertex_angle($bv3, $bv1, $bv2);
+                        printf(
+                          "mesh %s face %u vert %u (%.3f,%.3f,%.3f) angle %f\n",
+                          $model{'partnames'}[$meshB], $faceB, $model{'nodes'}{$meshB}{'Bfaces'}[$faceB]->[10],
+                          @{$bv3}, $angle
+                        ) if $printall;
                     }
                     if ($options->{weight_by_angle} && $angle == -1) {
                         # if angle does not get computed, this is usually a miss
@@ -5707,15 +5733,15 @@ sub readasciimdl {
                     # apply angle & area weight to faceB surface normal and
                     # accumulate the x, y, and z components of the vertex normal vector
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[0] += (
-                        $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[0] * $area * $angle
+                        $model{'nodes'}{$meshB}{'worldfacenormals'}[$faceB]->[0] * $area * $angle
                         #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[0] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[1] += (
-                        $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[1] * $area * $angle
+                        $model{'nodes'}{$meshB}{'worldfacenormals'}[$faceB]->[1] * $area * $angle
                         #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[1] * $area * $angle
                     );
                     $model{'nodes'}{$i}{'vertexnormals'}{$work}->[2] += (
-                        $model{'nodes'}{$meshB}{'facenormals'}[$faceB]->[2] * $area * $angle
+                        $model{'nodes'}{$meshB}{'worldfacenormals'}[$faceB]->[2] * $area * $angle
                         #$model{'nodes'}{$meshB}{'rawfacenormals'}[$faceB]->[2] * $area * $angle
                     );
                     # accumulate the x, y, and z components of the face tangent and bitangent vectors for tangent space
@@ -5745,6 +5771,17 @@ sub readasciimdl {
             $model{'nodes'}{$i}{'vertexnormals'}{$work} = normalize_vector(
                 $model{'nodes'}{$i}{'vertexnormals'}{$work}
             );
+            # convert normal vector from world space to object space,
+            # if this node has a 'non-zero' world orientation
+            if ($model{'nodes'}{$i}{transform}{orientation}[0] != 0.0 ||
+                $model{'nodes'}{$i}{transform}{orientation}[1] != 0.0 ||
+                $model{'nodes'}{$i}{transform}{orientation}[2] != 0.0) {
+              $model{'nodes'}{$i}{'vertexnormals'}{$work} = &quaternion_apply(
+                  [ map { -1.0 * $_ } @{$model{'nodes'}{$i}{transform}{orientation}}[0..2],
+                    $model{'nodes'}{$i}{transform}{orientation}[3] ],
+                  $model{'nodes'}{$i}{'vertexnormals'}{$work}
+              );
+            }
             if (defined($model{'nodes'}{$i}{'vertextangents'}) &&
                 defined($model{'nodes'}{$i}{'vertextangents'}[$work])) {
                 # construct the MDX-ready representation of the tangent space data
