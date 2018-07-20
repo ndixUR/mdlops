@@ -3593,6 +3593,7 @@ sub vertex_equals {
     $precision = 6;
   }
   my $max_diff = 10 ** (0 - $precision);
+  $max_diff *= 5.0;
 
   my $size = scalar(@{$vert1});
 
