@@ -1,0 +1,19 @@
+{
+   "generateaabb" : "1",
+   "creaseangle" : "60",
+   "extract_anims" : "1",
+   "reqversion" : "k2",
+   "use_asc_ext" : "0",
+   "convertbezier" : "0",
+   "weightarea" : "1",
+   "smoothgroups" : "1",
+   "headfix" : "0",
+   "option_mode" : "readbinary",
+   "use_opt_file" : 1,
+   "weightangle" : "0",
+   "convertskin" : "0",
+   "weld_model" : "0",
+   "validateverts" : "1",
+   "usecrease" : "0",
+   "convertsaber" : "1"
+}
