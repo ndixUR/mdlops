@@ -1,0 +1,99 @@
+model steps
+
+
+I will be using g_w_blstrcrbn001 (default Blaster Carbine in-game) as an example:
+
+1) Use Kotor Tool and extract w_blstrcrbn_001.mdl and w_blstrcrbn_001.mdx from the items.bif in KotOR 1 or the models.bif in KotOR 2.
+
+2) Use MDLOps to Read-and-Write the .mdl and .mdx to convert the model to an ascii .mdl, w_blstrcrbn_001-ascii.mdl.
+
+3) Start up GMax or 3DSMax and expand the utils panel on NWMax.
+
+4) Click "Set Environ" to initialize default scaling and other settings.
+
+5) Import the w_blstrcrbn_001-ascii.mdl.
+
+6) Import your custom model into GMax/3DSMax (make sure your part names do NOT have spaces in them) or start building the model on the fly using the old default to judge size, length of a barrel, width of the grip, ect…
+
+7) Scale, rotate, and position your mesh compared to the model from w_blstrcrbn_001-ascii.mdl.
+
+8) Carefully segment your model for UV mapping (go to Editable Mesh and, using the polygon sub object, select logical parts of your model and hit "Detach", then either *check "Detach to element"* for single piece models and un-check to create multi-piece models. Detach all parts of your model into logical groups that will be easier for skinning/texturing it.
+
+9) Apply a uvw mapping modifier to each part of the model if it’s a multi part model or, if you have a solid single piece model, to the one piece using planar and fit on the axis best suited for that model.
+
+10) Then apply an "Unwrap UVW" modifier to the model, go to the sub objects level of the Unwrap UVW modifier, select "Faces", and start selecting the model in the exact same way as you segmented it. For each part of the model selected, choose the axis that suits you the best and apply planar mapping. Move all the parts out of the way of the center to make your work easier. Select the next set of polys, carefully making sure you don’t select polys on the opposite side of the model, and hit planar on whatever axis looks best. Then repeat until there are no faces or vertices left over. Using different axes for this will help for your skin/texture work.
+
+11) Identical parts you want mapped the same should be laid out on top of each other to save some room on the uvmap. Place everything back in a logical manner (easiest to skin/texture) inside the border area of the Edit UVW window, and scale, rotate, flip ect. as needed to fit every UV into the boarder. Things with lots of detail leave at a larger scale; those with less or that you plan on applying only shader effects to can be much smaller in size. Of course, this also has to do with your design to begin with so from segmenting to skinning you have to plan this all out carefully.
+
+Hit print screen to get the uv map copied to your clipboard, and then paste it into your texturing program (GIMP, Photoshop, .etc).
+
+Now to make your skin...
+
+Images have to have a  1:1 width-to-height ratio and each side has to to be divisible by 2 -- 128x128, 256x256, 512x512, .etc
+
+12) Delete the following parts from w_blstrcrbn_001-ascii.mdl in GMax/3DSMax:
+   - bstrcrbn
+   - object02
+   - object03
+   - object04
+   - object05
+
+  DO NOT DELETE the following parts:
+   - bullethook
+   - muzzlehook
+   - w_blstrcrbn_001
+   - ignore_NGon01
+
+13) If your model has multiple meshes, choose one as the "main" piece.
+    Use the "Select and link" tool to link your main piece to
+    w_blstrcrbn_001 (big green 3D rectangular cube next to the blue triangle).
+
+14) Use the "Select and link" tool to link the rest of your pieces to your main piece.
+
+15) Use the "Select and link" tool to link "bullethook" and "muzzlehook"
+    to the part of your model that has the barrel tip.
+
+16) Position "bullethook" and "muzzlehook" at the end of the barrel.
+
+17) Select each piece of your mesh and apply the "Aurora Trimesh" modifier.
+
+18) Select ALL of the objects in your scene and click "ResetXForm" on the "Mesh Tools" panel of NWMax.
+
+19) Save your GMax/3DSMax file.
+
+20) Make sure nwsnoop is running (you should see a nwmax icon in your system tray).*
+    If it is not running then look for gmax\scripts\nwmax\nwmax.exe and run it.
+
+*   ONLY in GMax!!! You won’t see this in 3DSMax but don’t fret; it is running.
+
+21) Select the w_blstrcrbn_001 object (the Aurora Base), rename it to "w_blstrcrbn_001-ascii", and click on the modify tab. In the
+    "MDL Base Parameters" rollout, click "Export Geom only".
+
+22) Look in gmax\meshes and you should see the ascii .mdl output from nwmax+gmax.
+
+    Or your ascii .mdl might be output into the directory you loaded the original
+    ascii .mdl from.
+
+23) Open your ascii .mdl file in a text editor, and use the Replace feature to replace "w_blstrcrbn_001-ascii" with "w_blstrcrbn_001" and then save the file.*
+
+*   This is because NWMax will save the file as the name of the Aurora Base with ".mdl" added onto the end, which would overwrite your binary .mdl file in the process...
+
+24) If any parts of your model should have transparency then these setting have to be set in the materials Opacity of your object.
+    
+25) If you want any of the model parts to cast a shadow find the part in the ascii mdl and add "shadow 1" before the "bitmap" entry. Be careful with adding shadows in most cases they will be torn and very ugly; the devs used scripts to correct that issue -- something we don’t have the luxury of... :(
+
+26) Use MDLOps to convert the ascii .mdl into binary .mdl and .mdx by hitting Read and Write on your extracted ascii-mdl.
+
+27) Copy the binary .mdl and .mdx to the Override folder.
+
+28) Copy your texture(s) and, if needed, shader info files (AKA your .txi files) to the Override folder.
+
+29) Run the game, give yourself the item, and hope that the game does not crash. :)
+
+/////////////////////////////////////////////////////////////////////////////////
+How to make an item in Kotor check this thread                                  /
+http://www.lucasforums.com/showthread.php?s=&threadid=132253                    /
+                                                                                /
+How to make just about everything for Kotor [ still some model restrictions ]   / 
+http://www.lucasforums.com/showthread.php?s=&threadid=124284                    /
+/////////////////////////////////////////////////////////////////////////////////

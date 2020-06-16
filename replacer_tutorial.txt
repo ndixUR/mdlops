@@ -1,0 +1,45 @@
+Right now the replacer only works with trimeshes.
+
+1) Get a lightsaber from kotor into GMax/3DSMax (you know how to do this).
+2) Rename the hilt something else like "old".
+3) Take note of the old hilt's parent node (may be something like dummy27).
+4) Unlink the "old" hilt so that its parent is "scene root".
+5) Make your lightsaber (many steps omitted for brevity ;)  ).
+6) Position your new lightsaber so that the top of your hilt
+   is even with the top of the original hilt.
+7) Position the pivot point of your light saber to have the
+   same coordinates and rotation as the original hilt.
+     a) Select your lightsaber and then click the "heirarchy" tab.
+     b) Make sure "pivot" is selected then click "affect pivot only"
+     c) Click the "align" button on the top  tool bar and then click the "old" hilt.
+     d) In the align window make sure the following options are selected:
+         Align position: x position.
+         Align position: y position.
+         Align position: z position.
+         Align position: current object: Pivot point.
+         Align position: target object: Pivot point.
+         Align orientation: X axis.
+         Align orientation: Y axis.
+         Align orientation: Z axis.
+     e) Click OK.
+     f) Click on "Affect Pivot Only" to turn it off.
+8) Select your saber then click the "ResetXForm" button in the NWMax "Mesh tools" section.
+9) You can re-link the blades and the dummies, but it is not necessary.
+10) Link your new saber mesh to the old hilts parent (from step 3).
+11) Export.
+
+1) Fire up MDLOps 0.7. You will see a button that says "Replacer"; click it.
+2) Click the "binary model" button and find the binary .mdl
+    of the lightsaber you started with. Select it and click "open".
+3) Click the "ascii model" buttom and find the ascii .mdl
+    you exported. Select it and click "open".
+4) Click "read models".
+5) You will see a window listing all of the trimesh items in the binary .mdl.
+   Select the hilt and then click "set replace target".
+6) A new window will open listing all of the trimesh items in the ascii .mdl
+   Select your new hilt and then click "select target".
+7) Now click the "Do it!" button.
+8) The new binary .mdl and .mdx with your hilt will be placed in the same
+    directory as the original binary .mdl and .mdx.  The files will be named
+    <model>-rbin.mdl and <model>-rbin.mdx.
+9) Rename the files, move to the Override folder, load the game, and hope it doesn't crash. ;) 

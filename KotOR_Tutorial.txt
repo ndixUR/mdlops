@@ -1,0 +1,142 @@
+This will show you how to convert the Tenloss Disruptor Rifle from Jedi Academy for KotOR using cchargin’s tutorial. I'm going to assume you have downloaded and installed all of these before beginning. You probably have most of this stuff. I'm also assuming you have cheats activated.
+
+-------------------------------------------------------------------------------
+Tools:
+-------------------------------------------------------------------------------
+MilkShape 3D 1.7.1:
+http://www.swissquake.ch/chumbalum-soft/index.html
+
+gmax 1.2:
+http://www.turbosquid.com/gmax
+
+NWmax 0.7 gmax Installer (I suggest you install the patch to be safe)
+http://nwmax.dladventures.com/
+
+WinRAR:
+http://www.rarlab.com/download.htm
+
+MDLOps Version 0.7:
+http://cchargin.home.comcast.net/kotor
+
+Kotor Tool:
+http://kotortool.home.comcast.net
+
+Photoshop CS Demo:
+http://www.adobe.com/support/downloads/main.html
+
+-------------------------------------------------------------------------------
+Get all the files:
+-------------------------------------------------------------------------------
+1. Go to your Jedi Academy main folder, GameData, and then base.
+
+2. Double-click on assets1.pk3 (WinRAR should open it for you.) Go to models/weapons2/disruptor. Leave the directory WinRAR selected. Click "Extract To" and then press "OK". You should now have a new folder in "base" named "assets1".
+
+3. Double-click on assests1/models/weapons2/disruptor. Copy "disruptor_w.glm" and "disruptor_w.jpg" to your Desktop.
+
+4. Open up Kotor Tool. Click on the (+) next to "BIFs". Now go to "items.bif" then "Aurora Model". Click on "w_blstrrfl_001.mdl" and then click "Extract" to save it to your Desktop. Click the (-) next to Aurora Model to close it and now click the (+) next to "mdx". Click on "w_blstrrfl_001.mdx" and extract that to the Desktop as well. Next, go to "templates.bif" (still under "BIFs"), then "Blueprint,Item" Find "g_w_blstrrfl001.uti" and click on it. Extract it to your Desktop. Close Kotor Tool.
+
+-------------------------------------------------------------------------------
+Prepare the files:
+-------------------------------------------------------------------------------
+1. Open up MDLOps and click "Select File". Look for you Desktop. Double-click on "w_blstrrfl.mdl". Now, click on "Read and write model". You should now have two new files on your Desktop that MDLOps created, "w_blstrrfl_001-textures.txt" and "w_blstrrfl_001-ascii.mdl".
+
+2. Open "disruptor_w.jpg" with Photoshop CS. Go to File, and then Save As. Leave the name the same. In the box under "File name" there is "Format". Click on it and set this to "Targa". Save the file to your Desktop. When the "Targa Options" dialog box comes up, click on "32 bits/pixel" and click "OK". Close Photoshop CS.
+
+3. Now for the "disruptor_w.glm" file. Open MilkShape 3D. Click "File", "Import", "Ghoul2 Model GLM...". Look for your Desktop and find "disruptor_w.glm" then double-click on it. When the "Ghoul2 Model Import Options" dialog box comes up, click "Import". Now, click on "File", "Export", "Autodesk 3DS...". Click on the box with the two arrows [>>] and find your Desktop. Save the file as "gun.3ds". Now, click "OK". Close MilkShape. When it asks you if you want to save the file, click "No".
+
+-------------------------------------------------------------------------------
+Apply texture and convert:
+-------------------------------------------------------------------------------
+1. Double-click on the green and black "NWx" shortcut on your Desktop for NWmax. This will open up gmax with NWmax running. To make things easier, double-click on "Float Speedbar" under the "General Utils" menu to dock the menu instead of having it float around. Just click on the titles to open and close them. Make sure "NWmax Snoop 0.7" is running in your taskbar.
+
+2. Under the "General Utils" title click the "Set Environ" button. Now click on the "MDL Loading" title to open it. Next, click the "Browse" button under "Filename" and find your Desktop. Double-click on "w_blstrrfl_001-ascii.mdl". Make sure "Import Geom Only" is checked. Click "Import".
+
+3. On the main gmax file menu, click "File" then "Import...". Find your Desktop. Make sure "Files of type:" is set to "3D Studio Mesh (*.3DS,*.PRJ)". Double-click on "gun.3ds" Leave the "3DS Import" dialog box as it is and click "OK" and then "Yes" on the next.
+
+4. A couple things about the models. Everything on the screen has a name. You can see all of them by pressing the "H" key. Some meshes are in multiple pieces. When you apply something to the entire model, you need to make sure you select all the pieces of that model. For example, the disruptor model we imported is in two pieces: "w_barrel" and "w_handle". You can make sure you get only one complete model at a time by going to the gmax file menu and clicking "Edit", "Select By", then "Color". Then, click on the disruptor (which will be a random color gmax applies.) Both pieces will be that color. The original KotOR model will most likely be white. Just be careful you are selecting only what you want.
+
+Things to remember:
+
+Never delete or move the Aurora Base (w_BlstrRfl_001)
+Never delete or move ignore_NGon01
+Never delete bullethook
+
+5. You should apply the texture now so you get a better idea of what the model will look like. To make it easier, hide what you are not working with at the moment. Select both pieces of the disruptor model and right-click and choose "Hide Unselected" in the Quad-Menu that pops up.
+
+6. Making sure all the disruptor pieces are selected, click on the little "red ball" icon on the gmax toolbar to open the "gmax Material Editor". Click "New". When the "New Material" dialog box comes up, double-click "Standard". To make sure the texture is bright enough in KotOR, click on the box next to "Ambient". This will bring up the "Color Selector". In the box under "Whiteness", drag the arrow all the way down until the right half of the box to the right turns pure white. Click "Close" after you are done. 
+
+7. Next, you need to click on the "Maps" title to open it. Check the box next to "Diffuse Color" and click the "None" button next to it. On the next window, double-click on "Bitmap" and look for "disruptor_w.jpg" (or disruptor_w.tga, it doesn't matter) and double-click that. Click the little blue and white checkered box ("Show Map in Viewport") and click "Apply". Close this window. To get a good view of the model texture, click the "Arc Rotate" button in the bottom right corner of the screen and click in the "Perspective" window. Put the cursor in the middle of the big yellow circle and move the mouse around to change the view. You can undo the move by pressing the right mouse button while still holding the left mouse button. I suggest that you don't mess with the "Top", "Left", and "Front" views. Zooming in and out with the scroll wheel is OK, but don't use "Arc Rotate". You need these views to stay the way they are.
+
+8. Right-click on the background and select "Unhide All" to bring everything back up. Now that your texture is applied, use the "Rotate", "Select and Uniform Scale", and "Move" tools to size the model and position it next to the original blaster rifle model. Think of where the hands are placed in the blaster rifle model in the game. Load up KotOR and use the giveitem cheat to give yourself the blaster rifle and make a note of the hand placement. Try to line up your new model's handle and barrel in the same places (those are generic gun terms, not the actual model names.) (If the hands go through the mesh, reload the output file that NWmax gives you when you're done and fix it.)
+
+9. When you are happy with the placement, delete the two pieces of the original blaster rifle ("BlstrRfl" and "Object01".) NOT "w_BlstrRfl_001"! That's your base.
+
+10. You need to link models with multiple meshes together. Use the "Select and Link" tool and click and hold on "w_barrel" and drag it into the "w_handle" piece. If you had more pieces, you would link them all to one main piece. Now link the "w_handle" piece to the base "w_BlstrRfl_001". After you're done with that, link the "bullethook" piece to the part of your model with the barrel. In our case it is "w_barrel".
+
+11. After you're done linking, position the "bullethook" at the end of the barrel tip. It doesn't matter if it overlaps the barrel tip.
+
+12. Select both pieces of the disruptor model and click the "Modify" tab in the top right corner. Click the "Modifier List" menu and scroll to the bottom and select the "AuroraTrimesh" modifier.
+
+13. Now, you're almost done. Select all the parts of the model (both pieces, the base, everything) and under the NWmax "Mesh Tools" title, click the "ResetXForm" button.
+
+
+Before doing the next step, create a new folder on your Desktop and name it "output". Extract the file there so you don't overwrite your original .mdl.
+
+
+14. When it is done, click on the base (w_BlstrRfl_001) and then click the "Modify Tab". Under "Export" and next to "Dir:" is where your file is going. If you loaded it from the Desktop, it should be the default directory. If you created the folder earlier, just add the folder name to the end of the path. It should be something like "C:/Documents and Settings/bneezy/Desktop/output/". When you're done typing that in, click the "Export Geom Only" button. Look in your "output" folder and it should be in there as "w_BlstrRfl_001.mdl".
+
+15. To make this useable by KotOR, you need to open MDLOps. Click "Select file", load your exported file, and then click "Read and write model". Don't mess with any of the check boxes. You should end up with two new files. "w_BlstrRfl_001-bin.mdl" and "w_BlstrRfl_001-bin.mdx". Delete the "-bin" from the file names.
+
+-------------------------------------------------------------------------------
+Replacing current weapon or making a new one:
+-------------------------------------------------------------------------------
+If you don't want this model to replace the original "w_blstrrfl_001", then you need to rename it and make a new .uti for it. If you look through the list of models with Kotor Tool, you can see the different models numbers. If you don't have any MODs installed, the first free model name for you to use for a blaster rifle is "w_blstrrfl_007". To be safe, just make this a really high number, like 55 or 99. So it would be "w_blstrrfl_099". If you want it to replace the original model, just keep the same name and it will override that model for every item that uses that model. Some weapons have the same model but different textures.
+
+-------------------------------------------------------------------------------
+Make a new .uti:
+-------------------------------------------------------------------------------
+1. Open up Kotor Tool and click on "File" then "Open GFF Files..." Look for the .uti you extracted earlier, "w_blstrrfl001.uti" and double-click on it.
+
+2. Change the "Model Variation" to 7.
+
+3. We're going to use the same naming scheme as the game (you can make it whatever you want, just make sure that the .uti filename, "Template ResRef", and "Tag" are all the same. Our file will be "g_w_blstrrfl011". You can set the price, stack size, description, etc while you're at it. Save this to your Desktop when you're finished.
+
+4. Search the forums to learn how to add custom properties and stats.
+
+-------------------------------------------------------------------------------
+Testing the weapon in KotOR:
+-------------------------------------------------------------------------------
+1. Copy your new .mdl and .mdx files, texture (TGA version), and .uti file into your "Override" folder in the main "SWKotOR" directory.
+
+2. Load a new game for troubleshooting purposes. Bring up the cheat console by pressing the (`) key and type "giveitem g_w_blstrrfl011".
+
+3. You should now have your new weapon. Look it over, and if you're not happy, load up gmax and make changes.
+
+-------------------------------------------------------------------------------
+How to make the weapon shiny:
+-------------------------------------------------------------------------------
+PrtyLizardJedi has a great tutorial on re-coloring textures and creating .txi files. Read it.
+
+-------------------------------------------------------------------------------
+How to make a custom icon:
+-------------------------------------------------------------------------------
+1. Take a screenshot of your model in gmax. Put the weapon in a diagonal position with the "Arc Rotate" tool so you can get a perfectly square shot of it. Right-click on "Perspective" in the top right corner of that view, and select “Show Grid” to unselect it. Make sure that nothing is selected (for example, there aren’t any white boxes around the models. Press "PrtScn" on the keyboard. If you want, you can make the current view full screen by pressing “W”. Then open up Photoshop CS. Press "Ctrl" + "N" to make a new file and hit the "Enter" key on the keyboard. The dimensions should already be set since the screenshot is on the clipboard.
+
+2. Press "M" to select the "Rectangular Marquee Tool" and hold down "Shift" and drag a perfect square around the weapon. Press "Ctrl" + "X" to cut out the selection.
+
+3. Press "Ctrl" + "N" again to make a new file, then hit "OK". Press "Ctrl" + "V" to paste it in.
+
+4. Press "W" to select the "Magic Wand Tool" and click on the background. It should all be selected around the weapon. Press "Shift" + "Ctrl" + "I" to inverse the selection. In the file menu, click "Select" and then "Save Selection...". Name it "Alpha 1".
+
+5. You should have a new alpha channel if you look under the "Channels" tab. It should be your weapon shape in white surrounded by black.
+
+6. In the file menu, click "Image" then "Image Size...". Set the "Height" and "Width" values to [64] [pixels], then click "OK".
+
+7. Save this as "iw_blstrrfl_007.tga" (32 bit). Make sure "Format" is set to "Targa" in Photoshop CS. Drop this icon in your "Override" folder.
+
+8. This icon will appear for every blaster rifle using the model variation of 7, which is what we created earlier.
+-------------------------------------------------------------------------------
+
+By the way, you don't need to do anything complicated for models that already have textures for them. Now, creating textures from scratch and Unwrapping them in gmax, I can't help you there.
+
+Feel free to contact me at bneezy@hotmail.com or at Holowan Laboratories, name: "bneezy".
