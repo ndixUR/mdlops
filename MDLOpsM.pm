@@ -527,7 +527,7 @@ sub patchnormal {
     # translate to world space orientation
     my $facenorm = &quaternion_apply(
       $model->{nodes}{$pos_data->{mesh}}{transform}{orientation},
-      @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2]
+      [ @{$model->{nodes}{$pos_data->{mesh}}{Bfaces}[$face_index]}[0..2] ]
     );
 #            my $facenorm = facenormal(
 #              @{$model->{nodes}{$pos_data->{mesh}}{verts}}[
