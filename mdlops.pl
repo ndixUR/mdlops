@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 ###########################################################
-# mdlops.pl version 1.0.1
+# mdlops.pl version 1.0.2
 # Copyright (C) 2004 Chuck Chargin Jr. (cchargin@comcast.net)
 #
 # (With some changes by JdNoa (jdnoa@hotmail.com) between
@@ -10,7 +10,7 @@
 # (With some more changes by VarsityPuppet and Fair Strides
 # (tristongoucher@gmail.com) during January 2016.)
 #
-# (With a lot more changes by ndix UR during 2016-2017.)
+# (With a lot more changes by ndix UR during 2016-2018.)
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -89,6 +89,11 @@
 #			    Fixed walkmesh use point encoding, off-by-one
 #			    Fixed ascii walkmesh node naming
 #			    Fixed walkmesh compatibility with mdledit/kmax
+#
+# June, 2020:           Version 1.0.2
+#                           Fixed cross-mesh smoothing by using world-space normals
+#                           Added vertex equality test matching mdledit
+#                           Fixed walkmesh floating point number parser
 #
 ##########################################################
 # MUCH MUCH MUCH thanks to Torlack for his NWN MDL info!
@@ -254,7 +259,7 @@ use File::Spec::Functions qw(canonpath);
 use File::Basename;
 
 use vars qw($VERSION $APPNAME);
-$VERSION = '1.0.1';
+$VERSION = '1.0.2';
 $APPNAME = 'MDLOps';
 
 #this holds all of the Tk objects
@@ -315,9 +320,9 @@ our $usegui;
 #perl2exe_include Tie/Handle
 
 #perl2exe_info ProductName=MDLOps
-#perl2exe_info ProductVersion=1.0.1
+#perl2exe_info ProductVersion=1.0.2
 #perl2exe_info FileDescription=MDLOps
-#perl2exe_info FileVersion=1.0.1
+#perl2exe_info FileVersion=1.0.2
 #perl2exe_info Comment=MDLOps
 #perl2exe_info InternalName=MDLOps
 #perl2exe_info OriginalFilename=mldops.exe

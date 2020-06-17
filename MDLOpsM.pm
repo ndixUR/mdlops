@@ -1,7 +1,7 @@
 #! perl
 #
 ###########################################################
-# MDLOpsM.pm version 1.0.1
+# MDLOpsM.pm version 1.0.2
 # Copyright (C) 2004 Chuck Chargin Jr. (cchargin@comcast.net)
 #
 # (With some changes by JdNoa (jdnoa@hotmail.com) between
@@ -88,6 +88,11 @@
 #                           Fixed walkmesh use point encoding, off-by-one
 #                           Fixed ascii walkmesh node naming
 #                           Fixed walkmesh compatibility with mdledit/kmax
+#
+# June, 2020:           Version 1.0.2
+#                           Fixed cross-mesh smoothing by using world-space normals
+#                           Added vertex equality test matching mdledit
+#                           Fixed walkmesh floating point number parser
 #
 ##########################################################
 # MUCH MUCH MUCH thanks to Torlack for his NWN MDL info!
